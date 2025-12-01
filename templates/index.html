@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Groundwater Contamination Assessment • CAST</title>
+  <!-- replace your existing Google Fonts link(s) with: -->
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20250926a">
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+</head>
+<body>
+
+  <!-- Collapsible Left Sidebar (unchanged) -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <button class="icon-btn" id="closeSidebar" aria-label="Close sidebar">☰</button>
+      <div class="brand">
+        <span class="brand-badge">CAST</span>
+        <span class="brand-sub">Groundwater Contamination Assessment</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-link" href="#intro">Introduction</a>
+      <a class="nav-link" href="#gw-toolboxes">Groundwater quality assessment toolboxes</a>
+      <a class="nav-link" href="#other-toolboxes">Other water quality toolboxes</a>
+      <a class="nav-link" href="#docs">Documentations</a>
+      <a class="nav-link" href="#footer-contact">Contact Us</a>
+    </nav>
+
+    <div class="nav-section">
+      <div class="nav-title">Quick Actions</div>
+      <button class="cta-light" aria-disabled="true" title="Demo only">Load Example Dataset</button>
+      <button class="cta-light" aria-disabled="true" title="Demo only">Download Template</button>
+    </div>
+  </aside>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="page">
+  <!-- Topbar (Header v2 per screenshots) -->
+<header class="topbar">
+  <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">☰</button>
+  <div class="topbar-right">
+   <button id="themeToggle" class="icon-btn" title="Toggle light/dark mode">🌙</button>
+   
+  </div>
+
+
+  <nav class="headbar" aria-label="Global">
+    <ul class="menu">
+      <li class="menu-item"><a class="menu-link" href="#">Home</a></li>
+
+      <li class="menu-item has-dd">
+        <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+          Analysis Visualisation ▾
+        </button>
+        <ul class="dropdown">
+          <li><a class="dd-link" href="#">All Plots</a></li>
+          <li><a class="dd-link" href="#">Bargraph</a></li>
+          <li><a class="dd-link" href="#">Boxplots</a></li>
+          <li><a class="dd-link" href="#">Histograms</a></li>
+          <li><a class="dd-link" href="#">Scatterplots</a></li>
+          <li><a class="dd-link" href="#">Statistical Analysis</a></li>
+        </ul>
+      </li>
+
+      <li class="menu-item has-dd">
+        <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+          Analytical Model ▾
+        </button>
+        <ul class="dropdown">
+          <li><a class="dd-link" href="#">All Models</a></li>
+          <li><a class="dd-link" href="#">Liedl et al. (2005)</a></li>
+          <li><a class="dd-link" href="#">Chu et al. (2004)</a></li>
+          <li><a class="dd-link" href="#">Ham et al. (2004)</a></li>
+          <li><a class="dd-link" href="#">Liedl et al. (2011)</a></li>
+          <li><a class="dd-link" href="#">BIOSCREEN-AT</a></li>
+        </ul>
+      </li>
+
+      <li class="menu-item has-dd">
+        <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+          Empirical Models ▾
+        </button>
+        <ul class="dropdown">
+          <li><a class="dd-link" href="#">All Models</a></li>
+          <li><a class="dd-link" href="#">Maier And Grathwohl (2005)</a></li>
+          <li><a class="dd-link" href="#">Birla et al. (2020)</a></li>
+        </ul>
+      </li>
+
+      <li class="menu-item has-dd">
+        <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+          Numerical Model ▾
+        </button>
+        <ul class="dropdown">
+          <li><a class="dd-link" href="#">Model Description</a></li>
+          <li><a class="dd-link" href="#">Single Computing Simulation</a></li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="topbar-right">
+    <nav class="menu">
+
+    {% if user %}
+        <!-- Show when logged in -->
+        <a href="{{ url_for('logout') }}" class="menu-link logout-link">Logout</a>
+    {% else %}
+        <!-- Show when not logged in -->
+        <a href="{{ url_for('login_page') }}" class="menu-link">Login</a>
+        <a href="{{ url_for('register_page') }}" class="menu-link">Sign Up</a>
+    {% endif %}
+</nav>
+
+
+  </div>
+</header>
+
+
+
+
+    <main class="content">
+      <!-- INTRO / HERO -->
+      <section id="intro" class="hero">
+        <div class="hero-text">
+          <h1>Groundwater Contamination Assessment</h1>
+          <p class="lead">
+            This interface presents toolboxes and documentation to assess groundwater quality, set up models,
+            and communicate results. Design is demo-only; content mirrors the previous site.
+          </p>
+          <div class="hero-actions">
+            <a href="#gw-toolboxes" class="primary-btn">Explore Toolboxes</a>
+            <a href="#docs" class="ghost-btn">Read Docs</a>
+          </div>
+          <ul class="bullets">
+            <li>Database & model input</li>
+            <li>Analytical, Empirical & Numerical models</li>
+            <li>Optimization & Water Quality Index tools</li>
+          </ul>
+        </div>
+
+    
+      </section>
+
+
+      <!-- GROUNDWATER ASSESSMENT TOOLBOXES -->
+      <section id="gw-toolboxes" class="section-spaced">
+        <header class="section-head">
+          <h2>Groundwater Assessment Toolboxes :</h2>
+        </header>
+
+        <div class="tile-grid">
+          <a id="model-site-db" class="tile" href="#" aria-disabled="true" title="Demo only">
+            <div class="tile-image tile-img-1"></div>
+            <div class="tile-label">SITE DATABASE<br>AND<br>MODEL INPUT</div>
+          </a>
+          <a id="model-analytical" class="tile" href="#" aria-disabled="true">
+            <div class="tile-image tile-img-2"></div>
+            <div class="tile-label">ANALYTICAL<br>MODELS</div>
+          </a>
+          <a id="model-empirical" class="tile" href="#" aria-disabled="true">
+            <div class="tile-image tile-img-3"></div>
+            <div class="tile-label">EMPIRICAL<br>MODELS</div>
+          </a>
+          <a id="model-numerical" class="tile" href="#" aria-disabled="true">
+            <div class="tile-image tile-img-4"></div>
+            <div class="tile-label">NUMERICAL<br>MODELS</div>
+          </a>
+          <a id="model-optimization" class="tile" href="#" aria-disabled="true">
+            <div class="tile-image tile-img-5"></div>
+            <div class="tile-label">OPTIMIZATION<br>TOOL</div>
+          </a>
+          <a id="model-wqi" class="tile" href="#" aria-disabled="true">
+            <div class="tile-image tile-img-6"></div>
+            <div class="tile-label">WATER<br>QUALITY<br>INDEX</div>
+          </a>
+        </div>
+      </section>
+
+      <!-- OTHER WATER QUALITY TOOLBOXES -->
+      <section id="other-toolboxes" class="other-toolboxes section-spaced">
+        <<div class="other-grid">
+  <img src="{{ url_for('static', filename='img/pic_test01.jpg') }}"
+       alt="Contaminated stream" class="other-image">
+  <div class="other-copy">
+    <h2>Other water quality toolboxes</h2>
+    <p>
+      The links provide tools that can be used for computing different aspects related with the quality of water.
+      These tools are developed independently by our partners and colleagues. The tools are:
+    </p>
+    <ol>
+      <li>Surface water quality index and models (e.g., DO-Sag)</li>
+      <li>Groundwater models (Prof. Al Valocchi, Univ-Illinois-UC)</li>
+      <li>Aquifer-Storage-Recharge (ASR) models (Prof. Charles Werth, Univ-Texas, Austin)</li>
+    </ol>
+    <p>These above toolboxes complement the toolboxes provided in this site.</p>
+  </div>
+</div>
+
+      </section>
+
+      <!-- DOCUMENTATION -->
+      <section id="docs" class="docs section-spaced">
+        <h2>User’s guide & Documentation</h2>
+        <p>The links below provide complete details required to use and develop the tools provided in this site. The suggested work-flow for using the tools is as follows:</p>
+        <ol>
+          <li>Start with the Database Toolbox</li>
+          <li>Follow then to Analytical model Toolbox or Empirical model toolbox, and then</li>
+          <li>Numerical model toolbox</li>
+        </ol>
+        <p>
+          The Decision Toolbox (not implemented yet) and the Other toolboxes do not require any work flow.
+          The User’s guide (not complete) will contain details on how to use the toolbox correctly with examples.
+          Also, will include examples and case studies. The complete documentation will include also details on
+          further development of the codes, adding new modules etc.
+        </p>
+        <div class="note">
+          <strong>NOTE:</strong> The authors of this site and the organizations supporting the development are not in any way responsible
+          for the results obtained using the tools provided in the site.
+        </div>
+        <div class="doc-buttons">
+          <a class="doc-btn" href="#" aria-disabled="true">User’s guide</a>
+          <a class="doc-btn" href="#" aria-disabled="true">Complete Documentation</a>
+          <a class="doc-btn" href="#" aria-disabled="true">Credits</a>
+        </div>
+      </section>
+
+      <!-- (REMOVED) Contact/Support section to avoid repetition -->
+    </main>
+
+   <!-- Footer -->
+<footer class="footer" role="contentinfo" id="footer-contact">
+  <div class="footer-inner">
+    <!-- Contact Us column -->
+    <div class="footer-col">
+      <h4>Contact Us</h4>
+      <form aria-disabled="true" onsubmit="return false;">
+        <label for="name">Name</label>
+        <input id="name" type="text" placeholder="Your name" />
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="your@email.com" />
+        <label for="msg">Message</label>
+        <textarea id="msg" rows="3" placeholder="Your message"></textarea>
+        <div class="form-actions">
+          <button class="cta" type="button" aria-disabled="true">Submit</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Supported By column -->
+    <div class="footer-col">
+      <h4>Supported By</h4>
+      <ul class="supporters">
+        <li><span class="logo-swatch"></span> MANIPAL UNIVERSITY JAIPUR</li>
+        <li><span class="logo-swatch"></span> Indian Institute of Technology Delhi</li>
+        <li><span class="logo-swatch"></span> TECHNISCHE UNIVERSITÄT DRESDEN</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+{% extends "base.html" %}
+
+{% block title %}Groundwater Contamination Assessment • CAST{% endblock %}
+
+{% block content %}
+
+<section id="intro" class="hero">
+  <div class="hero-text">
+    <h1>Groundwater Contamination Assessment</h1>
+    <p class="lead">
+      This interface presents toolboxes and documentation to assess groundwater quality, set up models,
+      and communicate results. Design is demo-only; content mirrors the previous site.
+    </p>
+    <div class="hero-actions">
+      <a href="#gw-toolboxes" class="primary-btn">Explore Toolboxes</a>
+      <a href="#docs" class="ghost-btn">Read Docs</a>
+    </div>
+    <ul class="bullets">
+      <li>Database & model input</li>
+      <li>Analytical, Empirical & Numerical models</li>
+      <li>Optimization & Water Quality Index tools</li>
+    </ul>
+  </div>
+</section>
+
+<section id="gw-toolboxes" class="section-spaced">
+  <header class="section-head">
+    <h2>Groundwater Assessment Toolboxes :</h2>
+  </header>
+
+  <div class="tile-grid">
+    <!-- SITE DB tile links to sitedb if logged in, otherwise to login -->
+    <a id="model-site-db"
+       class="tile"
+       href="{{ url_for('site_bp.site_database') if user else url_for('login_page') }}">
+      <div class="tile-image tile-img-1"></div>
+      <div class="tile-label">SITE DATABASE<br>AND<br>MODEL INPUT</div>
+    </a>
+
+    <a id="model-analytical" class="tile" href="#" aria-disabled="true">
+      <div class="tile-image tile-img-2"></div>
+      <div class="tile-label">ANALYTICAL<br>MODELS</div>
+    </a>
+    <a id="model-empirical" class="tile" href="#" aria-disabled="true">
+      <div class="tile-image tile-img-3"></div>
+      <div class="tile-label">EMPIRICAL<br>MODELS</div>
+    </a>
+    <a id="model-numerical" class="tile" href="#" aria-disabled="true">
+      <div class="tile-image tile-img-4"></div>
+      <div class="tile-label">NUMERICAL<br>MODELS</div>
+    </a>
+    <a id="model-optimization" class="tile" href="#" aria-disabled="true">
+      <div class="tile-image tile-img-5"></div>
+      <div class="tile-label">OPTIMIZATION<br>TOOL</div>
+    </a>
+    <a id="model-wqi" class="tile" href="#" aria-disabled="true">
+      <div class="tile-image tile-img-6"></div>
+      <div class="tile-label">WATER<br>QUALITY<br>INDEX</div>
+    </a>
+  </div>
+</section>
+
+<section id="other-toolboxes" class="other-toolboxes section-spaced">
+  <div class="other-grid">
+    <img src="{{ url_for('static', filename='img/pic_test01.jpg') }}"
+         alt="Contaminated stream" class="other-image">
+    <div class="other-copy">
+      <h2>Other water quality toolboxes</h2>
+      <p>
+        The links provide tools that can be used for computing different aspects related with the quality of water.
+        These tools are developed independently by our partners and colleagues. The tools are:
+      </p>
+      <ol>
+        <li>Surface water quality index and models (e.g., DO-Sag)</li>
+        <li>Groundwater models (Prof. Al Valocchi, Univ-Illinois-UC)</li>
+        <li>Aquifer-Storage-Recharge (ASR) models (Prof. Charles Werth, Univ-Texas, Austin)</li>
+      </ol>
+      <p>These above toolboxes complement the toolboxes provided in this site.</p>
+    </div>
+  </div>
+</section>
+
+<section id="docs" class="docs section-spaced">
+  <h2>User’s guide & Documentation</h2>
+  <p>The links below provide complete details required to use and develop the tools provided in this site. The suggested work-flow for using the tools is as follows:</p>
+  <ol>
+    <li>Start with the Database Toolbox</li>
+    <li>Follow then to Analytical model Toolbox or Empirical model toolbox, and then</li>
+    <li>Numerical model toolbox</li>
+  </ol>
+  <p>
+    The Decision Toolbox (not implemented yet) and the Other toolboxes do not require any work flow.
+    The User’s guide (not complete) will contain details on how to use the toolbox correctly with examples.
+    Also, will include examples and case studies. The complete documentation will include also details on
+    further development of the codes, adding new modules etc.
+  </p>
+  <div class="note">
+    <strong>NOTE:</strong> The authors of this site and the organizations supporting the development are not in any way responsible
+    for the results obtained using the tools provided in the site.
+  </div>
+  <div class="doc-buttons">
+    <a class="doc-btn" href="#" aria-disabled="true">User’s guide</a>
+    <a class="doc-btn" href="#" aria-disabled="true">Complete Documentation</a>
+    <a class="doc-btn" href="#" aria-disabled="true">Credits</a>
+  </div>
+</section>
+
+{% endblock %}

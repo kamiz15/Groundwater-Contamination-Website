@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Groundwater Contamination Assessment • CAST{% endblock %}</title>
+
+  <!-- Main app styles -->
+  <link rel="stylesheet"
+        href="{{ url_for('static', filename='styles.css') }}?v=20250926a">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+
+  <!-- Bokeh CSS + JS (needed for all Bokeh plots) -->
+  <link rel="stylesheet"
+        href="https://cdn.bokeh.org/bokeh/release/bokeh-3.4.0.min.css">
+  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.4.0.min.js"></script>
+</head>
+<body>
+
+  <!-- Collapsible Left Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <button class="icon-btn" id="closeSidebar" aria-label="Close sidebar">☰</button>
+      <div class="brand">
+        <span class="brand-badge">CAST</span>
+        <span class="brand-sub">Groundwater Contamination Assessment</span>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Primary">
+      <a class="nav-link" href="{{ url_for('home') }}#intro">Introduction</a>
+      <a class="nav-link" href="{{ url_for('home') }}#gw-toolboxes">Groundwater quality assessment toolboxes</a>
+      <a class="nav-link" href="{{ url_for('home') }}#other-toolboxes">Other water quality toolboxes</a>
+      <a class="nav-link" href="{{ url_for('home') }}#docs">Documentations</a>
+      <a class="nav-link" href="{{ url_for('home') }}#footer-contact">Contact Us</a>
+    </nav>
+
+    <div class="nav-section">
+      <div class="nav-title">Quick Actions</div>
+      <button class="cta-light" aria-disabled="true" title="Demo only">Load Example Dataset</button>
+      <button class="cta-light" aria-disabled="true" title="Demo only">Download Template</button>
+    </div>
+  </aside>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="page">
+    <!-- Topbar -->
+    <header class="topbar">
+      <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">☰</button>
+
+      <nav class="headbar" aria-label="Global">
+        <ul class="menu">
+          <li class="menu-item">
+            <a class="menu-link" href="{{ url_for('home') }}">Home</a>
+          </li>
+
+          <!-- Site Database -->
+          <li class="menu-item">
+            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Site Database</a>
+          </li>
+
+          <!-- Analysis visualisation -->
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Analysis Visualisation ▾
+            </button>
+            <ul class="dropdown">
+              <li><a class="dd-link" href="{{ url_for('site_bp.plot_bar') }}">Bargraph</a></li>
+              <li><a class="dd-link" href="{{ url_for('site_bp.plot_box') }}">Boxplots</a></li>
+              <li><a class="dd-link" href="{{ url_for('site_bp.plot_hist') }}">Histograms</a></li>
+              <li><a class="dd-link" href="#">All Plots</a></li>
+              <li><a class="dd-link" href="#">Scatterplots</a></li>
+              <li><a class="dd-link" href="#">Statistical Analysis</a></li>
+            </ul>
+          </li>
+
+          <!-- Analytical models -->
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Analytical Models ▾
+            </button>
+            <ul class="dropdown">
+              <!-- Liedl -->
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl – Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple_wrapper') }}">Liedl – Multiple</a></li>
+
+              <!-- Chu -->
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu – Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_multiple_wrapper') }}">Chu – Multiple</a></li>
+
+              <!-- Ham -->
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham – Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_multiple_wrapper') }}">Ham – Multiple</a></li>
+            </ul>
+          </li>
+
+          <!-- Empirical models -->
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Empirical Models ▾
+            </button>
+            <ul class="dropdown">
+              <li><a class="dd-link" href="#">All Models</a></li>
+              <li><a class="dd-link" href="#">Maier And Grathwohl (2005)</a></li>
+              <li><a class="dd-link" href="#">Birla et al. (2020)</a></li>
+            </ul>
+          </li>
+
+          <!-- Numerical model -->
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Numerical Model ▾
+            </button>
+            <ul class="dropdown">
+              <li><a class="dd-link" href="#">Model Description</a></li>
+              <li><a class="dd-link" href="#">Single Computing Simulation</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Right side of top bar: theme + auth -->
+      <div class="topbar-right">
+        <button id="themeToggle" class="icon-btn" title="Toggle light/dark mode">🌙</button>
+
+        <nav class="menu">
+          {% if user %}
+            <span class="menu-link user-label">Hi, {{ user }}</span>
+            <a href="{{ url_for('logout') }}" class="menu-link logout-link">Logout</a>
+          {% else %}
+            <a href="{{ url_for('login_page') }}" class="menu-link">Login</a>
+            <a href="{{ url_for('register_page') }}" class="menu-link">Sign Up</a>
+          {% endif %}
+        </nav>
+      </div>
+    </header>
+
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo" id="footer-contact">
+      <div class="footer-inner">
+        <div class="footer-col">
+          <h4>Contact Us</h4>
+          <form aria-disabled="true" onsubmit="return false;">
+            <label for="name">Name</label>
+            <input id="name" type="text" placeholder="Your name" />
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="your@email.com" />
+            <label for="msg">Message</label>
+            <textarea id="msg" rows="3" placeholder="Your message"></textarea>
+            <div class="form-actions">
+              <button class="cta" type="button" aria-disabled="true">Submit</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="footer-col">
+          <h4>Supported By</h4>
+          <ul class="supporters">
+            <li><span class="logo-swatch"></span> MANIPAL UNIVERSITY JAIPUR</li>
+            <li><span class="logo-swatch"></span> Indian Institute of Technology Delhi</li>
+            <li><span class="logo-swatch"></span> TECHNISCHE UNIVERSITÄT DRESDEN</li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- App JS -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

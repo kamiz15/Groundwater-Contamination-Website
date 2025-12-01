@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Ham et al. — Single Simulation{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Ham et al. — Single Simulation</h2>
+
+  <p>
+    This page embeds the Panel-based single-scenario Ham model. Adjust the parameters
+    in the Panel UI below to compute the corresponding <strong>Lmax</strong> value and
+    see it visualised as a scatter point.
+  </p>
+
+  <p>
+    If you want to compare several scenarios at once, you can also try the
+    <a href="{{ url_for('analytical_bp.ham_multiple_wrapper') }}">
+      Ham – Multiple Simulation
+    </a>.
+  </p>
+
+  <div class="iframe-wrapper">
+    <iframe
+      src="http://localhost:5007/panel_ham_single"
+      title="Ham single simulation"
+      loading="lazy"
+      frameborder="0">
+    </iframe>
+  </div>
+</section>
+{% endblock %}

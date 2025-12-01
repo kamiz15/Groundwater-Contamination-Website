@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Histogram</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <header>
+    <h2>Histogram for {{ user }}</h2>
+    <nav>
+      <a href="{{ url_for('site_bp.site_database') }}">⬅ Back to Site Database</a>
+    </nav>
+  </header>
+
+  <section>
+    <div id="hist">{{ hist|safe }}</div>
+  </section>
+</body>
+</html>
+{% extends "base.html" %}
+{% block title %}Histogram{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Histogram</h2>
+  {{ script|safe }}
+  <div class="card-like">
+    {{ div|safe }}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Box Plot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <header>
+    <h2>Box Plot for {{ user }}</h2>
+    <nav>
+      <a href="{{ url_for('site_bp.site_database') }}">⬅ Back to Site Database</a>
+    </nav>
+  </header>
+
+  <section>
+    <div id="box">{{ box|safe }}</div>
+  </section>
+</body>
+</html>
+{% extends "base.html" %}
+{% block title %}Box Plot{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Box Plot</h2>
+  {{ script|safe }}
+  <div class="card-like">
+    {{ div|safe }}
+  </div>
+</section>
+{% endblock %}

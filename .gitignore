@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.DS_Store
+
+# Virtual environments
+venv/
+.env/
+.env*/
+.venv/
+.venv*/
+
+# VS Code
+.vscode/
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.dll
+*.dylib
+
+# Logs
+*.log
+
+# Local DBs (if you don't want to commit them)
+*.db
+*.sqlite
+*.sqlite3
+
+# Panel / Bokeh cache
+.bokeh/
+panel-temp/

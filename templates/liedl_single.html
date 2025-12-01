@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Liedl et al. (2005) – Single Simulation{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Liedl et al. (2005) – Single Simulation</h2>
+
+  <p>
+    This view is powered entirely by a Panel app. Use the controls inside the
+    frame to change the input parameters and see how <strong>Lmax</strong>
+    responds.
+  </p>
+
+  <div class="panel-frame">
+    <iframe
+      src="{{ panel_src }}"
+      frameborder="0"
+      width="100%"
+      height="650"
+      style="background:#f5f7fb;">
+    </iframe>
+  </div>
+</section>
+{% endblock %}

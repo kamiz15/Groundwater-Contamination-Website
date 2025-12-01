@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register | CAST Web</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script defer src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <h2>Create Account</h2>
+        <p class="login-subtitle">Join the CAST platform to access your dashboard ⚙️</p>
+
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="reg_username">Username</label>
+                <input type="text" id="reg_username" name="username" placeholder="Your full name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reg_email">Email</label>
+                <input type="email" id="reg_email" name="email" placeholder="example@university.edu" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reg_password">Password</label>
+                <input type="password" id="reg_password" name="password" placeholder="Create a password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reg_confirm">Confirm Password</label>
+                <input type="password" id="reg_confirm" name="confirmPassword" placeholder="Re-enter password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reg_country">Country</label>
+                <input type="text" id="reg_country" name="country" placeholder="Your country" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reg_org">Organisation</label>
+                <input type="text" id="reg_org" name="organisation" placeholder="Your organisation or university" required>
+            </div>
+
+            <button type="submit" class="btn-primary">Sign Up</button>
+
+            <div id="registerMessage"></div>
+
+            <p class="no-account">
+                Already have an account? <a href="{{ url_for('login_page') }}">Login</a>
+            </p>
+        </form>
+    </div>
+    <script>
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = {
+        username: document.getElementById("reg_username").value,
+        email: document.getElementById("reg_email").value,
+        password: document.getElementById("reg_password").value,
+        confirmPassword: document.getElementById("reg_confirm").value,
+        country: document.getElementById("reg_country").value,
+        organisation: document.getElementById("reg_org").value
+    };
+
+    const response = await fetch("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    const msgBox = document.getElementById("registerMessage");
+    msgBox.textContent = result.message || "";
+
+    if (result.success) {
+        msgBox.style.color = "green";
+        msgBox.textContent = "Registration successful! Redirecting...";
+        setTimeout(() => window.location.href = result.redirect, 1000);
+    } else {
+        msgBox.style.color = "red";
+    }
+});
+</script>
+
+</body>
+</html>

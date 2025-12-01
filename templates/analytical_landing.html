@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Analytical Models</h1>
+
+  <ul>
+    <li>
+      Liedl:
+      <a href="{{ url_for('analytical_bp.liedl_single') }}">Single</a> |
+      <a href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple</a>
+    </li>
+    <li>
+      Chu:
+      <a href="{{ url_for('analytical_bp.chu_single') }}">Single</a> |
+      <a href="{{ url_for('analytical_bp.chu_multiple') }}">Multiple</a>
+    </li>
+    <li>
+      Ham:
+      <a href="{{ url_for('analytical_bp.ham_single') }}">Single</a> |
+      <a href="{{ url_for('analytical_bp.ham_multiple') }}">Multiple</a>
+    </li>
+  </ul>
+</div>
+{% endblock %}
+<button class="btn btn-sm btn-outline-secondary mt-3" onclick="pingPanel()">
+  Check Panel server
+</button>
+<pre id="panel-status" class="mt-2 small text-muted"></pre>
+
+<script>
+async function pingPanel() {
+  const el = document.getElementById("panel-status");
+  el.textContent = "Checking Panel...";
+  try {
+    const resp = await fetch("http://127.0.0.1:5007/");
+    el.textContent = "Panel server reachable, status " + resp.status;
+  } catch (err) {
+    el.textContent = "Panel server NOT reachable: " + err;
+  }
+}
+</script>

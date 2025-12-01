@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Plume Length Bar Graph</h2>
+  {% if plot_div %}
+    {{ plot_div | safe }}
+    {{ plot_script | safe }}
+  {% else %}
+    <p>No data available to plot yet.</p>
+  {% endif %}
+{% endblock %}

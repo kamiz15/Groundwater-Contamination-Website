@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Liedl et al. (2005) — Multiple Simulation{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Liedl et al. (2005) — Multiple Simulation</h2>
+
+  <p class="small">
+    This view is powered entirely by a Panel app. Use the table and controls inside
+    the frame to define several scenarios and compare their <strong>Lmax</strong> values.
+  </p>
+
+  <div class="panel-frame-wrapper">
+    <!-- This URL must match the key in panel_server.py -->
+    <iframe
+      src="http://localhost:5007/panel_liedl_multiple"
+      title="Liedl multiple simulation (Panel)"
+      class="panel-frame"
+      style="width: 100%; min-height: 540px; border: 0;"
+    ></iframe>
+  </div>
+</section>
+{% endblock %}

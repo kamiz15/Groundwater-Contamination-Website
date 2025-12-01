@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Site Database & Model Input{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Site Database & Model Input</h2>
+
+  {% if message %}
+    <p class="flash flash-success">{{ message }}</p>
+  {% endif %}
+  {% if error %}
+    <p class="flash flash-error">{{ error }}</p>
+  {% endif %}
+
+  <div class="card-like">
+    <h3>Upload Site Data (CSV)</h3>
+    <p class="small">
+      Upload multiple sites at once. CSV must include headers:<br>
+      <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity, electron_donor, electron_acceptor_o2, electron_acceptor_no3</code>
+    </p>
+    <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
+      <input type="hidden" name="action" value="upload_csv">
+      <label class="file-label">
+        <span id="csvFileLabel">Choose CSV file…</span>
+        <input id="csvFileInput" type="file" name="csv_file" accept=".csv">
+      </label>
+      <button type="submit" class="primary-btn">Upload CSV</button>
+    </form>
+  </div>
+
+  <div class="card-like">
+    <h3>Add Single Site Manually</h3>
+    <form method="POST" class="site-form">
+      <input type="hidden" name="action" value="manual">
+
+      <input type="text" name="site_unit" placeholder="Site Unit" required>
+      <input type="text" name="compound" placeholder="Compound" required>
+
+      <div class="site-form-grid">
+        <input type="number" step="any" name="aquifer_thickness" placeholder="Aquifer Thickness (m)">
+        <input type="number" step="any" name="plume_length" placeholder="Plume Length (m)">
+        <input type="number" step="any" name="plume_width" placeholder="Plume Width (m)">
+        <input type="number" step="any" name="hydraulic_conductivity" placeholder="Hydraulic Conductivity (10⁻³ m/s)">
+        <input type="number" step="any" name="electron_donor" placeholder="Electron Donor (mg/l)">
+        <input type="number" step="any" name="electron_acceptor_o2" placeholder="O₂ (mg/l)">
+        <input type="number" step="any" name="electron_acceptor_no3" placeholder="NO₃ (mg/l)">
+      </div>
+
+      <button type="submit" class="primary-btn">Add Site</button>
+    </form>
+  </div>
+
+  <div class="card-like">
+    <h3>Your Site Entries</h3>
+
+    {% if sites %}
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Site Unit</th>
+              <th>Compound</th>
+              <th>Aquifer Thickness (m)</th>
+              <th>Plume Length (m)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sites %}
+              <tr>
+                <td>{{ s.site_unit }}</td>
+                <td>{{ s.compound }}</td>
+                <td>{{ s.aquifer_thickness }}</td>
+                <td>{{ s.plume_length }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>No site entries yet. Upload a CSV or add one above to begin.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Ham et al. — Multiple Simulation{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Ham et al. — Multiple Simulation</h2>
+
+  <p class="small">
+    This view embeds the Ham multiple-scenario Panel app. Inside the frame you can
+    edit the parameters for several scenarios and see the resulting
+    <strong>Lmax</strong> values visualised (e.g. as a scatter or bar plot).
+  </p>
+
+  <div class="panel-frame-wrapper">
+    <!-- Must match the mapping in panel_server.py: "panel_ham_multiple": ham_multiple_app -->
+    <iframe
+      src="http://localhost:5007/panel_ham_multiple"
+      title="Ham multiple simulation (Panel)"
+      class="panel-frame"
+      style="width: 100%; min-height: 540px; border: 0;"
+    ></iframe>
+  </div>
+</section>
+{% endblock %}

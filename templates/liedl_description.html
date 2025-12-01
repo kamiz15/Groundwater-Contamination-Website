@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Liedl et al. (2005) – Model Description{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Liedl et al. (2005) – Analytical Plume Model</h2>
+
+  <div class="card-like">
+    <p>
+      The Liedl et al. (2005) model provides an analytical expression for the
+      maximum length of a reactive groundwater plume in a vertically non-uniform
+      aquifer. It accounts for aquifer thickness, transverse dispersivity and
+      a stoichiometric reaction between an electron donor and an electron acceptor.
+    </p>
+
+    <p>
+      In this tool you provide:
+    </p>
+    <ul>
+      <li><strong>M</strong> – aquifer thickness (m)</li>
+      <li><strong>α<sub>Tv</sub></strong> – transverse dispersivity (m)</li>
+      <li><strong>γ</strong> – stoichiometric ratio</li>
+      <li><strong>C<sub>EA</sub>°</strong> – initial electron acceptor concentration (mg/L)</li>
+      <li><strong>C<sub>ED</sub>°</strong> – initial electron donor concentration (mg/L)</li>
+    </ul>
+
+    <p>
+      The current implementation uses a simplified expression for the maximum
+      plume length (<code>compute_liedl_Lmax</code> in <code>analytical_routes.py</code>).
+      Later you can replace that with the exact formula ported from the original
+      CAST implementation while keeping the same UI.
+    </p>
+
+    <p>
+      <strong>Reference:</strong><br>
+      Liedl, R. et al. (2005). <em>Steady-state plumes in vertically nonuniform aquifers</em>.
+      Journal of Contaminant Hydrology.
+    </p>
+
+    <p>
+      <a class="primary-btn" href="{{ url_for('analytical_bp.liedl_single') }}">
+        Run single simulation
+      </a>
+      <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl_multiple') }}">
+        View multiple simulations
+      </a>
+    </p>
+  </div>
+</section>
+{% endblock %}
