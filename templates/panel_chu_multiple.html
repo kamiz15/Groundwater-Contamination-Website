@@ -1,23 +1,23 @@
 {% extends "base.html" %}
-
-{% block title %}Chu et al. — Multiple Simulation{% endblock %}
-
+{% block title %}Chu et al. - Multiple Simulation{% endblock %}
 {% block content %}
-<section class="section-spaced">
-  <h2>Chu et al. — Multiple Simulation</h2>
-  <p>
-    This view is powered entirely by a Panel app. Edit the input table and
-    the Lmax scatter plot inside the frame will update for each scenario.
-  </p>
-
-  <div class="panel-frame">
-    <iframe
-      src="{{ panel_src }}"
-      frameborder="0"
-      width="100%"
-      height="650"
-      style="background: #f5f7fb;">
-    </iframe>
+<section class="section-spaced model-page">
+  <h2>Chu et al. - Multiple Simulation</h2>
+  {% if sites %}
+  <div class="card-like">
+    <form method="GET" class="site-form csv-form">
+      <label for="site_id"><strong>Use uploaded site data:</strong></label>
+      <select id="site_id" name="site_id">
+        {% for s in sites %}
+        <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="primary-btn">Load Site</button>
+    </form>
+  </div>
+  {% endif %}
+  <div class="panel-shell">
+    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
   </div>
 </section>
 {% endblock %}

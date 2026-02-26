@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from site_routes import site_bp   # <-- import the blueprint
 from analytical_routes import analytical_bp
 from empirical_routes import empirical_bp
+from plot_routes import plot_bp
+
 
 
 
@@ -46,7 +48,7 @@ app.config['DB_CONNECTION'] = get_db_connection
 # ----------------------------
 # Register Blueprint
 # ----------------------------
-
+app.register_blueprint(plot_bp)
 app.register_blueprint(site_bp)
 app.register_blueprint(analytical_bp)
 app.register_blueprint(empirical_bp)
@@ -122,6 +124,7 @@ def register_user():
 def logout():
     session.clear()
     return redirect(url_for("home"))
+print("\n".join(sorted(app.view_functions.keys())))
 
 # ----------------------------
 # Run App

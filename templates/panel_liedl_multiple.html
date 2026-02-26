@@ -1,24 +1,23 @@
 {% extends "base.html" %}
-
-{% block title %}Liedl et al. (2005) — Multiple Simulation{% endblock %}
-
+{% block title %}Liedl et al. (2005) - Multiple Simulation{% endblock %}
 {% block content %}
-<section class="section-spaced">
-  <h2>Liedl et al. (2005) — Multiple Simulation</h2>
-
-  <p class="small">
-    This view is powered entirely by a Panel app. Use the table and controls inside
-    the frame to define several scenarios and compare their <strong>Lmax</strong> values.
-  </p>
-
-  <div class="panel-frame-wrapper">
-    <!-- This URL must match the key in panel_server.py -->
-    <iframe
-      src="http://localhost:5007/panel_liedl_multiple"
-      title="Liedl multiple simulation (Panel)"
-      class="panel-frame"
-      style="width: 100%; min-height: 540px; border: 0;"
-    ></iframe>
+<section class="section-spaced model-page">
+  <h2>Liedl et al. (2005) - Multiple Simulation</h2>
+  {% if sites %}
+  <div class="card-like">
+    <form method="GET" class="site-form csv-form">
+      <label for="site_id"><strong>Use uploaded site data:</strong></label>
+      <select id="site_id" name="site_id">
+        {% for s in sites %}
+        <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="primary-btn">Load Site</button>
+    </form>
+  </div>
+  {% endif %}
+  <div class="panel-shell">
+    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
   </div>
 </section>
 {% endblock %}

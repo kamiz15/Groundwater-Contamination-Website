@@ -3,23 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Groundwater Contamination Assessment • CAST{% endblock %}</title>
+  <title>{% block title %}CAST{% endblock %}</title>
 
-  <!-- Main app styles -->
-  <link rel="stylesheet"
-        href="{{ url_for('static', filename='styles.css') }}?v=20250926a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20250926a">
 
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
-
-  <!-- Bokeh CSS + JS (needed for all Bokeh plots) -->
-  <link rel="stylesheet"
-        href="https://cdn.bokeh.org/bokeh/release/bokeh-3.4.0.min.css">
-  <script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.4.0.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
+
 <body>
 
   <!-- Collapsible Left Sidebar -->
@@ -33,11 +25,11 @@
     </div>
 
     <nav class="nav" aria-label="Primary">
-      <a class="nav-link" href="{{ url_for('home') }}#intro">Introduction</a>
-      <a class="nav-link" href="{{ url_for('home') }}#gw-toolboxes">Groundwater quality assessment toolboxes</a>
-      <a class="nav-link" href="{{ url_for('home') }}#other-toolboxes">Other water quality toolboxes</a>
-      <a class="nav-link" href="{{ url_for('home') }}#docs">Documentations</a>
-      <a class="nav-link" href="{{ url_for('home') }}#footer-contact">Contact Us</a>
+      <a class="nav-link" href="#intro">Introduction</a>
+      <a class="nav-link" href="#gw-toolboxes">Groundwater quality assessment toolboxes</a>
+      <a class="nav-link" href="#other-toolboxes">Other water quality toolboxes</a>
+      <a class="nav-link" href="#docs">Documentations</a>
+      <a class="nav-link" href="#footer-contact">Contact Us</a>
     </nav>
 
     <div class="nav-section">
@@ -50,98 +42,97 @@
   <div class="backdrop" id="backdrop"></div>
 
   <div class="page">
-    <!-- Topbar -->
+
+    <!-- TOPBAR -->
     <header class="topbar">
       <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">☰</button>
 
       <nav class="headbar" aria-label="Global">
         <ul class="menu">
+
           <li class="menu-item">
             <a class="menu-link" href="{{ url_for('home') }}">Home</a>
           </li>
 
-          <!-- Site Database -->
-          <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Site Database</a>
-          </li>
-
-          <!-- Analysis visualisation -->
+          <!-- Analysis Visualisation (disable for now because plot_bp not registered) -->
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
               Analysis Visualisation ▾
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_bar') }}">Bargraph</a></li>
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_box') }}">Boxplots</a></li>
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_hist') }}">Histograms</a></li>
               <li><a class="dd-link" href="#">All Plots</a></li>
+              <li><a class="dd-link" href="#">Bargraph</a></li>
+              <li><a class="dd-link" href="#">Boxplots</a></li>
+              <li><a class="dd-link" href="#">Histograms</a></li>
               <li><a class="dd-link" href="#">Scatterplots</a></li>
               <li><a class="dd-link" href="#">Statistical Analysis</a></li>
             </ul>
           </li>
 
-          <!-- Analytical models -->
+          <!-- Analytical Model (fixed to ONLY existing endpoints) -->
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Analytical Models ▾
+              Analytical Model ▾
             </button>
             <ul class="dropdown">
-              <!-- Liedl -->
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl – Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple_wrapper') }}">Liedl – Multiple</a></li>
 
-              <!-- Chu -->
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu – Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_multiple_wrapper') }}">Chu – Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">All Models</a></li>
 
-              <!-- Ham -->
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham – Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_multiple_wrapper') }}">Ham – Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005)</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu et al. (2004)</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham et al. (2004)</a></li>
+
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple') }}">Liedl et al.(Multiple) (2011)</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_single') }}">BIOSCREEN-AT (Single)</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">BIOSCREEN-AT (Multiple)</a></li>
+              
+
             </ul>
           </li>
 
-          <!-- Empirical models -->
-          <li class="menu-item has-dd">
-            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Empirical Models ▾
-            </button>
-            <ul class="dropdown">
-              <li><a class="dd-link" href="#">All Models</a></li>
-              <li><a class="dd-link" href="#">Maier And Grathwohl (2005)</a></li>
-              <li><a class="dd-link" href="#">Birla et al. (2020)</a></li>
-            </ul>
-          </li>
+          <!-- Empirical Models (disable landing if you don't have it) -->
+            <li class="menu-item has-dd">
+              <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+                Empirical Models ▾
+              </button>
+        <ul class="dropdown">
+          <li><a class="dd-link" href="{{ url_for('empirical_bp.empirical_landing') }}">All Models</a></li>
+          <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier & Grathwohl — Single</a></li>
+          <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_multiple') }}">Maier & Grathwohl — Multiple</a></li>
+          <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. — Single</a></li>
+          <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_multiple') }}">Birla et al. — Multiple</a></li>
+        </ul>
+      </li>
 
-          <!-- Numerical model -->
+
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
               Numerical Model ▾
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="#">Model Description</a></li>
-              <li><a class="dd-link" href="#">Single Computing Simulation</a></li>
+              <li><a class="dd-link" href="#" aria-disabled="true">Model Description</a></li>
+              <li><a class="dd-link" href="#" aria-disabled="true">Single Computing Simulation</a></li>
             </ul>
           </li>
+
+          <li class="menu-item">
+            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database & Model Input</a>
+          </li>
+
         </ul>
       </nav>
 
-      <!-- Right side of top bar: theme + auth -->
       <div class="topbar-right">
-        <button id="themeToggle" class="icon-btn" title="Toggle light/dark mode">🌙</button>
-
-        <nav class="menu">
-          {% if user %}
-            <span class="menu-link user-label">Hi, {{ user }}</span>
-            <a href="{{ url_for('logout') }}" class="menu-link logout-link">Logout</a>
-          {% else %}
-            <a href="{{ url_for('login_page') }}" class="menu-link">Login</a>
-            <a href="{{ url_for('register_page') }}" class="menu-link">Sign Up</a>
-          {% endif %}
-        </nav>
+        {% if user %}
+          <a href="{{ url_for('logout') }}" class="menu-link logout-link">Logout</a>
+        {% else %}
+          <a href="{{ url_for('login_page') }}" class="menu-link">Login</a>
+          <a href="{{ url_for('register_page') }}" class="menu-link">Sign Up</a>
+        {% endif %}
       </div>
     </header>
 
-    <main class="content">
+    <main class="content {% block content_class %}{% endblock %}">
       {% block content %}{% endblock %}
     </main>
 
@@ -173,9 +164,9 @@
         </div>
       </div>
     </footer>
+
   </div>
 
-  <!-- App JS -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

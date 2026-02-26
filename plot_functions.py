@@ -73,7 +73,7 @@ def create_bargraph(table_data: List[list]) -> Tuple[str, str]:
         x_axis_label="Index",
         y_axis_label="Plume Length (m)",
         height=420,
-        sizing_mode="stretch_width",
+        sizing_mode="stretch_both",
         toolbar_location="above",
     )
 
@@ -122,7 +122,7 @@ def create_boxplot(label: str, table_data: list[list], index: int):
         x_range=["Original", "User"],
         y_axis_label=label,
         height=420,
-        sizing_mode="stretch_width",
+        sizing_mode="stretch_both",
         toolbar_location="above",
     )
 
@@ -139,7 +139,7 @@ def create_boxplot(label: str, table_data: list[list], index: int):
         p.segment(category, lower, category, q1, line_color="black")
         p.rect(category, upper, 0.2, 0.0001, line_color="black")
         p.rect(category, lower, 0.2, 0.0001, line_color="black")
-        p.circle([category], [q2], size=8, color="black")
+        p.scatter([category], [q2], size=8, color="black", marker="circle")
 
     draw_box("Original", orig_vals, Category10[10][0])
     draw_box("User", user_vals, Category10[10][1])
@@ -168,7 +168,7 @@ def create_histogram(feature: str, table_data: List[list], index: int, parameter
         x_axis_label=parameter,
         y_axis_label="Density",
         height=420,
-        sizing_mode="stretch_width",
+        sizing_mode="stretch_both",
         toolbar_location="above",
     )
 
@@ -229,7 +229,7 @@ def create_liedl_scatter(user_Lmax: float | None):
 
     p = figure(
         height=450,
-        sizing_mode="stretch_width",
+        sizing_mode="stretch_both",
         x_axis_label="Site Number",
         y_axis_label="Plume Length (m)",
         title="User Plume Length vs Original Database",
@@ -263,7 +263,7 @@ def create_liedl_multiple_plot(rows, selected_ids):
     selected_ids = {int(s) for s in selected_ids} if selected_ids else set()
 
     if not rows:
-        p = figure(height=300, sizing_mode="stretch_width", title="No scenarios available")
+        p = figure(height=300, sizing_mode="stretch_both", title="No scenarios available")
         return components(p)
 
     site_ids = [r[0] for r in rows]
@@ -288,7 +288,7 @@ def create_liedl_multiple_plot(rows, selected_ids):
 
     p = figure(
         height=450,
-        sizing_mode="stretch_width",
+        sizing_mode="stretch_both",
         x_axis_label="Scenario ID",
         y_axis_label="Plume Length Lmax (m)",
         title="Liedl et al. (2005) – Multiple Simulation",

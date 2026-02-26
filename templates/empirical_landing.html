@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Empirical Models • CAST{% endblock %}
+{% block content %}
+
+<section class="section-spaced">
+  <h2>Empirical Models</h2>
+  <p>Select a model and simulation type.</p>
+
+  <div class="tile-grid" style="margin-top: 16px;">
+    <div class="tile" style="padding: 18px;">
+      <h3>Maier & Grathwohl</h3>
+      <div style="display:flex; gap:12px; margin-top:12px;">
+        <a class="primary-btn" href="{{ url_for('empirical_bp.maier_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('empirical_bp.maier_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+
+    <div class="tile" style="padding: 18px;">
+      <h3>Birla et al.</h3>
+      <div style="display:flex; gap:12px; margin-top:12px;">
+        <a class="primary-btn" href="{{ url_for('empirical_bp.birla_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('empirical_bp.birla_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

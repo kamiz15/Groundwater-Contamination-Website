@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Ham et al. - Multiple Simulation{% endblock %}
+{% block title %}BIOSCREEN-AT - Multiple Simulation{% endblock %}
 {% block content %}
 <section class="section-spaced model-page">
-  <h2>Ham et al. - Multiple Simulation</h2>
+  <h2>BIOSCREEN-AT - Multiple Simulation</h2>
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">
@@ -17,7 +17,7 @@
   </div>
   {% endif %}
   <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
+    <iframe src="{{ panel_src }}" class="panel-frame" loading="lazy" allow="clipboard-read; clipboard-write"></iframe>
   </div>
 </section>
 {% endblock %}
