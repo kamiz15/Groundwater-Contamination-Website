@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}BIOSCREEN-AT - Multiple Simulation{% endblock %}
+{% block title %}Liedl 3D - Single Simulation{% endblock %}
 {% block content %}
 <section class="section-spaced model-page">
-  <h2>BIOSCREEN-AT - Multiple Simulation</h2>
-  <p class="small">Manual scenario inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <h2>Liedl 3D - Single Simulation</h2>
+  <p class="small">Manual model inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">
@@ -20,11 +20,9 @@
       {% endif %}
     </form>
   </div>
-  {% else %}
-  <p class="small">No uploaded site data found. The model is currently in manual input mode.</p>
   {% endif %}
   <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame" loading="lazy" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
   </div>
 </section>
 {% endblock %}

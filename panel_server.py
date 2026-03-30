@@ -1,8 +1,12 @@
 # panel_server.py
 import panel as pn
 
+from settings import PANEL_ALLOW_ORIGINS, PANEL_HOST, PANEL_PORT
+
 from panel_liedl_single import liedl_single_app
 from panel_liedl_multiple import liedl_multiple_app
+from panel_liedl3d_single import liedl3d_single_app
+from panel_liedl3d_multiple import liedl3d_multiple_app
 
 from panel_chu import chu_single_app, chu_multiple_app
 
@@ -15,6 +19,8 @@ from panel_maier_single import maier_single_app
 from panel_maier_multiple import maier_multiple_app
 from panel_birla_single import birla_single_app
 from panel_birla_multiple import birla_multiple_app
+from panel_numerical_single import numerical_single_app
+from panel_numerical_multiple import numerical_multiple_app
 
 
 pn.extension("tabulator")
@@ -26,6 +32,8 @@ apps = {
 
     "panel_liedl_single": liedl_single_app,
     "panel_liedl_multiple": liedl_multiple_app,
+    "panel_liedl3d_single": liedl3d_single_app,
+    "panel_liedl3d_multiple": liedl3d_multiple_app,
 
     "panel_chu_single": chu_single_app,
     "panel_chu_multiple": chu_multiple_app,
@@ -41,29 +49,26 @@ apps = {
     "panel_maier_multiple": maier_multiple_app,
     "panel_birla_single": birla_single_app,
     "panel_birla_multiple": birla_multiple_app,
+    "panel_numerical_single": numerical_single_app,
+    "panel_numerical_multiple": numerical_multiple_app,
 
 }
 
 if __name__ == "__main__":
     pn.serve(
         apps,
-        port=5007,
-        address="localhost",
+        port=PANEL_PORT,
+        address=PANEL_HOST,
         show=False,
 
         # allow websockets from both Panel and Flask ports
-        allow_websocket_origin=[
-            "localhost:5007",
-            "127.0.0.1:5007",
-            "localhost:5000",
-            "127.0.0.1:5000",
-        ],
+        allow_websocket_origin=PANEL_ALLOW_ORIGINS,
 
         # reduce token expiry annoyance
         session_token_expiration=60 * 60,  # 1 hour
     )
 
-    print("Panel running at http://localhost:5007/")
+    print(f"Panel running at http://{PANEL_HOST}:{PANEL_PORT}/")
     print("Apps:")
     print("  /  (Liedl single)")
     for k in apps:

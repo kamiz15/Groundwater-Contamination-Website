@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Numerical Model - CAST{% endblock %}
+{% block content %}
+<section class="section-spaced">
+  <h2>Numerical Model</h2>
+  <p>Run a MODFLOW/MT3DMS-based numerical simulation with manual inputs or optionally prefill values from uploaded site data.</p>
+  <div class="card-like">
+    <a class="primary-btn" href="{{ url_for('numerical_bp.numerical_single') }}">Open Single Computing Simulation</a>
+    <a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_multiple') }}">Open Multiple Simulation</a>
+  </div>
+</section>
+{% endblock %}

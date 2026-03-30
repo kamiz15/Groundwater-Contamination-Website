@@ -4,10 +4,11 @@ from urllib.parse import urlencode
 from flask import Blueprint, render_template, request, session
 
 from data_queries import get_user_sites_rows
+from settings import PANEL_BASE_URL
 
 analytical_bp = Blueprint("analytical_bp", __name__)
 
-PANEL_BASE = "http://localhost:5007"
+PANEL_BASE = PANEL_BASE_URL
 
 
 def _current_email():
@@ -29,11 +30,11 @@ def _selected_site():
         return sites, None
     selected_id = request.args.get("site_id", type=int)
     if selected_id is None:
-        return sites, sites[0]
+        return sites, None
     for site in sites:
         if site.get("id") == selected_id:
             return sites, site
-    return sites, sites[0]
+    return sites, None
 
 
 def _build_panel_query(path, site):
@@ -70,6 +71,8 @@ def _build_panel_query(path, site):
     if no3 is not None:
         query["epsilon"] = no3
         query["k"] = no3
+    if "liedl3d" in path:
+        query.setdefault("Cthres", 0.5)
     if site.get("id") is not None:
         query["site_id"] = int(site.get("id"))
     query["email"] = _current_email()
@@ -191,6 +194,29 @@ def bioscreen_multiple():
     return render_template(
         "panel_bioscreen_multiple.html",
         panel_src=_panel_src("panel_bioscreen_multiple", selected_site),
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+    )
+
+
+# ---------- LIEDL 3D ----------
+@analytical_bp.route("/liedl3d/single")
+def liedl3d_single():
+    sites, selected_site = _selected_site()
+    return render_template(
+        "panel_liedl3d_single.html",
+        panel_src=_panel_src("panel_liedl3d_single", selected_site),
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+    )
+
+
+@analytical_bp.route("/liedl3d/multiple")
+def liedl3d_multiple():
+    sites, selected_site = _selected_site()
+    return render_template(
+        "panel_liedl3d_multiple.html",
+        panel_src=_panel_src("panel_liedl3d_multiple", selected_site),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
     )

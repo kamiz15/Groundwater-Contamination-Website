@@ -1,26 +1,29 @@
 import pandas as pd
 import panel as pn
 
-from analytical_models import compute_liedl_multiple
+from analytical_models import compute_liedl3d_multiple
 from panel_analytical_common import comparison_plot, error_card, info_card, query_float, query_int, query_str, summary_card
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
 
-def liedl_multiple_app():
+def liedl3d_multiple_app():
     init_df = pd.DataFrame([
         {
-            "M": query_float("M", 3.5),
-            "alpha_Tv": query_float("alpha_Tv", 0.001),
-            "gamma": query_float("gamma", 3.5),
+            "M": query_float("M", 10.0),
+            "alpha_Th": query_float("alpha_Th", 0.01),
+            "alpha_Tv": query_float("alpha_Tv", 0.01),
+            "W": query_float("W", 7.0),
+            "Cthres": query_float("Cthres", 0.5),
             "C_EA0": query_float("C_EA0", 8.0),
             "C_ED0": query_float("C_ED0", 5.0),
+            "gamma": query_float("gamma", 3.0),
         }
     ])
 
-    table = pn.widgets.Tabulator(init_df, height=300, sizing_mode="stretch_width", name="Liedl scenarios")
-    run_btn = pn.widgets.Button(name="Run Liedl scenarios", button_type="primary", sizing_mode="stretch_width")
-    result_pane = pn.pane.HTML(info_card("Run the Liedl scenarios to compare plume lengths."), sizing_mode="stretch_width")
+    table = pn.widgets.Tabulator(init_df, height=300, sizing_mode="stretch_width", name="Liedl 3D scenarios")
+    run_btn = pn.widgets.Button(name="Run Liedl 3D scenarios", button_type="primary", sizing_mode="stretch_width")
+    result_pane = pn.pane.HTML(info_card("Run the Liedl 3D scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
     email = query_str("email", "demo@example.com")
     selected_site_id = query_int("site_id", 0)
@@ -37,20 +40,23 @@ def liedl_multiple_app():
             for _, row in df.iterrows():
                 entries.append([
                     float(row.get("M", 0.0)),
+                    float(row.get("alpha_Th", 0.0)),
                     float(row.get("alpha_Tv", 0.0)),
-                    float(row.get("gamma", 0.0)),
+                    float(row.get("W", 0.0)),
+                    float(row.get("Cthres", 0.0)),
                     float(row.get("C_EA0", 0.0)),
                     float(row.get("C_ED0", 0.0)),
+                    float(row.get("gamma", 0.0)),
                 ])
 
-            l_vals = compute_liedl_multiple(entries)
+            l_vals = compute_liedl3d_multiple(entries)
             result_pane.object = summary_card([
                 ("Successful runs", str(len(l_vals))),
                 ("Max plume length", f"{max(l_vals):.2f} m"),
             ])
             plot_pane.object = comparison_plot(
-                "Liedl et al. (2005)",
-                "Liedl model plume length",
+                "Liedl 3D",
+                "Liedl 3D model plume length",
                 list(range(1, len(l_vals) + 1)),
                 l_vals,
                 selected_site_id,
@@ -64,7 +70,7 @@ def liedl_multiple_app():
     run_btn.on_click(_run)
 
     controls = pn.Column(
-        "## Liedl et al. (2005) - Multiple Simulation",
+        "## Liedl 3D - Multiple Simulation",
         "### Manual scenario inputs",
         table,
         sizing_mode="stretch_width",

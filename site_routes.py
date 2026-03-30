@@ -24,6 +24,19 @@ COLUMN_DEFS = [
     ("Electron acceptor NO₃ [mg/L]", 9),
 ]
 
+TABLE_FIELD_DEFS = [
+    ("id", "ID"),
+    ("site_unit", "Site unit"),
+    ("compound", "Compound"),
+    ("aquifer_thickness", "Aquifer thickness [m]"),
+    ("plume_length", "Plume length [m]"),
+    ("plume_width", "Plume width [m]"),
+    ("hydraulic_conductivity", "Hydraulic conductivity [m/s]"),
+    ("electron_donor", "Electron donor [mg/L]"),
+    ("electron_acceptor_o2", "Electron acceptor O2 [mg/L]"),
+    ("electron_acceptor_no3", "Electron acceptor NO3 [mg/L]"),
+]
+
 
 def _get_column_names():
     return [label for (label, _) in COLUMN_DEFS]
@@ -118,6 +131,62 @@ def _build_field_to_header_map(fieldnames):
     return mapping
 
 
+def _site_filters_from_request():
+    filters = {}
+    for field, _label in TABLE_FIELD_DEFS:
+        value = (request.args.get(field) or "").strip()
+        if value:
+            filters[field] = value
+    return filters
+
+
+def _filter_sites(rows, filters):
+    if not filters:
+        return rows
+
+    filtered = []
+    for row in rows:
+        include = True
+        for field, needle in filters.items():
+            value = row.get(field, "")
+            haystack = "" if value is None else str(value)
+            if needle.lower() not in haystack.lower():
+                include = False
+                break
+        if include:
+            filtered.append(row)
+    return filtered
+
+
+def _site_sort_from_request():
+    sort_field = (request.args.get("sort_by") or "").strip()
+    sort_dir = (request.args.get("sort_dir") or "asc").strip().lower()
+    valid_fields = {field for field, _label in TABLE_FIELD_DEFS}
+    if sort_field not in valid_fields:
+        return "", "asc"
+    if sort_dir not in {"asc", "desc"}:
+        sort_dir = "asc"
+    return sort_field, sort_dir
+
+
+def _sort_sites(rows, sort_field, sort_dir):
+    if not sort_field:
+        return rows
+
+    reverse = sort_dir == "desc"
+
+    def _sort_key(row):
+        value = row.get(sort_field)
+        if value is None or value == "":
+            return (1, "")
+        try:
+            return (0, float(value))
+        except (TypeError, ValueError):
+            return (0, str(value).lower())
+
+    return sorted(rows, key=_sort_key, reverse=reverse)
+
+
 # -----------------------------
 # MAIN TABLE VIEWS
 # -----------------------------
@@ -200,11 +269,20 @@ def site_database():
 
     table_data = get_user_sites(email)
     sites = get_user_sites_rows(email)
+    active_filters = _site_filters_from_request()
+    sort_field, sort_dir = _site_sort_from_request()
+    filtered_sites = _filter_sites(sites, active_filters)
+    filtered_sites = _sort_sites(filtered_sites, sort_field, sort_dir)
     column_names = _get_column_names()
     return render_template(
         "site_database.html",
         table_data=table_data,
-        sites=sites,
+        sites=filtered_sites,
+        table_field_defs=TABLE_FIELD_DEFS,
+        active_filters=active_filters,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+        total_site_count=len(sites),
         column_names=column_names,
         message=message,
         error=error,

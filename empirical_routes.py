@@ -4,9 +4,11 @@ from urllib.parse import urlencode
 from flask import Blueprint, render_template, request, session
 
 from data_queries import get_user_sites_rows
+from settings import PANEL_BASE_URL
 
 empirical_bp = Blueprint("empirical_bp", __name__)
-PANEL_BASE = "http://localhost:5007"
+
+PANEL_BASE = PANEL_BASE_URL
 
 
 def _current_email():
@@ -53,11 +55,11 @@ def _selected_site():
         return sites, None
     selected_id = request.args.get("site_id", type=int)
     if selected_id is None:
-        return sites, sites[0]
+        return sites, None
     for site in sites:
         if site.get("id") == selected_id:
             return sites, site
-    return sites, sites[0]
+    return sites, None
 
 
 def _panel_src(path, site):

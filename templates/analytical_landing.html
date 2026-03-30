@@ -1,42 +1,52 @@
 {% extends "base.html" %}
-
+{% block title %}Analytical Models &bull; CAST{% endblock %}
 {% block content %}
-<div class="container mt-4">
-  <h1>Analytical Models</h1>
 
-  <ul>
-    <li>
-      Liedl:
-      <a href="{{ url_for('analytical_bp.liedl_single') }}">Single</a> |
-      <a href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple</a>
-    </li>
-    <li>
-      Chu:
-      <a href="{{ url_for('analytical_bp.chu_single') }}">Single</a> |
-      <a href="{{ url_for('analytical_bp.chu_multiple') }}">Multiple</a>
-    </li>
-    <li>
-      Ham:
-      <a href="{{ url_for('analytical_bp.ham_single') }}">Single</a> |
-      <a href="{{ url_for('analytical_bp.ham_multiple') }}">Multiple</a>
-    </li>
-  </ul>
-</div>
+<section class="section-spaced">
+  <h2>Analytical Models</h2>
+  <p>Select a model and simulation type.</p>
+
+  <div class="tile-grid" style="margin-top: 16px;">
+    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+      <h3>Liedl et al.</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+
+    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+      <h3>Liedl 3D</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl3d_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl3d_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+
+    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+      <h3>Chu et al.</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.chu_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.chu_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+
+    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+      <h3>Ham et al.</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.ham_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.ham_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+
+    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+      <h3>BIOSCREEN-AT</h3>
+      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.bioscreen_single') }}">Single Simulation</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">Multiple Simulation</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 {% endblock %}
-<button class="btn btn-sm btn-outline-secondary mt-3" onclick="pingPanel()">
-  Check Panel server
-</button>
-<pre id="panel-status" class="mt-2 small text-muted"></pre>
-
-<script>
-async function pingPanel() {
-  const el = document.getElementById("panel-status");
-  el.textContent = "Checking Panel...";
-  try {
-    const resp = await fetch("http://127.0.0.1:5007/");
-    el.textContent = "Panel server reachable, status " + resp.status;
-  } catch (err) {
-    el.textContent = "Panel server NOT reachable: " + err;
-  }
-}
-</script>

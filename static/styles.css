@@ -773,6 +773,99 @@ input::placeholder {
   margin: 0.5rem 0 0.75rem;
 }
 
+.table-filter-grid {
+  margin-top: 0.75rem;
+}
+
+.table-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.table-subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.table-count-badge {
+  background: linear-gradient(135deg, #eef7ff 0%, #dceeff 100%);
+  color: #24476b;
+  border: 1px solid #c4ddf5;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.table-tools {
+  margin-bottom: 1rem;
+}
+
+.table-tools-card {
+  background: linear-gradient(180deg, #fbfdff 0%, #f2f8ff 100%);
+  border: 1px solid #dbe8f7;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 6px 20px rgba(17, 24, 39, 0.04);
+}
+
+.table-tools-heading {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4e7398;
+  margin-bottom: 0.75rem;
+}
+
+.table-tool-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.table-tool-field span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #355677;
+}
+
+.table-tool-field input,
+.table-tool-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid #c8d9ec;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.table-sort-row {
+  margin-top: 0.9rem;
+}
+
+.table-sort-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.table-actions-row {
+  margin-top: 0.9rem;
+}
+
+.table-meta {
+  color: #4a617b;
+  font-weight: 600;
+}
+
 .table-wrapper {
   overflow-x: auto;
 }
@@ -781,17 +874,30 @@ input::placeholder {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  min-width: 1100px;
 }
 
 .data-table th,
 .data-table td {
-  padding: 0.5rem 0.6rem;
+  padding: 0.7rem 0.75rem;
   border-bottom: 1px solid #e2e6f0;
 }
 
 .data-table th {
   text-align: left;
-  background-color: #f3f4fa;
+  background-color: #eef5fd;
+  color: #24476b;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: rgba(240, 247, 255, 0.55);
+}
+
+.data-table tbody tr:hover {
+  background: rgba(196, 221, 245, 0.28);
 }
 
 .auth-section {
@@ -807,6 +913,17 @@ input::placeholder {
   gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .table-count-badge {
+    width: 100%;
+    text-align: center;
+  }
+
+  .table-tools-card {
+    padding: 0.85rem;
+  }
 }
 
 .file-label {

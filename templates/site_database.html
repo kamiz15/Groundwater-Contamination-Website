@@ -52,33 +52,90 @@
   </div>
 
   <div class="card-like">
-    <h3>Your Site Entries</h3>
+    <div class="table-header-row">
+      <div>
+        <h3>Your Site Entries</h3>
+        <p class="small table-subtitle">Review uploaded site data, narrow it by any column, and sort by any parameter.</p>
+      </div>
+      {% if sites or total_site_count %}
+        <div class="table-count-badge">{{ sites|length }} of {{ total_site_count }} row(s)</div>
+      {% endif %}
+    </div>
 
     {% if sites %}
+      <form method="GET" class="site-form table-tools">
+        <div class="table-tools-card">
+          <div class="table-tools-heading">Filter Columns</div>
+          <div class="site-form-grid table-filter-grid">
+            {% for field, label in table_field_defs %}
+              <label class="table-tool-field">
+                <span>{{ label }}</span>
+                <input
+                  type="text"
+                  name="{{ field }}"
+                  value="{{ active_filters.get(field, '') }}"
+                  placeholder="Type to filter"
+                >
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="table-sort-row">
+          <div class="table-tools-card table-sort-card">
+            <div class="table-tools-heading">Sort Rows</div>
+            <div class="table-sort-controls">
+              <label class="table-tool-field">
+                <span>Parameter</span>
+                <select name="sort_by">
+                  <option value="" {% if not sort_field %}selected{% endif %}>No sorting</option>
+                  {% for field, label in table_field_defs %}
+                    <option value="{{ field }}" {% if sort_field == field %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="table-tool-field">
+                <span>Direction</span>
+                <select name="sort_dir">
+                  <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>Ascending</option>
+                  <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>Descending</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="csv-form table-actions-row">
+          <button type="submit" class="primary-btn">Apply Filters</button>
+          <a href="{{ url_for('site_bp.site_database') }}" class="ghost-btn">Clear Filters</a>
+          <span class="small table-meta">{{ sites|length }} of {{ total_site_count }} row(s) shown</span>
+        </div>
+      </form>
+
       <div class="table-wrapper">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Site Unit</th>
-              <th>Compound</th>
-              <th>Aquifer Thickness (m)</th>
-              <th>Plume Length (m)</th>
+              {% for field, label in table_field_defs %}
+                <th>{{ label }}</th>
+              {% endfor %}
             </tr>
           </thead>
           <tbody>
             {% for s in sites %}
               <tr>
-                <td>{{ s.site_unit }}</td>
-                <td>{{ s.compound }}</td>
-                <td>{{ s.aquifer_thickness }}</td>
-                <td>{{ s.plume_length }}</td>
+                {% for field, label in table_field_defs %}
+                  <td>{{ s[field] }}</td>
+                {% endfor %}
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p>No site entries yet. Upload a CSV or add one above to begin.</p>
+      {% if total_site_count %}
+        <p>No rows match the current filters. Clear the filters to see all uploaded data.</p>
+      {% else %}
+        <p>No site entries yet. Upload a CSV or add one above to begin.</p>
+      {% endif %}
     {% endif %}
   </div>
 </section>

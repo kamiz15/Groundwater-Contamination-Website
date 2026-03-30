@@ -1,12 +1,63 @@
 import mysql.connector
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="root",
-        database="cast_project"
+from settings import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
+
+
+SCHEMA_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(100),
+        email VARCHAR(150) UNIQUE,
+        password_hash VARCHAR(255),
+        country VARCHAR(100),
+        organisation VARCHAR(150)
     )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sites (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_email VARCHAR(150),
+        site_unit VARCHAR(150),
+        compound VARCHAR(50),
+        aquifer_thickness FLOAT,
+        plume_length FLOAT,
+        plume_width FLOAT,
+        hydraulic_conductivity FLOAT,
+        electron_donor FLOAT,
+        electron_acceptor_o2 FLOAT,
+        electron_acceptor_no3 FLOAT,
+        CONSTRAINT fk_sites_user_email
+            FOREIGN KEY (user_email) REFERENCES users(email)
+            ON DELETE CASCADE
+    )
+    """,
+]
+
+
+def ensure_schema(connection):
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        for statement in SCHEMA_STATEMENTS:
+            cursor.execute(statement)
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        connection.commit()
+    finally:
+        cursor.close()
+
+
+def get_db_connection():
+    connection = mysql.connector.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+    )
+    ensure_schema(connection)
+    return connection
+
 
 SITE_FIELDS = [
     "site_unit",

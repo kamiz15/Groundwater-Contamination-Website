@@ -1,128 +1,76 @@
 import pandas as pd
 import panel as pn
-from bokeh.plotting import figure
 
-from data_queries import get_user_sites
 from empirical_models import maier_lmax
+from panel_empirical_common import comparison_plot, error_card, info_card, query_float, query_int, query_str, summary_card
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
 
-def _query_float(name, default):
-    try:
-        req = pn.state.curdoc.session_context.request
-        raw = req.arguments.get(name, [str(default).encode()])[0].decode()
-        return float(raw)
-    except Exception:
-        return default
-
-
-def _query_str(name, default=""):
-    try:
-        req = pn.state.curdoc.session_context.request
-        return req.arguments.get(name, [default.encode()])[0].decode()
-    except Exception:
-        return default
-
-
-def _load_field_points(email):
-    try:
-        rows = get_user_sites(email)
-    except Exception:
-        return [], []
-
-    xs = []
-    ys = []
-    for i, row in enumerate(rows, start=1):
-        try:
-            plume = float(row[4])
-        except Exception:
-            continue
-        xs.append(i)
-        ys.append(plume)
-    return xs, ys
-
-
 def maier_multiple_app():
-    title = pn.pane.Markdown("## Maier & Grathwohl - Multiple Simulation (sweep M)")
+    default_df = pd.DataFrame([
+        {
+            "M": query_float("M", 5.0),
+            "tv": query_float("tv", 0.01),
+            "g": query_float("g", 3.5),
+            "Ca": query_float("Ca", 8.0),
+            "Cd": query_float("Cd", 5.0),
+        }
+    ])
 
-    default_m = _query_float("M", 2.0)
-    w_Ms = pn.widgets.TextInput(
-        name="M values (comma-separated)",
-        value=",".join(f"{v:.3f}" for v in [max(0.1, default_m * 0.5), default_m, default_m * 1.5]),
-    )
-    w_tv = pn.widgets.FloatInput(name="tv", value=_query_float("tv", 0.01), step=0.001)
-    w_g = pn.widgets.FloatInput(name="g", value=_query_float("g", 3.5), step=0.1)
-    w_Ca = pn.widgets.FloatInput(name="Ca", value=_query_float("Ca", 8.0), step=0.5)
-    w_Cd = pn.widgets.FloatInput(name="Cd", value=_query_float("Cd", 5.0), step=0.5)
+    table = pn.widgets.Tabulator(default_df, height=300, sizing_mode="stretch_width", name="Maier scenarios")
+    run_btn = pn.widgets.Button(name="Run Maier scenarios", button_type="primary", sizing_mode="stretch_width")
+    result_pane = pn.pane.HTML(info_card("Run the Maier scenarios to compare plume lengths."), sizing_mode="stretch_width")
+    plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
+    email = query_str("email", "demo@example.com")
+    selected_site_id = query_int("site_id", 0)
 
-    run_btn = pn.widgets.Button(name="Run sweep", button_type="primary")
-    table = pn.widgets.Tabulator(pd.DataFrame(columns=["M", "Lmax"]), height=220, sizing_mode="stretch_width")
-    initial_plot = figure(title="Maier and Grathwohl (2005)", x_axis_label="Site Number", y_axis_label="Plume Length (m)", height=520, sizing_mode="stretch_width")
-    plot_pane = pn.pane.Bokeh(initial_plot, sizing_mode="stretch_width", min_height=520)
-    status_md = pn.pane.Markdown("")
-    email = _query_str("email", "demo@example.com")
-
-    def _run(_):
+    def _run(_=None):
         try:
-            ms = []
-            for part in w_Ms.value.split(","):
-                part = part.strip()
-                if part:
-                    ms.append(float(part))
-
-            if len(ms) == 1:
-                center = ms[0]
-                ms = [max(0.1, center * 0.5), center, center * 1.5]
-
-            rows = []
-            for m in ms:
-                lmax = maier_lmax(m, w_tv.value, w_g.value, w_Ca.value, w_Cd.value)
-                rows.append({"M": m, "Lmax": lmax})
-
-            df = pd.DataFrame(rows).sort_values("M")
+            df = table.value
+            if not isinstance(df, pd.DataFrame):
+                df = pd.DataFrame(df)
             if df.empty:
-                raise ValueError("No valid sweep values found.")
-            table.value = df
+                raise ValueError("No scenarios available.")
 
-            user_x = list(range(1, len(df) + 1))
-            user_y = df["Lmax"].tolist()
-            field_x, field_y = _load_field_points(email)
+            lengths = []
+            for _, row in df.iterrows():
+                lengths.append(
+                    maier_lmax(
+                        float(row.get("M", 0.0)),
+                        float(row.get("tv", 0.0)),
+                        float(row.get("g", 0.0)),
+                        float(row.get("Ca", 0.0)),
+                        float(row.get("Cd", 0.0)),
+                    )
+                )
 
-            p = figure(title="Maier and Grathwohl (2005)", x_axis_label="Site Number", y_axis_label="Plume Length (m)", height=520, sizing_mode="stretch_width")
-            p.scatter(user_x, user_y, size=12, marker="circle", color="#003f5c", legend_label="User Plume Length(LMax)")
-            if field_x and field_y:
-                p.scatter(field_x, field_y, size=12, marker="circle", color="#ffa600", legend_label="Original Database Plume Length(LMax)")
-            p.legend.location = "top_right"
-            plot_pane.object = p
-            status_md.object = f"Computed {len(df)} scenario(s)."
-
+            result_pane.object = summary_card([
+                ("Successful runs", str(len(lengths))),
+                ("Max plume length", f"{max(lengths):.2f} m"),
+            ])
+            plot_pane.object = comparison_plot(
+                "Maier and Grathwohl (2005)",
+                "Maier model plume length",
+                list(range(1, len(lengths) + 1)),
+                lengths,
+                selected_site_id,
+                email,
+                "Scenario Number",
+            )
         except Exception as exc:
-            table.value = pd.DataFrame([{"error": str(exc)}])
-            status_md.object = f"Error: `{exc}`"
+            result_pane.object = error_card(str(exc))
+            plot_pane.object = None
 
     run_btn.on_click(_run)
 
-    left = pn.Column(
-        title,
-        pn.pane.Markdown("### Sweep settings"),
-        w_Ms,
-        pn.pane.Markdown("### Fixed parameters"),
-        w_tv,
-        w_g,
-        w_Ca,
-        w_Cd,
-        run_btn,
-        status_md,
+    controls = pn.Column(
+        "## Maier & Grathwohl - Multiple Simulation",
+        "### Manual scenario inputs",
         table,
         sizing_mode="stretch_width",
-        styles={"flex": "1 1 300px", "min-width": "260px"},
+        styles={"flex": "1 1 380px", "min-width": "300px"},
     )
-    right = pn.Column(
-        plot_pane,
-        sizing_mode="stretch_both",
-        styles={"flex": "2 1 420px", "min-width": "320px"},
-    )
-
-    _run(None)
-    return pn.FlexBox(left, right, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
+    outputs = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
+    body = pn.FlexBox(controls, outputs, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
+    return pn.Column(run_btn, result_pane, body, sizing_mode="stretch_both", styles={"gap": "14px"})

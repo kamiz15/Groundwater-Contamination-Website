@@ -1,0 +1,14 @@
+.git
+.gitignore
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.log
+.venv
+venv
+.numerical_runs
+tmpclaude-06ad-cwd
+tmpclaude-4453-cwd
+.env

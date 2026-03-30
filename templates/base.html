@@ -13,11 +13,9 @@
 </head>
 
 <body>
-
-  <!-- Collapsible Left Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <button class="icon-btn" id="closeSidebar" aria-label="Close sidebar">☰</button>
+      <button class="icon-btn" id="closeSidebar" aria-label="Close sidebar">&#9776;</button>
       <div class="brand">
         <span class="brand-badge">CAST</span>
         <span class="brand-sub">Groundwater Contamination Assessment</span>
@@ -42,22 +40,18 @@
   <div class="backdrop" id="backdrop"></div>
 
   <div class="page">
-
-    <!-- TOPBAR -->
     <header class="topbar">
-      <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">☰</button>
+      <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">&#9776;</button>
 
       <nav class="headbar" aria-label="Global">
         <ul class="menu">
-
           <li class="menu-item">
             <a class="menu-link" href="{{ url_for('home') }}">Home</a>
           </li>
 
-          <!-- Analysis Visualisation (disable for now because plot_bp not registered) -->
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Analysis Visualisation ▾
+              Analysis Visualisation &#9662;
             </button>
             <ul class="dropdown">
               <li><a class="dd-link" href="#">All Plots</a></li>
@@ -69,56 +63,52 @@
             </ul>
           </li>
 
-          <!-- Analytical Model (fixed to ONLY existing endpoints) -->
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Analytical Model ▾
+              Analytical Model &#9662;
             </button>
             <ul class="dropdown">
-
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">All Models</a></li>
-
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005)</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu et al. (2004)</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham et al. (2004)</a></li>
-
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple') }}">Liedl et al.(Multiple) (2011)</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.analytical_landing') }}">All Models</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005) - Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple') }}">Liedl et al. (2005) - Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl3d_single') }}">Liedl 3D - Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl3d_multiple') }}">Liedl 3D - Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu et al. (2004) - Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_multiple') }}">Chu et al. (2004) - Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham et al. (2004) - Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_multiple') }}">Ham et al. (2004) - Multiple</a></li>
               <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_single') }}">BIOSCREEN-AT (Single)</a></li>
               <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">BIOSCREEN-AT (Multiple)</a></li>
-              
-
             </ul>
           </li>
 
-          <!-- Empirical Models (disable landing if you don't have it) -->
-            <li class="menu-item has-dd">
-              <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-                Empirical Models ▾
-              </button>
-        <ul class="dropdown">
-          <li><a class="dd-link" href="{{ url_for('empirical_bp.empirical_landing') }}">All Models</a></li>
-          <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier & Grathwohl — Single</a></li>
-          <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_multiple') }}">Maier & Grathwohl — Multiple</a></li>
-          <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. — Single</a></li>
-          <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_multiple') }}">Birla et al. — Multiple</a></li>
-        </ul>
-      </li>
-
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Empirical Models &#9662;
+            </button>
+            <ul class="dropdown">
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.empirical_landing') }}">All Models</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier &amp; Grathwohl &mdash; Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_multiple') }}">Maier &amp; Grathwohl &mdash; Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. &mdash; Single</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_multiple') }}">Birla et al. &mdash; Multiple</a></li>
+            </ul>
+          </li>
 
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Numerical Model ▾
+              Numerical Model &#9662;
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="#" aria-disabled="true">Model Description</a></li>
-              <li><a class="dd-link" href="#" aria-disabled="true">Single Computing Simulation</a></li>
+              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_landing') }}">All Models</a></li>
+              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_single') }}">Single Computing Simulation</a></li>
+              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_multiple') }}">Multiple Computing Simulation</a></li>
             </ul>
           </li>
 
           <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database & Model Input</a>
+            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database &amp; Model Input</a>
           </li>
-
         </ul>
       </nav>
 
@@ -136,7 +126,6 @@
       {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
     <footer class="footer" role="contentinfo" id="footer-contact">
       <div class="footer-inner">
         <div class="footer-col">
@@ -159,12 +148,11 @@
           <ul class="supporters">
             <li><span class="logo-swatch"></span> MANIPAL UNIVERSITY JAIPUR</li>
             <li><span class="logo-swatch"></span> Indian Institute of Technology Delhi</li>
-            <li><span class="logo-swatch"></span> TECHNISCHE UNIVERSITÄT DRESDEN</li>
+            <li><span class="logo-swatch"></span> TECHNISCHE UNIVERSIT&Auml;T DRESDEN</li>
           </ul>
         </div>
       </div>
     </footer>
-
   </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
