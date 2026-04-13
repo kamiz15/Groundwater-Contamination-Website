@@ -38,7 +38,7 @@ RUN set -eux; \
     rm -rf /tmp/build-mt3dms
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=180 --retries=10 -r requirements.txt
 
 COPY . /app
 

@@ -6,6 +6,7 @@ import os
 import shutil
 import struct
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 
@@ -18,6 +19,15 @@ try:
     import flopy
 except Exception:  # pragma: no cover - dependency may not be installed locally
     flopy = None
+
+
+@dataclass(frozen=True)
+class NumericalModelResult:
+    plume_length: float
+    plot_html: str
+    concentration: np.ndarray
+    x_grid: np.ndarray
+    z_grid: np.ndarray
 
 
 def _read_fortran_record(handle) -> bytes | None:
@@ -44,6 +54,24 @@ def _read_fortran_record(handle) -> bytes | None:
     return payload
 
 
+def _parse_mt3d_header(header_payload: bytes) -> tuple[float, str, int, int, int, np.dtype]:
+    if len(header_payload) == 44:
+        ntrans, kstp, kper, totim = struct.unpack("<3if", header_payload[:16])
+        text = header_payload[16:32].decode("ascii", "ignore").strip()
+        ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[32:44])
+        precision = np.dtype(np.float32)
+    elif len(header_payload) == 48:
+        ntrans, kstp, kper = struct.unpack("<3i", header_payload[:12])
+        (totim,) = struct.unpack("<d", header_payload[12:20])
+        text = header_payload[20:36].decode("ascii", "ignore").strip()
+        ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[36:48])
+        precision = np.dtype(np.float64)
+    else:
+        raise RuntimeError(f"Unsupported MT3DMS concentration header size {len(header_payload)} bytes.")
+
+    return float(totim), text, int(ncol_hdr), int(nrow_hdr), int(ilay_hdr), precision
+
+
 def _read_mt3d_concentration(ucn_path: Path, nlay: int, nrow: int, ncol: int) -> np.ndarray:
     """
     Read MT3DMS concentration output written as sequential-unformatted Fortran records.
@@ -56,55 +84,86 @@ def _read_mt3d_concentration(ucn_path: Path, nlay: int, nrow: int, ncol: int) ->
     latest_totim: float | None = None
     cell_count = nrow * ncol
 
-    with ucn_path.open("rb") as handle:
-        while True:
-            header_payload = _read_fortran_record(handle)
-            if header_payload is None:
+    def add_record(header_payload: bytes, data_payload: bytes) -> None:
+        nonlocal latest_totim, latest_by_layer
+        totim, text, ncol_hdr, nrow_hdr, ilay_hdr, precision = _parse_mt3d_header(header_payload)
+
+        if ncol_hdr != ncol or nrow_hdr != nrow:
+            raise RuntimeError(
+                f"Unexpected MT3DMS concentration shape ({nrow_hdr}, {ncol_hdr}); "
+                f"expected ({nrow}, {ncol})."
+            )
+
+        if text.upper() != "CONCENTRATION":
+            return
+
+        values = np.frombuffer(data_payload, dtype=precision)
+        if values.size != cell_count:
+            raise RuntimeError(
+                f"Unexpected MT3DMS concentration payload size {values.size}; expected {cell_count}."
+            )
+
+        current_array = values.reshape((nrow, ncol)).astype(np.float64, copy=False)
+        if latest_totim is None or totim > latest_totim:
+            latest_totim = totim
+            latest_by_layer = {ilay_hdr: current_array}
+        elif np.isclose(totim, latest_totim):
+            latest_by_layer[ilay_hdr] = current_array
+
+    def read_fortran_stream() -> None:
+        with ucn_path.open("rb") as handle:
+            while True:
+                header_payload = _read_fortran_record(handle)
+                if header_payload is None:
+                    break
+                data_payload = _read_fortran_record(handle)
+                if data_payload is None:
+                    raise RuntimeError("Incomplete MT3DMS concentration output: missing data record.")
+                add_record(header_payload, data_payload)
+
+    def read_raw_stream() -> None:
+        data = ucn_path.read_bytes()
+        offset = 0
+        total = len(data)
+        while offset < total:
+            parsed = False
+            for header_size, precision in ((44, np.dtype(np.float32)), (48, np.dtype(np.float64))):
+                data_size = cell_count * precision.itemsize
+                if offset + header_size + data_size > total:
+                    continue
+                header_payload = data[offset:offset + header_size]
+                try:
+                    _totim, text, ncol_hdr, nrow_hdr, _ilay_hdr, parsed_precision = _parse_mt3d_header(header_payload)
+                except RuntimeError:
+                    continue
+                if parsed_precision != precision:
+                    continue
+                if text.upper() != "CONCENTRATION" or ncol_hdr != ncol or nrow_hdr != nrow:
+                    continue
+                data_start = offset + header_size
+                data_payload = data[data_start:data_start + data_size]
+                add_record(header_payload, data_payload)
+                offset = data_start + data_size
+                parsed = True
                 break
-            data_payload = _read_fortran_record(handle)
-            if data_payload is None:
-                raise RuntimeError("Incomplete MT3DMS concentration output: missing data record.")
-
-            if len(header_payload) == 44:
-                ntrans, kstp, kper, totim = struct.unpack("<3if", header_payload[:16])
-                text = header_payload[16:32].decode("ascii", "ignore").strip()
-                ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[32:44])
-                precision = np.float32
-            elif len(header_payload) == 48:
-                ntrans, kstp, kper = struct.unpack("<3i", header_payload[:12])
-                (totim,) = struct.unpack("<d", header_payload[12:20])
-                text = header_payload[20:36].decode("ascii", "ignore").strip()
-                ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[36:48])
-                precision = np.float64
-            else:
+            if not parsed:
                 raise RuntimeError(
-                    f"Unsupported MT3DMS concentration header size {len(header_payload)} bytes."
+                    "Unsupported MT3DMS concentration output format. "
+                    "Expected raw UCN records or sequential-unformatted Fortran records."
                 )
 
-            if ncol_hdr != ncol or nrow_hdr != nrow:
-                raise RuntimeError(
-                    f"Unexpected MT3DMS concentration shape ({nrow_hdr}, {ncol_hdr}); "
-                    f"expected ({nrow}, {ncol})."
-                )
-
-            if text.upper() != "CONCENTRATION":
-                continue
-
-            values = np.frombuffer(data_payload, dtype=precision)
-            if values.size != cell_count:
-                raise RuntimeError(
-                    f"Unexpected MT3DMS concentration payload size {values.size}; expected {cell_count}."
-                )
-
-            current_totim = float(totim)
-            current_layer = int(ilay_hdr)
-            current_array = values.reshape((nrow, ncol)).astype(np.float64, copy=False)
-
-            if latest_totim is None or current_totim > latest_totim:
-                latest_totim = current_totim
-                latest_by_layer = {current_layer: current_array}
-            elif np.isclose(current_totim, latest_totim):
-                latest_by_layer[current_layer] = current_array
+    first_word = struct.unpack("<i", ucn_path.read_bytes()[:4])[0]
+    if first_word in {44, 48}:
+        try:
+            read_fortran_stream()
+        except RuntimeError as exc:
+            if "length prefix/suffix mismatch" not in str(exc):
+                raise
+            latest_by_layer = {}
+            latest_totim = None
+            read_raw_stream()
+    else:
+        read_raw_stream()
 
     if latest_totim is None or not latest_by_layer:
         raise RuntimeError("MT3DMS concentration output did not contain any concentration records.")
@@ -165,7 +224,7 @@ def _resolve_executable(env_name: str, fallback_names: list[str]) -> str:
     )
 
 
-def numerical_model(
+def run_numerical_model(
     Lx: float,
     Ly: float,
     ncol: int,
@@ -179,7 +238,7 @@ def numerical_model(
     h1: float,
     h2: float,
     hk: float,
-) -> Tuple[float, str]:
+) -> NumericalModelResult:
     if flopy is None:
         raise RuntimeError("flopy is not installed. Install flopy to run the numerical model.")
 
@@ -274,13 +333,15 @@ def numerical_model(
             raise RuntimeError("MT3DMS did not produce MT3D001.UCN concentration output.")
 
         conc = _read_mt3d_concentration(ucn_path, nlay=nlay, nrow=nrow, ncol=ncol)
+        conc_slice = conc[0]
+        x_grid = np.linspace(0.0, Lx, ncol)
+        z_grid = np.linspace(0.0, Ly, nrow)
 
         c0 = 2 * ca
         fig = plt.figure(figsize=(11, 5))
         ax = plt.axes()
         mm = flopy.plot.map.PlotMapView(ax=ax, model=mf)
         mm.plot_grid(color=".5", alpha=0.2)
-        conc_slice = conc[0]
         cs = mm.contour_array(conc_slice, levels=[c0], colors=["#163c66"], linewidths=2.0)
         mm.plot_ibound()
         plt.xlabel("Distance Lx [m]")
@@ -300,4 +361,29 @@ def numerical_model(
         else:
             plume_length = float(np.max(np.asarray(segments[0])[:, 0]))
 
-    return plume_length, f'<img src="data:image/png;base64,{plot_url}" alt="Numerical plume plot" style="width:100%;height:auto;border-radius:12px;" />'
+    return NumericalModelResult(
+        plume_length=plume_length,
+        plot_html=f'<img src="data:image/png;base64,{plot_url}" alt="Numerical plume plot" style="width:100%;height:auto;border-radius:12px;" />',
+        concentration=conc_slice,
+        x_grid=x_grid,
+        z_grid=z_grid,
+    )
+
+
+def numerical_model(
+    Lx: float,
+    Ly: float,
+    ncol: int,
+    nrow: int,
+    prsity: float,
+    al: float,
+    av: float,
+    gamma: float,
+    cd: float,
+    ca: float,
+    h1: float,
+    h2: float,
+    hk: float,
+) -> Tuple[float, str]:
+    result = run_numerical_model(Lx, Ly, ncol, nrow, prsity, al, av, gamma, cd, ca, h1, h2, hk)
+    return result.plume_length, result.plot_html

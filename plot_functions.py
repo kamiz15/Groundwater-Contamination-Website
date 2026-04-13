@@ -6,10 +6,13 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from bokeh.plotting import figure
 from bokeh.embed import components
-from bokeh.palettes import Category10
-from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.palettes import Category10, RdYlGn11
+from bokeh.models import ColorBar, ColumnDataSource, HoverTool, LinearColorMapper, Span
 from scipy.stats import norm, lognorm, expon
 
 # -------------------------------------------------
@@ -59,6 +62,288 @@ def _clean(values: List) -> List[float]:
         except Exception:
             continue
     return out
+
+
+def plot_vertical_plume_contour(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, A_T):
+    """Create the vertical numerical plume contour plot used by the Panel numerical apps."""
+    C = np.asarray(C, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    z_grid = np.asarray(z_grid, dtype=float)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    finite = C[np.isfinite(C)]
+    if finite.size == 0 or np.nanmin(finite) == np.nanmax(finite):
+        ax.imshow(
+            np.nan_to_num(C),
+            extent=[float(x_grid.min()), float(x_grid.max()), float(z_grid.min()), float(z_grid.max())],
+            origin="lower",
+            aspect="auto",
+            cmap="RdYlGn_r",
+        )
+    else:
+        levels = np.linspace(float(np.nanmin(finite)), float(np.nanmax(finite)), 15)
+        contourf_obj = ax.contourf(x_grid, z_grid, C, levels=levels, cmap="RdYlGn_r")
+        ax.contour(x_grid, z_grid, C, levels=levels, colors="black", linewidths=0.5, alpha=0.6)
+
+        x_idx = int(np.argmin(np.abs(x_grid - L_max)))
+        source_mid_z = S_Tb + (S_T / 2.0)
+        z_idx = int(np.argmin(np.abs(z_grid - source_mid_z)))
+        threshold_level = float(C[z_idx, x_idx])
+        if np.isfinite(threshold_level) and float(np.nanmin(finite)) < threshold_level < float(np.nanmax(finite)):
+            ax.contour(x_grid, z_grid, C, levels=[threshold_level], colors="purple", linewidths=2.5)
+        fig.colorbar(contourf_obj, ax=ax, label="Concentration [mg/L]")
+
+    source_width = float(x_grid[1] - x_grid[0]) if len(x_grid) > 1 else max(float(L_D) * 0.02, 1.0)
+    source_width = max(source_width, float(L_D) * 0.015)
+    ax.fill_betweenx([0, S_Tb], 0, source_width, color="#d1d5db", alpha=0.4, hatch="/", edgecolor="#6b7280")
+    ax.fill_betweenx(
+        [S_Tb, S_Tb + S_T],
+        0,
+        source_width,
+        color="#f97316",
+        alpha=0.6,
+        hatch="xx",
+        edgecolor="#9a3412",
+        label="Active source zone",
+    )
+    ax.fill_betweenx([S_Tb + S_T, A_T], 0, source_width, color="#d1d5db", alpha=0.4, hatch="/", edgecolor="#6b7280")
+
+    ax.axvline(x=L_max, color="navy", linestyle="--", linewidth=1.5, label=f"Lmax = {L_max:.1f} m")
+    ax.axvline(x=L_D, color="grey", linestyle=":", linewidth=1.2, label=f"LD = {L_D:.1f} m")
+    ax.set_xlim(0, L_D)
+    ax.set_ylim(0, A_T)
+    ax.set_xlabel("Distance Lx [m]")
+    ax.set_ylabel("Aquifer Thickness [m]")
+    ax.set_title("Contaminant Plume - Vertical Model")
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, A_T):
+    """Create an interactive Bokeh version of the vertical numerical plume contour plot."""
+    C = np.asarray(C, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    z_grid = np.asarray(z_grid, dtype=float)
+    finite = C[np.isfinite(C)]
+    c_min = float(np.nanmin(finite)) if finite.size else 0.0
+    c_max = float(np.nanmax(finite)) if finite.size else 1.0
+    if c_min == c_max:
+        c_max = c_min + 1.0
+
+    p = figure(
+        title="Contaminant Plume - Vertical Model",
+        x_axis_label="Distance Lx [m]",
+        y_axis_label="Aquifer Thickness [m]",
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=430,
+        x_range=(0, L_D),
+        y_range=(0, A_T),
+    )
+
+    mapper = LinearColorMapper(palette=list(reversed(RdYlGn11)), low=c_min, high=c_max)
+    image_renderer = p.image(
+        image=[np.flipud(C)],
+        x=0,
+        y=0,
+        dw=L_D,
+        dh=A_T,
+        color_mapper=mapper,
+        alpha=0.95,
+    )
+    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Concentration [mg/L]"), "right")
+    p.add_tools(
+        HoverTool(
+            renderers=[image_renderer],
+            tooltips=[("Distance", "$x{0.0} m"), ("Aquifer thickness", "$y{0.00} m")],
+        )
+    )
+
+    levels = np.linspace(c_min, c_max, 15)
+    if finite.size and c_min < c_max:
+        contour_fig, contour_ax = plt.subplots()
+        try:
+            contour_obj = contour_ax.contour(x_grid, z_grid, C, levels=levels)
+            xs, ys = [], []
+            for level_segments in contour_obj.allsegs:
+                for segment in level_segments:
+                    if len(segment) >= 2:
+                        xs.append(segment[:, 0].tolist())
+                        ys.append(segment[:, 1].tolist())
+            if xs:
+                p.multi_line(xs, ys, color="black", line_width=0.8, alpha=0.55)
+
+            x_idx = int(np.argmin(np.abs(x_grid - L_max)))
+            source_mid_z = S_Tb + (S_T / 2.0)
+            z_idx = int(np.argmin(np.abs(z_grid - source_mid_z)))
+            threshold_level = float(C[z_idx, x_idx])
+            if np.isfinite(threshold_level) and c_min < threshold_level < c_max:
+                threshold_obj = contour_ax.contour(x_grid, z_grid, C, levels=[threshold_level])
+                txs, tys = [], []
+                for level_segments in threshold_obj.allsegs:
+                    for segment in level_segments:
+                        if len(segment) >= 2:
+                            txs.append(segment[:, 0].tolist())
+                            tys.append(segment[:, 1].tolist())
+                if txs:
+                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="Lmax boundary")
+        finally:
+            plt.close(contour_fig)
+
+    source_width = float(x_grid[1] - x_grid[0]) if len(x_grid) > 1 else max(float(L_D) * 0.02, 1.0)
+    source_width = max(source_width, float(L_D) * 0.015)
+    p.quad(
+        left=0,
+        right=source_width,
+        bottom=0,
+        top=S_Tb,
+        color="#d1d5db",
+        alpha=0.45,
+        line_color="#6b7280",
+        legend_label="Source buffer",
+    )
+    p.quad(
+        left=0,
+        right=source_width,
+        bottom=S_Tb,
+        top=S_Tb + S_T,
+        color="#f97316",
+        alpha=0.65,
+        line_color="#9a3412",
+        legend_label="Active source zone",
+    )
+    p.quad(
+        left=0,
+        right=source_width,
+        bottom=S_Tb + S_T,
+        top=A_T,
+        color="#d1d5db",
+        alpha=0.45,
+        line_color="#6b7280",
+    )
+
+    lmax_span = Span(location=L_max, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
+    ld_span = Span(location=L_D, dimension="height", line_color="grey", line_dash="dotted", line_width=2)
+    p.add_layout(lmax_span)
+    p.add_layout(ld_span)
+    p.line([L_max, L_max], [0, A_T], color="navy", line_dash="dashed", line_width=2, legend_label=f"Lmax = {L_max:.1f} m")
+    p.line([L_D, L_D], [0, A_T], color="grey", line_dash="dotted", line_width=2, legend_label=f"LD = {L_D:.1f} m")
+
+    p.legend.location = "top_right"
+    p.legend.click_policy = "hide"
+    return p
+
+
+def plot_lmax_scatter(
+    db_analytical_lmax,
+    db_plume_lengths,
+    numerical_lmax,
+    analytical_lmax,
+    avg_analytical_lmax,
+    avg_db_plume_length,
+    selected_site=None,
+    numerical_runs=None,
+):
+    """Create the numerical-vs-analytical Lmax comparison plot."""
+    db_analytical_lmax = _clean(db_analytical_lmax)
+    db_plume_lengths = _clean(db_plume_lengths)
+    numerical_runs = numerical_runs or [(analytical_lmax, numerical_lmax, "Numerical Lmax")]
+
+    p = figure(
+        title="Numerical Model Plume Length Comparison",
+        x_axis_label="Analytical Lmax [m]",
+        y_axis_label="Numerical / Observed Plume Length [m]",
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        sizing_mode="stretch_width",
+        height=400,
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+    )
+
+    ref_candidates = db_analytical_lmax + db_plume_lengths
+    for x_val, y_val, _label in numerical_runs:
+        ref_candidates.extend(_clean([x_val, y_val]))
+    if selected_site:
+        ref_candidates.extend(_clean([selected_site.get("analytical_lmax"), selected_site.get("plume_length")]))
+    ref_max = max(ref_candidates) * 1.1 if ref_candidates else 1.0
+    p.line([0, ref_max], [0, ref_max], line_dash="dashed", line_color="lightgrey", line_width=1.5, legend_label="1:1 reference")
+
+    if db_analytical_lmax and db_plume_lengths:
+        pair_count = min(len(db_analytical_lmax), len(db_plume_lengths))
+        db_source = ColumnDataSource(
+            data={
+                "x": db_analytical_lmax[:pair_count],
+                "y": db_plume_lengths[:pair_count],
+                "site": list(range(1, pair_count + 1)),
+            }
+        )
+        db_renderer = p.scatter(
+            "x",
+            "y",
+            source=db_source,
+            size=7,
+            marker="circle",
+            color="#AED6F1",
+            alpha=0.45,
+            legend_label="Database plume length",
+        )
+        p.add_tools(
+            HoverTool(
+                renderers=[db_renderer],
+                tooltips=[("Site index", "@site"), ("Analytical Lmax", "@x{0.0} m"), ("Plume length", "@y{0.0} m")],
+            )
+        )
+
+    if avg_analytical_lmax is not None and avg_db_plume_length is not None:
+        p.scatter(
+            [avg_analytical_lmax],
+            [avg_db_plume_length],
+            size=14,
+            marker="circle",
+            color="#16803c",
+            alpha=0.85,
+            legend_label="Average site Lmax",
+        )
+
+    if selected_site is not None:
+        p.scatter(
+            [selected_site["analytical_lmax"]],
+            [selected_site["plume_length"]],
+            size=18,
+            marker="cross",
+            color="hotpink",
+            line_width=3,
+            legend_label="Selected site Lmax",
+        )
+
+    palette = ["#2E86C1", "#1B4F72", "#2874A6", "#5499C7", "#154360"]
+    for idx, (x_val, y_val, label) in enumerate(numerical_runs):
+        num_source = ColumnDataSource(data={"x": [x_val], "y": [y_val], "label": [label]})
+        num_renderer = p.scatter(
+            "x",
+            "y",
+            source=num_source,
+            size=17,
+            marker="triangle",
+            color=palette[idx % len(palette)],
+            alpha=0.95,
+            legend_label=label,
+        )
+        p.add_tools(
+            HoverTool(
+                renderers=[num_renderer],
+                tooltips=[("Run", "@label"), ("Analytical Lmax", "@x{0.0} m"), ("Numerical Lmax", "@y{0.0} m")],
+            )
+        )
+
+    p.legend.location = "top_left"
+    p.legend.click_policy = "hide"
+    return p
 
 
 # -------------------------------------------------
