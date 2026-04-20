@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, request, session
 
 from data_queries import get_user_sites_rows
 from settings import PANEL_BASE_URL
+from symbol_registry import db_to_model
 
 analytical_bp = Blueprint("analytical_bp", __name__)
 
@@ -37,6 +38,22 @@ def _selected_site():
     return sites, None
 
 
+def _model_name_from_panel_path(path):
+    if "cirpka" in path:
+        return "cirpka"
+    if "liedl3d" in path:
+        return "liedl3d"
+    if "liedl" in path:
+        return "liedl"
+    if "chu" in path:
+        return "chu"
+    if "ham" in path:
+        return "ham"
+    if "bioscreen" in path:
+        return "bioscreen"
+    return path.replace("panel_", "").replace("_single", "").replace("_multiple", "")
+
+
 def _build_panel_query(path, site):
     if not site:
         return {}
@@ -49,6 +66,8 @@ def _build_panel_query(path, site):
     o2 = _to_float(site.get("electron_acceptor_o2"))
     no3 = _to_float(site.get("electron_acceptor_no3"))
 
+    canonical = db_to_model(site, _model_name_from_panel_path(path))
+
     query = {}
     if aquifer is not None:
         query["M"] = aquifer
@@ -57,17 +76,16 @@ def _build_panel_query(path, site):
         query["Q"] = plume_length
     if plume_width is not None:
         query["W"] = plume_width
+        query["Sw"] = plume_width
     if conductivity is not None:
-        query["alpha_Tv"] = conductivity
-        query["alpha_Th"] = conductivity
-        query["alpha"] = conductivity
-        query["alpha_T"] = conductivity
-        query["v"] = conductivity
+        query["hk"] = conductivity  # hydraulic conductivity only; not dispersivity
     if donor is not None:
         query["C_ED0"] = donor
         query["c0"] = donor
+        query["C_D"] = donor
     if o2 is not None:
         query["C_EA0"] = o2
+        query["C_A"] = o2
     if no3 is not None:
         query["epsilon"] = no3
         query["k"] = no3
@@ -76,6 +94,12 @@ def _build_panel_query(path, site):
     if site.get("id") is not None:
         query["site_id"] = int(site.get("id"))
     query["email"] = _current_email()
+
+    for symbol, value in canonical.items():
+        if symbol == "S_w":
+            query.setdefault("Sw", value)
+        else:
+            query.setdefault(symbol, value)
 
     # model defaults
     if "bioscreen" in path:
@@ -217,6 +241,29 @@ def liedl3d_multiple():
     return render_template(
         "panel_liedl3d_multiple.html",
         panel_src=_panel_src("panel_liedl3d_multiple", selected_site),
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+    )
+
+
+# ---------- CIRPKA ----------
+@analytical_bp.route("/cirpka/single")
+def cirpka_single():
+    sites, selected_site = _selected_site()
+    return render_template(
+        "panel_cirpka_single.html",
+        panel_src=_panel_src("panel_cirpka_single", selected_site),
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+    )
+
+
+@analytical_bp.route("/cirpka/multiple")
+def cirpka_multiple():
+    sites, selected_site = _selected_site()
+    return render_template(
+        "panel_cirpka_multiple.html",
+        panel_src=_panel_src("panel_cirpka_multiple", selected_site),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
     )

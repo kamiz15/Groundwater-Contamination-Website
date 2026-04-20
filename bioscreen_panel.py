@@ -1,8 +1,11 @@
+import io
+
 import pandas as pd
 import panel as pn
 
 from bioscreen_model import bio
 from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, query_str, summary_card
+from pdf_report import CASTReport
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -36,6 +39,20 @@ def bioscreen_single_app():
     email = query_str("email", "demo@example.com")
     selected_site_id = query_int("site_id", 0)
 
+    _state: dict = {}
+
+    def _pdf_callback():
+        if not _state:
+            return io.BytesIO(b"")
+        report = CASTReport("BIOSCREEN-AT \u2014 Single Simulation", "BIOSCREEN Analytical")
+        return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
+
+    export_btn = pn.widgets.FileDownload(
+        callback=_pdf_callback, filename="bioscreen_single_report.pdf",
+        label="\u2193 Download PDF Report", button_type="primary",
+        sizing_mode="stretch_width", visible=False,
+    )
+
     def _run(_=None):
         try:
             lmax = float(bio(cthres.value, time.value, h.value, c0.value, w.value, v.value, ax.value, ay.value, az.value, df.value, r.value, gamma.value, lam.value, int(ng.value)))
@@ -50,9 +67,27 @@ def bioscreen_single_app():
                 email,
                 "Run Number",
             )
+            _state.update({
+                "parameters": [
+                    {"symbol": "Cthres", "name": "Threshold Concentration", "value": cthres.value, "unit": "mg/L"},
+                    {"symbol": "t", "name": "Time", "value": time.value, "unit": "yr"},
+                    {"symbol": "H", "name": "Source Thickness", "value": h.value, "unit": "m"},
+                    {"symbol": "c0", "name": "Source Concentration", "value": c0.value, "unit": "mg/L"},
+                    {"symbol": "W", "name": "Source Width", "value": w.value, "unit": "m"},
+                    {"symbol": "v", "name": "Groundwater Velocity", "value": v.value, "unit": "m/yr"},
+                    {"symbol": "ax", "name": "Long. Dispersivity", "value": ax.value, "unit": "m"},
+                    {"symbol": "ay", "name": "Horiz. Trans. Dispersivity", "value": ay.value, "unit": "m"},
+                    {"symbol": "az", "name": "Vert. Trans. Dispersivity", "value": az.value, "unit": "m"},
+                    {"symbol": "\u03bb", "name": "First-order Decay", "value": lam.value, "unit": "1/yr"},
+                ],
+                "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
+                "plot_data": {"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — BIOSCREEN-AT"},
+            })
+            export_btn.visible = True
         except Exception as exc:
             result_pane.object = error_card(str(exc))
             plot_pane.object = None
+            export_btn.visible = False
 
     run_btn.on_click(_run)
 
@@ -65,7 +100,7 @@ def bioscreen_single_app():
     )
     outputs = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
     body = pn.FlexBox(controls, outputs, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
-    return pn.Column(run_btn, result_pane, body, sizing_mode="stretch_both", styles={"gap": "14px"})
+    return pn.Column(run_btn, result_pane, body, export_btn, sizing_mode="stretch_both", styles={"gap": "14px"})
 
 
 def bioscreen_multiple_app():
@@ -77,6 +112,20 @@ def bioscreen_multiple_app():
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
     email = query_str("email", "demo@example.com")
     selected_site_id = query_int("site_id", 0)
+
+    _state: dict = {}
+
+    def _pdf_callback():
+        if not _state:
+            return io.BytesIO(b"")
+        report = CASTReport("BIOSCREEN-AT \u2014 Multiple Simulation", "BIOSCREEN Analytical")
+        return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
+
+    export_btn = pn.widgets.FileDownload(
+        callback=_pdf_callback, filename="bioscreen_multiple_report.pdf",
+        label="\u2193 Download PDF Report", button_type="primary",
+        sizing_mode="stretch_width", visible=False,
+    )
 
     def _run(_=None):
         try:
@@ -105,10 +154,21 @@ def bioscreen_multiple_app():
                 email,
                 "Scenario Number",
             )
+            _state.update({
+                "parameters": [{"symbol": f"t={r['time_years']:.0f}yr", "name": f"Time {r['time_years']:.0f} yr", "value": f"L={r['lmax_m']:.2f}", "unit": "m"} for r in rows],
+                "outputs": [
+                    {"label": "Scenarios run", "value": str(len(l_vals)), "unit": ""},
+                    {"label": "Max plume length", "value": f"{max(l_vals):.2f}", "unit": "m"},
+                    {"label": "Min plume length", "value": f"{min(l_vals):.2f}", "unit": "m"},
+                ],
+                "plot_data": {"labels": [f"t={r['time_years']:.0f}yr" for r in rows], "values": [r["lmax_m"] for r in rows], "ylabel": "Plume Length (m)", "title": "Plume Length Over Time — BIOSCREEN-AT"},
+            })
+            export_btn.visible = True
         except Exception as exc:
             table.value = pd.DataFrame([{"error": str(exc)}])
             result_pane.object = error_card(str(exc))
             plot_pane.object = None
+            export_btn.visible = False
 
     run_btn.on_click(_run)
 
@@ -121,4 +181,4 @@ def bioscreen_multiple_app():
     )
     outputs = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
     body = pn.FlexBox(controls, outputs, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
-    return pn.Column(run_btn, result_pane, body, sizing_mode="stretch_both", styles={"gap": "14px"})
+    return pn.Column(run_btn, result_pane, body, export_btn, sizing_mode="stretch_both", styles={"gap": "14px"})

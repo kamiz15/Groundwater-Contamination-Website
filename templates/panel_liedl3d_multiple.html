@@ -4,6 +4,10 @@
 <section class="section-spaced model-page">
   <h2>Liedl 3D - Multiple Simulation</h2>
   <p class="small">Manual scenario inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <div class="card-like conceptual-figure">
+    <h3>Conceptual Model</h3>
+    <img src="{{ url_for('static', filename='images/conceptual_liedl_3d.png') }}" alt="Conceptual model diagram for Liedl 3D" class="conceptual-img" loading="lazy" />
+  </div>
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">

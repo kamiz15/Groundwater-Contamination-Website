@@ -4,6 +4,19 @@
 <section class="section-spaced model-page">
   <h2>Numerical Model - Single Simulation</h2>
   <p class="small">Manual numerical inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <div class="card-like conceptual-figure conceptual-figure--numerical">
+    <h3>Conceptual Models</h3>
+    <div class="conceptual-pair">
+      <figure class="conceptual-panel">
+        <figcaption>Vertical Model</figcaption>
+        <img src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}" alt="Vertical numerical model diagram showing domain length, aquifer thickness, source thickness, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="lazy" />
+      </figure>
+      <figure class="conceptual-panel">
+        <figcaption>Horizontal Model</figcaption>
+        <img src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}" alt="Horizontal numerical model diagram showing domain length, domain width, source width, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="lazy" />
+      </figure>
+    </div>
+  </div>
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">
@@ -23,8 +36,8 @@
   {% else %}
   <p class="small">No uploaded site data found. The model is currently in manual input mode.</p>
   {% endif %}
-  <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame" loading="lazy"></iframe>
+  <div class="panel-shell panel-shell--numerical">
+    <iframe src="{{ panel_src }}" class="panel-frame panel-frame--numerical" loading="lazy"></iframe>
   </div>
 </section>
 {% endblock %}

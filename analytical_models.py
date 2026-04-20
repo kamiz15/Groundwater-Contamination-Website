@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, List
 
-from scipy.special import erf
+from scipy.special import erf, erfcinv
 
 
 # -------------------------
@@ -154,4 +154,53 @@ def compute_liedl3d_multiple(entries: Iterable[Iterable[float]]) -> List[float]:
     for row in entries:
         M, alpha_Th, alpha_Tv, W, Cthres, C_EA0, C_ED0, gamma = row
         results.append(liedl3d_lmax(M, alpha_Th, alpha_Tv, W, Cthres, C_EA0, C_ED0, gamma))
+    return results
+
+
+# -------------------------
+# CIRPKA et al. (2005)
+# -------------------------
+
+def cirpka_2005(Sw: float = 10, Ath: float = 0.1, Ca: float = 8, Cd: float = 5, Ga: float = 3.5) -> float:
+    """
+    Compute maximum plume length using the Cirpka et al. (2005) horizontal flow model.
+
+    Parameters match the provided reference script:
+    Sw = source width [L]
+    Ath = transverse horizontal dispersivity [L]
+    Ca = reactant concentration [M/L^3]
+    Cd = source concentration [M/L^3]
+    Ga = stoichiometric coefficient of the reactant [-]
+    """
+    if Sw <= 0:
+        raise ValueError("Sw must be positive")
+    if Ath <= 0:
+        raise ValueError("Ath must be positive")
+    if Ca <= 0:
+        raise ValueError("Ca must be positive")
+    if (Ga * Cd + Ca) <= 0:
+        raise ValueError("Ga * Cd + Ca must be positive")
+
+    cf = Ca / (Ga * Cd + Ca)
+    Lm = (Sw ** 2) / (16.0 * Ath * erfcinv(cf) ** 2)
+    return float(Lm)
+
+
+def cirpka_lmax(Sw: float, alpha_Th: float, gamma: float, C_A: float, C_D: float) -> float:
+    """Compatibility wrapper using canonical CAST parameter names."""
+    return cirpka_2005(Sw=Sw, Ath=alpha_Th, Ca=C_A, Cd=C_D, Ga=gamma)
+
+
+def cirpka_domain_length(lmax: float) -> float:
+    """Domain length = 1.5 × L_max."""
+    return 1.5 * lmax
+
+
+def compute_cirpka_multiple(entries):
+    """Batch compute for multiple parameter sets."""
+    results = []
+    for row in entries:
+        Sw, alpha_Th, gamma, C_A, C_D = row
+        lmax = cirpka_lmax(Sw, alpha_Th, gamma, C_A, C_D)
+        results.append({"Lmax": lmax, "LD": cirpka_domain_length(lmax)})
     return results

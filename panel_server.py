@@ -21,6 +21,8 @@ from panel_birla_single import birla_single_app
 from panel_birla_multiple import birla_multiple_app
 from panel_numerical_single import numerical_single_app
 from panel_numerical_multiple import numerical_multiple_app
+from panel_cirpka_single import cirpka_single_app
+from panel_cirpka_multiple import cirpka_multiple_app
 
 
 pn.extension("tabulator")
@@ -51,7 +53,8 @@ apps = {
     "panel_birla_multiple": birla_multiple_app,
     "panel_numerical_single": numerical_single_app,
     "panel_numerical_multiple": numerical_multiple_app,
-
+    "panel_cirpka_single": cirpka_single_app,
+    "panel_cirpka_multiple": cirpka_multiple_app,
 }
 
 if __name__ == "__main__":

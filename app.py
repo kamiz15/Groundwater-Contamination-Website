@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
-from flask_login import LoginManager
+from flask_login import LoginManager, UserMixin
 from mysql.connector import Error
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -18,12 +18,25 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
 
 
+class User(UserMixin):
+    def __init__(self, id, username, email):
+        self.id = id
+        self.username = username
+        self.email = email
+
+
 @login_manager.user_loader
 def load_user(user_id):
-    """
-    TODO: replace with real lookup from DB.
-    Right now just returns None so users are always 'not logged in'.
-    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, username, email FROM users WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+    if row:
+        return User(row["id"], row["username"], row["email"])
     return None
 
 app.config['DB_CONNECTION'] = get_db_connection

@@ -4,6 +4,7 @@ from flask import Blueprint, render_template, request, session
 
 from data_queries import get_user_sites_rows
 from settings import PANEL_BASE_URL
+from symbol_registry import db_to_model
 
 numerical_bp = Blueprint("numerical_bp", __name__)
 
@@ -47,6 +48,8 @@ def _build_panel_query(site):
     donor = _to_float(site.get("electron_donor"))
     o2 = _to_float(site.get("electron_acceptor_o2"))
 
+    canonical = db_to_model(site, "numerical")
+
     query = {"email": _current_email()}
     if site.get("id") is not None:
         query["site_id"] = int(site.get("id"))
@@ -54,18 +57,36 @@ def _build_panel_query(site):
         query["Lx"] = max(plume_length * 1.5, 40.0)
     if plume_width is not None:
         query["Ly"] = max(plume_width * 2.0, 10.0)
+        query["Sw"] = plume_width
     if aquifer is not None:
         query["nrow"] = max(int(round(aquifer * 5)), 10)
     if conductivity is not None:
         query["hk"] = max(conductivity, 0.01)
     if donor is not None:
         query["Cd"] = donor
+        query["C_D"] = donor
     if o2 is not None:
         query["Ca"] = o2
+        query["C_A"] = o2
+    for symbol, value in canonical.items():
+        if symbol == "S_w":
+            query.setdefault("Sw", value)
+        elif symbol == "K":
+            query.setdefault("hk", value)
+        elif symbol == "C_D":
+            query.setdefault("Cd", value)
+        elif symbol == "C_A":
+            query.setdefault("Ca", value)
+        else:
+            query.setdefault(symbol, value)
     query.setdefault("ncol", 60)
     query.setdefault("prsity", 0.3)
     query.setdefault("al", 5.0)
     query.setdefault("av", 0.5)
+    query.setdefault("alpha_Th", 0.1)
+    query.setdefault("alpha_th", 0.1)
+    query.setdefault("R_Wu", 7.5)
+    query.setdefault("R_Wb", 7.5)
     query.setdefault("gamma", 3.5)
     query.setdefault("h1", 10.0)
     query.setdefault("h2", 9.0)

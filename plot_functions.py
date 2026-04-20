@@ -64,7 +64,7 @@ def _clean(values: List) -> List[float]:
     return out
 
 
-def plot_vertical_plume_contour(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, A_T):
+def plot_vertical_plume_contour(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb, A_T, delta_x, C_D, C_A):
     """Create the vertical numerical plume contour plot used by the Panel numerical apps."""
     C = np.asarray(C, dtype=float)
     x_grid = np.asarray(x_grid, dtype=float)
@@ -85,30 +85,52 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, 
         contourf_obj = ax.contourf(x_grid, z_grid, C, levels=levels, cmap="RdYlGn_r")
         ax.contour(x_grid, z_grid, C, levels=levels, colors="black", linewidths=0.5, alpha=0.6)
 
-        x_idx = int(np.argmin(np.abs(x_grid - L_max)))
-        source_mid_z = S_Tb + (S_T / 2.0)
+        x_idx = int(np.argmin(np.abs(x_grid - L_max_n)))
+        source_mid_z = R_Tb + (S_T / 2.0)
         z_idx = int(np.argmin(np.abs(z_grid - source_mid_z)))
         threshold_level = float(C[z_idx, x_idx])
         if np.isfinite(threshold_level) and float(np.nanmin(finite)) < threshold_level < float(np.nanmax(finite)):
             ax.contour(x_grid, z_grid, C, levels=[threshold_level], colors="purple", linewidths=2.5)
         fig.colorbar(contourf_obj, ax=ax, label="Concentration [mg/L]")
 
-    source_width = float(x_grid[1] - x_grid[0]) if len(x_grid) > 1 else max(float(L_D) * 0.02, 1.0)
-    source_width = max(source_width, float(L_D) * 0.015)
-    ax.fill_betweenx([0, S_Tb], 0, source_width, color="#d1d5db", alpha=0.4, hatch="/", edgecolor="#6b7280")
+    # Source zone rectangles — width = delta_x (first grid column only)
+    sw = float(delta_x)
+    # R_Tb zone (bottom buffer) — solid dark blue, alpha 0.3
+    ax.fill_betweenx([0, R_Tb], 0, sw, color="#2C3E7A", alpha=0.3)
+    # S_T zone (active source) — solid dark red, alpha 0.85, no hatch
     ax.fill_betweenx(
-        [S_Tb, S_Tb + S_T],
+        [R_Tb, R_Tb + S_T],
         0,
-        source_width,
-        color="#f97316",
-        alpha=0.6,
-        hatch="xx",
-        edgecolor="#9a3412",
+        sw,
+        color="#8B1A1A",
+        alpha=0.85,
         label="Active source zone",
     )
-    ax.fill_betweenx([S_Tb + S_T, A_T], 0, source_width, color="#d1d5db", alpha=0.4, hatch="/", edgecolor="#6b7280")
+    # R_Ta zone (top buffer) — solid dark blue, alpha 0.3
+    ax.fill_betweenx([R_Tb + S_T, A_T], 0, sw, color="#2C3E7A", alpha=0.3)
 
-    ax.axvline(x=L_max, color="navy", linestyle="--", linewidth=1.5, label=f"Lmax = {L_max:.1f} m")
+    # Boundary condition annotations — left boundary (vertical text inside source column)
+    label_x = sw / 2.0
+    if R_Ta > 0:
+        ax.text(label_x, R_Tb + S_T + R_Ta / 2.0, "Reactant Conc. (C_A)",
+                rotation=90, ha="center", va="center", color="blue", fontsize=7, clip_on=True)
+    ax.text(label_x, R_Tb + S_T / 2.0, "Source Conc. (C_D)",
+            rotation=90, ha="center", va="center", color="#8B1A1A", fontsize=7, clip_on=True)
+    if R_Tb > 0:
+        ax.text(label_x, R_Tb / 2.0, "Reactant Conc. (C_A)",
+                rotation=90, ha="center", va="center", color="blue", fontsize=7, clip_on=True)
+
+    # Top boundary
+    ax.text(L_D / 2.0, A_T * 0.98, "C_A",
+            rotation=0, ha="center", va="top", color="blue", fontsize=9)
+    # Right boundary
+    ax.text(L_D * 0.97, A_T / 2.0, "C_A",
+            rotation=90, ha="right", va="center", color="blue", fontsize=9)
+    # Bottom boundary
+    ax.text(L_D / 2.0, A_T * 0.02, "Confined aquifer bottom",
+            rotation=0, ha="center", va="bottom", color="grey", fontsize=8)
+
+    ax.axvline(x=L_max_n, color="navy", linestyle="--", linewidth=1.5, label=f"L_max^n = {L_max_n:.1f} m")
     ax.axvline(x=L_D, color="grey", linestyle=":", linewidth=1.2, label=f"LD = {L_D:.1f} m")
     ax.set_xlim(0, L_D)
     ax.set_ylim(0, A_T)
@@ -120,7 +142,7 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, 
     return fig
 
 
-def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_Tb, A_T):
+def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb, A_T):
     """Create an interactive Bokeh version of the vertical numerical plume contour plot."""
     C = np.asarray(C, dtype=float)
     x_grid = np.asarray(x_grid, dtype=float)
@@ -177,8 +199,8 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_
             if xs:
                 p.multi_line(xs, ys, color="black", line_width=0.8, alpha=0.55)
 
-            x_idx = int(np.argmin(np.abs(x_grid - L_max)))
-            source_mid_z = S_Tb + (S_T / 2.0)
+            x_idx = int(np.argmin(np.abs(x_grid - L_max_n)))
+            source_mid_z = R_Tb + (S_T / 2.0)
             z_idx = int(np.argmin(np.abs(z_grid - source_mid_z)))
             threshold_level = float(C[z_idx, x_idx])
             if np.isfinite(threshold_level) and c_min < threshold_level < c_max:
@@ -190,7 +212,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_
                             txs.append(segment[:, 0].tolist())
                             tys.append(segment[:, 1].tolist())
                 if txs:
-                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="Lmax boundary")
+                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="L_max^n boundary")
         finally:
             plt.close(contour_fig)
 
@@ -200,7 +222,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_
         left=0,
         right=source_width,
         bottom=0,
-        top=S_Tb,
+        top=R_Tb,
         color="#d1d5db",
         alpha=0.45,
         line_color="#6b7280",
@@ -209,8 +231,8 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_
     p.quad(
         left=0,
         right=source_width,
-        bottom=S_Tb,
-        top=S_Tb + S_T,
+        bottom=R_Tb,
+        top=R_Tb + S_T,
         color="#f97316",
         alpha=0.65,
         line_color="#9a3412",
@@ -219,22 +241,139 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max, L_D, S_T, S_Ta, S_
     p.quad(
         left=0,
         right=source_width,
-        bottom=S_Tb + S_T,
+        bottom=R_Tb + S_T,
         top=A_T,
         color="#d1d5db",
         alpha=0.45,
         line_color="#6b7280",
     )
 
-    lmax_span = Span(location=L_max, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
+    lmax_span = Span(location=L_max_n, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
     ld_span = Span(location=L_D, dimension="height", line_color="grey", line_dash="dotted", line_width=2)
     p.add_layout(lmax_span)
     p.add_layout(ld_span)
-    p.line([L_max, L_max], [0, A_T], color="navy", line_dash="dashed", line_width=2, legend_label=f"Lmax = {L_max:.1f} m")
+    p.line([L_max_n, L_max_n], [0, A_T], color="navy", line_dash="dashed", line_width=2, legend_label=f"L_max^n = {L_max_n:.1f} m")
     p.line([L_D, L_D], [0, A_T], color="grey", line_dash="dotted", line_width=2, legend_label=f"LD = {L_D:.1f} m")
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
+    return p
+
+
+def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W):
+    """Interactive Bokeh plan-view (horizontal) plume contour plot."""
+    C = np.asarray(C, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    y_grid = np.asarray(y_grid, dtype=float)
+    finite = C[np.isfinite(C)]
+    c_min = float(np.nanmin(finite)) if finite.size else 0.0
+    c_max = float(np.nanmax(finite)) if finite.size else 1.0
+    if c_min == c_max:
+        c_max = c_min + 1.0
+
+    p = figure(
+        title="Contaminant Plume \u2014 Horizontal Model (Plan View)",
+        x_axis_label="Distance Lx [m]",
+        y_axis_label="Horizontal Width [m]",
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=430,
+        x_range=(0, L_D),
+        y_range=(0, A_W),
+    )
+
+    mapper = LinearColorMapper(palette=list(reversed(RdYlGn11)), low=c_min, high=c_max)
+    img_renderer = p.image(
+        image=[np.flipud(C)],
+        x=0, y=0, dw=L_D, dh=A_W,
+        color_mapper=mapper, alpha=0.95,
+    )
+    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Concentration [mg/L]"), "right")
+    p.add_tools(HoverTool(
+        renderers=[img_renderer],
+        tooltips=[("Distance", "$x{0.0} m"), ("Width", "$y{0.00} m")],
+    ))
+
+    # Contour lines
+    levels = np.linspace(c_min, c_max, 15)
+    if finite.size and c_min < c_max:
+        cfig, cax = plt.subplots()
+        try:
+            cobj = cax.contour(x_grid, y_grid, C, levels=levels)
+            xs, ys = [], []
+            for segs in cobj.allsegs:
+                for seg in segs:
+                    if len(seg) >= 2:
+                        xs.append(seg[:, 0].tolist())
+                        ys.append(seg[:, 1].tolist())
+            if xs:
+                p.multi_line(xs, ys, color="black", line_width=0.8, alpha=0.55)
+        finally:
+            plt.close(cfig)
+
+    # Source strip centred in y
+    source_y0 = (A_W - Sw) / 2.0
+    source_y1 = (A_W + Sw) / 2.0
+    src_w = float(x_grid[1] - x_grid[0]) if len(x_grid) > 1 else max(float(L_D) * 0.02, 1.0)
+    src_w = max(src_w, float(L_D) * 0.015)
+
+    if source_y0 > 0:
+        p.quad(left=0, right=src_w, bottom=0, top=source_y0,
+               color="#d1d5db", alpha=0.45, line_color="#6b7280", legend_label="Ambient zone")
+    p.quad(left=0, right=src_w, bottom=source_y0, top=source_y1,
+           color="#f97316", alpha=0.65, line_color="#9a3412", legend_label="Active source zone (Sw)")
+    if source_y1 < A_W:
+        p.quad(left=0, right=src_w, bottom=source_y1, top=A_W,
+               color="#d1d5db", alpha=0.45, line_color="#6b7280")
+
+    lmax_span = Span(location=L_max_h, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
+    ld_span = Span(location=L_D, dimension="height", line_color="grey", line_dash="dotted", line_width=2)
+    p.add_layout(lmax_span)
+    p.add_layout(ld_span)
+    p.line([L_max_h, L_max_h], [0, A_W], color="navy", line_dash="dashed", line_width=2,
+           legend_label=f"L_max^h = {L_max_h:.1f} m")
+    p.line([L_D, L_D], [0, A_W], color="grey", line_dash="dotted", line_width=2,
+           legend_label=f"L_D = {L_D:.1f} m")
+
+    p.legend.location = "top_right"
+    p.legend.click_policy = "hide"
+    return p
+
+
+def plot_numerical_vs_cirpka_comparison(
+    numerical_lmax_v: float,
+    numerical_lmax_h: float,
+    cirpka_lmax_val: float,
+    liedl_lmax_val: float,
+):
+    """Bar chart comparing Liedl, Cirpka, vertical-numerical and horizontal-numerical Lmax."""
+    labels = ["Liedl\nAnalytical", "Cirpka\nAnalytical", "Numerical\nVertical", "Numerical\nHorizontal"]
+    values = [liedl_lmax_val, cirpka_lmax_val, numerical_lmax_v, numerical_lmax_h]
+    colors = ["#3B82F6", "#0D9887", "#1B3A6B", "#2E6EBD"]
+
+    source = ColumnDataSource(data={"labels": labels, "values": values, "colors": colors})
+
+    p = figure(
+        x_range=labels,
+        title="Model Comparison \u2014 Plume Length L_max",
+        x_axis_label="Model",
+        y_axis_label="Plume Length [m]",
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        sizing_mode="stretch_width",
+        height=400,
+        toolbar_location="above",
+        active_drag="pan",
+    )
+    p.vbar(x="labels", top="values", width=0.55, source=source,
+           color="colors", alpha=0.88, line_color="white", line_width=1.5)
+    p.add_tools(HoverTool(tooltips=[("Model", "@labels"), ("L_max", "@values{0.00} m")]))
+    p.y_range.start = 0
+    p.xgrid.grid_line_color = None
+    p.xaxis.major_label_text_font_size = "9pt"
+    p.title.text_font_size = "11pt"
     return p
 
 
@@ -251,11 +390,11 @@ def plot_lmax_scatter(
     """Create the numerical-vs-analytical Lmax comparison plot."""
     db_analytical_lmax = _clean(db_analytical_lmax)
     db_plume_lengths = _clean(db_plume_lengths)
-    numerical_runs = numerical_runs or [(analytical_lmax, numerical_lmax, "Numerical Lmax")]
+    numerical_runs = numerical_runs or [(analytical_lmax, numerical_lmax, "Numerical L\u2098\u2090\u2093\u207f")]
 
     p = figure(
         title="Numerical Model Plume Length Comparison",
-        x_axis_label="Analytical Lmax [m]",
+        x_axis_label="Analytical L\u2098\u2090\u2093 [m]",
         y_axis_label="Numerical / Observed Plume Length [m]",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         sizing_mode="stretch_width",

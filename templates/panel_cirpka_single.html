@@ -1,13 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Ham et al. - Single Simulation{% endblock %}
+{% block title %}Cirpka et al. (2005) - Single Simulation{% endblock %}
 {% block content %}
 <section class="section-spaced model-page">
-  <h2>Ham et al. - Single Simulation</h2>
+  <h2>Cirpka et al. (2005) - Single Simulation</h2>
   <p class="small">Manual model inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+
   <div class="card-like conceptual-figure">
     <h3>Conceptual Model</h3>
-    <img src="{{ url_for('static', filename='images/conceptual_ham.png') }}" alt="Conceptual model diagram for Ham et al." class="conceptual-img" loading="lazy" />
+    <img
+      src="{{ url_for('static', filename='images/conceptual_cirpka.png') }}"
+      alt="Conceptual model diagram for Cirpka et al. (2005)"
+      class="conceptual-img"
+      loading="lazy"
+    />
   </div>
+
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">

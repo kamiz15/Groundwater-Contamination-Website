@@ -30,6 +30,14 @@ class NumericalModelResult:
     z_grid: np.ndarray
 
 
+@dataclass(frozen=True)
+class HorizontalModelResult:
+    plume_length: float
+    concentration: np.ndarray
+    x_grid: np.ndarray
+    y_grid: np.ndarray
+
+
 def _read_fortran_record(handle) -> bytes | None:
     """Read one sequential-unformatted Fortran record."""
     size_bytes = handle.read(4)
@@ -341,15 +349,13 @@ def run_numerical_model(
         fig = plt.figure(figsize=(11, 5))
         ax = plt.axes()
         mm = flopy.plot.map.PlotMapView(ax=ax, model=mf)
-        mm.plot_grid(color=".5", alpha=0.2)
         cs = mm.contour_array(conc_slice, levels=[c0], colors=["#163c66"], linewidths=2.0)
-        mm.plot_ibound()
         plt.xlabel("Distance Lx [m]")
         plt.ylabel("Aquifer Thickness [m]")
         plt.title("Contaminant Plume")
 
         img = io.BytesIO()
-        plt.savefig(img, format="png", bbox_inches="tight", dpi=140)
+        plt.savefig(img, format="png", bbox_inches="tight", dpi=300)
         plt.close(fig)
         img.seek(0)
 
@@ -387,3 +393,151 @@ def numerical_model(
 ) -> Tuple[float, str]:
     result = run_numerical_model(Lx, Ly, ncol, nrow, prsity, al, av, gamma, cd, ca, h1, h2, hk)
     return result.plume_length, result.plot_html
+
+
+def run_numerical_model_horizontal(
+    Lx: float,
+    A_W: float,
+    Sw: float,
+    ncol: int,
+    nrow: int,
+    prsity: float,
+    al: float,
+    alpha_Th: float,
+    gamma: float,
+    cd: float,
+    ca: float,
+    h1: float,
+    h2: float,
+    hk: float,
+) -> HorizontalModelResult:
+    """
+    Plan-view (horizontal) 2-D reactive transport model using MODFLOW/MT3DMS.
+
+    Grid orientation:
+      - Columns (ncol): flow direction x (left=inflow h1, right=outflow h2)
+      - Rows (nrow):    horizontal transverse direction y (0=bottom, nrow-1=top)
+
+    Source: strip of width Sw centred in y at the left (x=0) boundary.
+    Ambient reactant at concentration ca enters at top/bottom y-boundaries.
+    """
+    if flopy is None:
+        raise RuntimeError("flopy is not installed. Install flopy to run the numerical model.")
+    if min(Lx, A_W, prsity, al, hk) <= 0:
+        raise ValueError("Lx, A_W, prsity, al, hk must all be positive.")
+    if ncol < 2 or nrow < 2:
+        raise ValueError("ncol and nrow must both be at least 2.")
+    if Sw <= 0 or Sw >= A_W:
+        raise ValueError("Source width Sw must be positive and less than domain width A_W.")
+
+    mf_exe = _resolve_executable("MF2005_EXE", ["mf2005.exe", "mf2005"])
+    mt_exe = _resolve_executable("MT3DMS_EXE", ["mt3dms.exe", "mt3dms"])
+
+    run_root = Path.cwd() / ".numerical_runs"
+    run_root.mkdir(exist_ok=True)
+
+    with tempfile.TemporaryDirectory(dir=run_root) as tmpdir:
+        workdir = Path(tmpdir)
+
+        ztop = 0.0
+        zbot = -1.0
+        nlay = 1
+        delx = Lx / ncol
+        dely = A_W / nrow
+        delv = ztop - zbot
+        perlen = 6000.0
+
+        model_id = workdir.name.replace("-", "_")
+
+        t0_mf = f"T03_mf_{model_id}"
+        mf = flopy.modflow.Modflow(modelname=t0_mf, exe_name=mf_exe, model_ws=str(workdir))
+        flopy.modflow.ModflowDis(
+            mf, nlay=nlay, nrow=nrow, ncol=ncol,
+            delr=delx, delc=dely,
+            top=ztop, botm=[ztop - delv],
+            perlen=perlen,
+        )
+
+        # Left/right columns = specified head; top/bottom rows = active (no-flow)
+        ibound = np.ones((nlay, nrow, ncol), dtype=np.int32)
+        ibound[:, :, 0] = -1
+        ibound[:, :, -1] = -1
+
+        strt = np.full((nlay, nrow, ncol), (h1 + h2) / 2.0, dtype=np.float32)
+        strt[:, :, 0] = h1
+        strt[:, :, -1] = h2
+
+        flopy.modflow.ModflowBas(mf, ibound=ibound, strt=strt)
+        flopy.modflow.ModflowLpf(mf, hk=hk, laytyp=0)
+        flopy.modflow.ModflowGmg(mf)
+        flopy.modflow.ModflowLmt(mf, output_file_format="formatted")
+
+        mf.write_input()
+        success, _ = mf.run_model(silent=True)
+        if not success:
+            raise RuntimeError("MODFLOW (horizontal) execution failed.")
+
+        # --- MT3DMS ---
+        t0_mt = f"T03_mt_{model_id}"
+        mt = flopy.mt3d.Mt3dms(
+            modelname=t0_mt, exe_name=mt_exe,
+            modflowmodel=mf, ftlfree=True,
+            model_ws=str(workdir),
+        )
+
+        # Source strip centred in the y-domain
+        source_row_start = max(0, int(np.floor((A_W - Sw) / 2.0 / dely)))
+        source_row_end = min(nrow - 1, int(np.ceil((A_W + Sw) / 2.0 / dely)))
+
+        icbund = np.ones((nlay, nrow, ncol), dtype=np.int32)
+        icbund[:, :, 0] = -1
+        icbund[:, :, -1] = -1
+        icbund[:, 0, :] = -1
+        icbund[:, -1, :] = -1
+
+        sconc = np.full((nlay, nrow, ncol), ca, dtype=np.float32)
+        sconc[:, source_row_start:source_row_end + 1, 0] = float(gamma * cd) + 2.0 * float(ca)
+        sconc[:, :, -1] = ca
+        sconc[:, 0, :] = ca
+        sconc[:, -1, :] = ca
+
+        flopy.mt3d.Mt3dBtn(mt, icbund=icbund, prsity=prsity, sconc=sconc)
+        flopy.mt3d.Mt3dAdv(mt, mixelm=-1)
+        trpt = alpha_Th / al if al > 0 else 0.1
+        flopy.mt3d.Mt3dDsp(mt, al=al, trpt=trpt)
+        flopy.mt3d.Mt3dGcg(mt)
+        flopy.mt3d.Mt3dSsm(mt)
+
+        mt.write_input()
+        success, buff = mt.run_model(silent=True, report=True)
+        if (not success) and not any("Program completed" in str(line) for line in buff):
+            raise RuntimeError("MT3DMS (horizontal) execution failed.")
+
+        ucn_path = workdir / "MT3D001.UCN"
+        if not ucn_path.exists():
+            raise RuntimeError("MT3DMS (horizontal) did not produce MT3D001.UCN.")
+
+        conc = _read_mt3d_concentration(ucn_path, nlay=nlay, nrow=nrow, ncol=ncol)
+        conc_slice = conc[0]
+        x_grid = np.linspace(0.0, Lx, ncol)
+        y_grid = np.linspace(0.0, A_W, nrow)
+
+        # Extract plume length from the c0 = 2*ca contour
+        c0 = 2.0 * ca
+        plume_length = 0.0
+        try:
+            fig_tmp, ax_tmp = plt.subplots()
+            cs = ax_tmp.contour(x_grid, y_grid, conc_slice, levels=[c0])
+            segs = cs.allsegs[0] if getattr(cs, "allsegs", None) else []
+            if segs and len(segs[0]):
+                plume_length = float(np.max(np.asarray(segs[0])[:, 0]))
+            plt.close(fig_tmp)
+        except Exception:
+            plume_length = 0.0
+
+    return HorizontalModelResult(
+        plume_length=plume_length,
+        concentration=conc_slice,
+        x_grid=x_grid,
+        y_grid=y_grid,
+    )

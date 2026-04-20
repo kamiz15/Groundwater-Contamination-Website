@@ -47,7 +47,11 @@ def ensure_schema(connection):
         cursor.close()
 
 
+_schema_initialized = False
+
+
 def get_db_connection():
+    global _schema_initialized
     connection = mysql.connector.connect(
         host=DB_HOST,
         port=DB_PORT,
@@ -55,7 +59,9 @@ def get_db_connection():
         password=DB_PASSWORD,
         database=DB_NAME,
     )
-    ensure_schema(connection)
+    if not _schema_initialized:
+        ensure_schema(connection)
+        _schema_initialized = True
     return connection
 
 
