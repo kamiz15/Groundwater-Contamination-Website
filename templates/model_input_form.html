@@ -1,0 +1,86 @@
+{% if input_fields %}
+{% set standard_fields = input_fields | rejectattr('advanced') | list %}
+{% set advanced_fields = input_fields | selectattr('advanced') | list %}
+{% set db_fields = standard_fields | selectattr('from_db') | list %}
+{% set manual_fields = standard_fields | rejectattr('from_db') | list %}
+{% macro render_model_input(field) -%}
+<label>
+  <span class="input-label-row">
+    <span>{{ field.label }}</span>
+    {% if field.from_db %}
+    <em class="input-source-badge input-source-badge--db">DB</em>
+    {% elif field.advanced %}
+    <em class="input-source-badge input-source-badge--advanced">Override</em>
+    {% else %}
+    <em class="input-source-badge input-source-badge--manual">Manual</em>
+    {% endif %}
+  </span>
+  <input
+    type="number"
+    step="any"
+    {% if field.min is not none %}min="{{ field.min }}"{% endif %}
+    name="{{ field.name }}"
+    {% if field.value is not none %}value="{{ '%.6g'|format(field.value) }}"{% endif %}
+  >
+</label>
+{%- endmacro %}
+<div class="card-like external-input-card">
+  <h3>Input Parameters</h3>
+  <form method="GET" class="model-input-form">
+    <input type="hidden" name="run" value="1">
+    {% if selected_site_id %}
+    <input type="hidden" name="site_id" value="{{ selected_site_id }}">
+    {% endif %}
+
+    <div class="model-input-columns">
+      <section class="model-input-group model-input-group--db" aria-labelledby="database-inputs-heading">
+        <div class="model-input-group-header">
+          <h4 id="database-inputs-heading">Database Inputs</h4>
+          <em class="input-source-badge input-source-badge--db">DB</em>
+        </div>
+        {% if db_fields %}
+        <div class="model-input-grid">
+          {% for field in db_fields %}
+          {{ render_model_input(field) }}
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="model-input-empty">No database inputs loaded.</p>
+        {% endif %}
+      </section>
+
+      <section class="model-input-group model-input-group--manual" aria-labelledby="manual-inputs-heading">
+        <div class="model-input-group-header">
+          <h4 id="manual-inputs-heading">Manual Model Inputs</h4>
+          <em class="input-source-badge input-source-badge--manual">Manual</em>
+        </div>
+        {% if manual_fields %}
+        <div class="model-input-grid">
+          {% for field in manual_fields %}
+          {{ render_model_input(field) }}
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="model-input-empty">All inputs are loaded from the database.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    {% if advanced_fields %}
+    <details class="model-input-advanced">
+      <summary>Advanced Overrides</summary>
+      <p class="model-input-empty">Leave blank to size the simulation domain automatically from the analytical model.</p>
+      <div class="model-input-grid">
+        {% for field in advanced_fields %}
+        {{ render_model_input(field) }}
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    <div class="model-input-actions">
+      <button type="submit" class="primary-btn">Run Model</button>
+    </div>
+  </form>
+</div>
+{% endif %}

@@ -3,39 +3,23 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
     ca-certificates \
     curl \
-    gfortran \
-    git \
-    libgfortran5 \
-    make \
-    meson \
-    ninja-build \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-ARG MF2005_URL=https://water.usgs.gov/water-resources/software/MODFLOW-2005/MF2005.1_12u.zip
-ARG MT3DMS_GIT_URL=https://github.com/MODFLOW-USGS/mt3dms.git
-ARG MT3DMS_GIT_REF=1a8d6139c31bea7df8c551cc5fa6e7de5361e4c3
+ARG MF6_VERSION=6.7.0
 
 RUN set -eux; \
-    mkdir -p /tmp/build-mf2005; \
-    curl -L "$MF2005_URL" -o /tmp/build-mf2005/mf2005.zip; \
-    unzip -q /tmp/build-mf2005/mf2005.zip -d /tmp/build-mf2005; \
-    make -C /tmp/build-mf2005/MF2005.1_12u/make; \
-    install -m 0755 /tmp/build-mf2005/MF2005.1_12u/make/mf2005 /usr/local/bin/mf2005; \
-    rm -rf /tmp/build-mf2005
-
-RUN set -eux; \
-    git clone "$MT3DMS_GIT_URL" /tmp/build-mt3dms; \
-    cd /tmp/build-mt3dms; \
-    git checkout "$MT3DMS_GIT_REF"; \
-    sed -i "s|DATA FORM/'BINARY'/|      DATA FORM/'UNFORMATTED'/|" src/filespec.inc; \
-    meson setup builddir --prefix=/usr/local; \
-    meson compile -C builddir; \
-    meson install -C builddir; \
-    rm -rf /tmp/build-mt3dms
+    mkdir -p /tmp/mf6; \
+    curl --fail --location --retry 5 --retry-delay 5 --retry-all-errors --continue-at - \
+        "https://github.com/MODFLOW-ORG/modflow6/releases/download/${MF6_VERSION}/mf${MF6_VERSION}_linux.zip" \
+        -o /tmp/mf6/mf6.zip; \
+    unzip -q /tmp/mf6/mf6.zip -d /tmp/mf6; \
+    install -m 0755 "/tmp/mf6/mf${MF6_VERSION}_linux/bin/mf6" /usr/local/bin/mf6; \
+    install -m 0755 "/tmp/mf6/mf${MF6_VERSION}_linux/bin/libmf6.so" /usr/local/bin/libmf6.so; \
+    /usr/local/bin/mf6 -v; \
+    rm -rf /tmp/mf6
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --default-timeout=180 --retries=10 -r requirements.txt
@@ -51,7 +35,6 @@ ENV PYTHONUNBUFFERED=1 \
     FLASK_PORT=5000 \
     PANEL_HOST=0.0.0.0 \
     PANEL_PORT=5007 \
-    MF2005_EXE=/usr/local/bin/mf2005 \
-    MT3DMS_EXE=/usr/local/bin/mt3dms
+    MF6_EXE=/usr/local/bin/mf6
 
 EXPOSE 5000 5007

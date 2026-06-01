@@ -56,13 +56,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const username = document.getElementById("username").value;
             const password = document.getElementById("password").value;
+            const csrfToken = loginForm.elements["_csrf_token"].value;
             const msgBox = document.getElementById("loginMessage");
             msgBox.innerHTML = "⏳ Checking credentials...";
 
             try {
                 const res = await fetch("/login", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Token": csrfToken,
+                    },
                     body: JSON.stringify({ username, password }),
                 });
 
@@ -91,57 +95,27 @@ document.addEventListener("DOMContentLoaded", () => {
         regForm.addEventListener("submit", async (e) => {
             e.preventDefault();
 
-            const email = document.getElementById("reg_email").value;
-            const password = document.getElementById("reg_password").value;
-            const confirm = document.getElementById("reg_confirm").value;
-            const msgBox = document.getElementById("registerMessage");
-            msgBox.innerHTML = "⏳ Creating account...";
-
-            try {
-                const res = await fetch("/register", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email, password, confirm })
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    msgBox.className = "success";
-                    msgBox.innerHTML = "✅ Account created! Redirecting...";
-                    setTimeout(() => window.location.href = data.redirect, 1000);
-                } else {
-                    msgBox.className = "error";
-                    msgBox.innerHTML = "❌ " + data.message;
-                }
-            } catch (error) {
-                msgBox.className = "error";
-                msgBox.innerHTML = "⚠️ Server error, please try again.";
-            }
-        });
-    }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-    const regForm = document.getElementById("registerForm");
-    if (regForm) {
-        regForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-
             const username = document.getElementById("reg_username").value;
             const email = document.getElementById("reg_email").value;
             const password = document.getElementById("reg_password").value;
-            const confirm = document.getElementById("reg_confirm").value;
-            const country = document.getElementById("reg_country").value;
-            const organisation = document.getElementById("reg_org").value;
+            const confirmPassword = document.getElementById("reg_confirm").value;
+            const csrfToken = regForm.elements["_csrf_token"].value;
             const msgBox = document.getElementById("registerMessage");
+            const submitButton = regForm.querySelector('button[type="submit"]');
+
+            if (submitButton.disabled) return;
+            submitButton.disabled = true;
 
             msgBox.textContent = "⏳ Creating account...";
 
             try {
                 const res = await fetch("/register", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username, email, password, confirm, country, organisation }),
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Token": csrfToken,
+                    },
+                    body: JSON.stringify({ username, email, password, confirmPassword }),
                 });
 
                 const data = await res.json();
@@ -153,10 +127,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     msgBox.className = "error";
                     msgBox.textContent = "❌ " + data.message;
+                    submitButton.disabled = false;
                 }
             } catch (error) {
                 msgBox.className = "error";
                 msgBox.textContent = "⚠️ Server error, please try again.";
+                submitButton.disabled = false;
             }
         });
     }

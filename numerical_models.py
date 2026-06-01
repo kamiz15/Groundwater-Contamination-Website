@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
+import math
 import os
 import shutil
-import struct
+import signal
+import subprocess
 import tempfile
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 import matplotlib
 matplotlib.use("Agg")
@@ -17,8 +21,16 @@ import numpy as np
 
 try:
     import flopy
-except Exception:  # pragma: no cover - dependency may not be installed locally
+except Exception:  # pragma: no cover
     flopy = None
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s | %(message)s"))
+    logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 @dataclass(frozen=True)
@@ -28,6 +40,7 @@ class NumericalModelResult:
     concentration: np.ndarray
     x_grid: np.ndarray
     z_grid: np.ndarray
+    plot_png: bytes = b""
 
 
 @dataclass(frozen=True)
@@ -36,363 +49,218 @@ class HorizontalModelResult:
     concentration: np.ndarray
     x_grid: np.ndarray
     y_grid: np.ndarray
-
-
-def _read_fortran_record(handle) -> bytes | None:
-    """Read one sequential-unformatted Fortran record."""
-    size_bytes = handle.read(4)
-    if not size_bytes:
-        return None
-    if len(size_bytes) != 4:
-        raise RuntimeError("Unexpected end of file while reading Fortran record length.")
-
-    (record_size,) = struct.unpack("<i", size_bytes)
-    payload = handle.read(record_size)
-    if len(payload) != record_size:
-        raise RuntimeError("Unexpected end of file while reading Fortran record payload.")
-
-    end_size_bytes = handle.read(4)
-    if len(end_size_bytes) != 4:
-        raise RuntimeError("Unexpected end of file while reading Fortran record terminator.")
-
-    (end_record_size,) = struct.unpack("<i", end_size_bytes)
-    if end_record_size != record_size:
-        raise RuntimeError("Corrupt Fortran record: length prefix/suffix mismatch.")
-
-    return payload
-
-
-def _parse_mt3d_header(header_payload: bytes) -> tuple[float, str, int, int, int, np.dtype]:
-    if len(header_payload) == 44:
-        ntrans, kstp, kper, totim = struct.unpack("<3if", header_payload[:16])
-        text = header_payload[16:32].decode("ascii", "ignore").strip()
-        ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[32:44])
-        precision = np.dtype(np.float32)
-    elif len(header_payload) == 48:
-        ntrans, kstp, kper = struct.unpack("<3i", header_payload[:12])
-        (totim,) = struct.unpack("<d", header_payload[12:20])
-        text = header_payload[20:36].decode("ascii", "ignore").strip()
-        ncol_hdr, nrow_hdr, ilay_hdr = struct.unpack("<3i", header_payload[36:48])
-        precision = np.dtype(np.float64)
-    else:
-        raise RuntimeError(f"Unsupported MT3DMS concentration header size {len(header_payload)} bytes.")
-
-    return float(totim), text, int(ncol_hdr), int(nrow_hdr), int(ilay_hdr), precision
-
-
-def _read_mt3d_concentration(ucn_path: Path, nlay: int, nrow: int, ncol: int) -> np.ndarray:
-    """
-    Read MT3DMS concentration output written as sequential-unformatted Fortran records.
-
-    FloPy's UcnFile reader can fail against some MT3DMS builds even when the output is
-    otherwise valid. This parser handles the standard UCN header/data record pairs and
-    returns the latest concentration cube as (nlay, nrow, ncol).
-    """
-    latest_by_layer: dict[int, np.ndarray] = {}
-    latest_totim: float | None = None
-    cell_count = nrow * ncol
-
-    def add_record(header_payload: bytes, data_payload: bytes) -> None:
-        nonlocal latest_totim, latest_by_layer
-        totim, text, ncol_hdr, nrow_hdr, ilay_hdr, precision = _parse_mt3d_header(header_payload)
-
-        if ncol_hdr != ncol or nrow_hdr != nrow:
-            raise RuntimeError(
-                f"Unexpected MT3DMS concentration shape ({nrow_hdr}, {ncol_hdr}); "
-                f"expected ({nrow}, {ncol})."
-            )
-
-        if text.upper() != "CONCENTRATION":
-            return
-
-        values = np.frombuffer(data_payload, dtype=precision)
-        if values.size != cell_count:
-            raise RuntimeError(
-                f"Unexpected MT3DMS concentration payload size {values.size}; expected {cell_count}."
-            )
-
-        current_array = values.reshape((nrow, ncol)).astype(np.float64, copy=False)
-        if latest_totim is None or totim > latest_totim:
-            latest_totim = totim
-            latest_by_layer = {ilay_hdr: current_array}
-        elif np.isclose(totim, latest_totim):
-            latest_by_layer[ilay_hdr] = current_array
-
-    def read_fortran_stream() -> None:
-        with ucn_path.open("rb") as handle:
-            while True:
-                header_payload = _read_fortran_record(handle)
-                if header_payload is None:
-                    break
-                data_payload = _read_fortran_record(handle)
-                if data_payload is None:
-                    raise RuntimeError("Incomplete MT3DMS concentration output: missing data record.")
-                add_record(header_payload, data_payload)
-
-    def read_raw_stream() -> None:
-        data = ucn_path.read_bytes()
-        offset = 0
-        total = len(data)
-        while offset < total:
-            parsed = False
-            for header_size, precision in ((44, np.dtype(np.float32)), (48, np.dtype(np.float64))):
-                data_size = cell_count * precision.itemsize
-                if offset + header_size + data_size > total:
-                    continue
-                header_payload = data[offset:offset + header_size]
-                try:
-                    _totim, text, ncol_hdr, nrow_hdr, _ilay_hdr, parsed_precision = _parse_mt3d_header(header_payload)
-                except RuntimeError:
-                    continue
-                if parsed_precision != precision:
-                    continue
-                if text.upper() != "CONCENTRATION" or ncol_hdr != ncol or nrow_hdr != nrow:
-                    continue
-                data_start = offset + header_size
-                data_payload = data[data_start:data_start + data_size]
-                add_record(header_payload, data_payload)
-                offset = data_start + data_size
-                parsed = True
-                break
-            if not parsed:
-                raise RuntimeError(
-                    "Unsupported MT3DMS concentration output format. "
-                    "Expected raw UCN records or sequential-unformatted Fortran records."
-                )
-
-    first_word = struct.unpack("<i", ucn_path.read_bytes()[:4])[0]
-    if first_word in {44, 48}:
-        try:
-            read_fortran_stream()
-        except RuntimeError as exc:
-            if "length prefix/suffix mismatch" not in str(exc):
-                raise
-            latest_by_layer = {}
-            latest_totim = None
-            read_raw_stream()
-    else:
-        read_raw_stream()
-
-    if latest_totim is None or not latest_by_layer:
-        raise RuntimeError("MT3DMS concentration output did not contain any concentration records.")
-
-    concentration = np.zeros((nlay, nrow, ncol), dtype=np.float64)
-    for layer_index, layer_data in latest_by_layer.items():
-        if 1 <= layer_index <= nlay:
-            concentration[layer_index - 1] = layer_data
-
-    return concentration
+    plot_png: bytes = b""
 
 
 def _resolve_executable(env_name: str, fallback_names: list[str]) -> str:
     configured = os.getenv(env_name)
-    if configured and Path(configured).exists():
-        configured_path = Path(configured)
+    if configured:
+        configured_path = Path(configured).expanduser()
+        if not configured_path.exists():
+            raise RuntimeError(
+                f"Executable not found for {env_name}: configured path '{configured_path}'. "
+                f"Searched configured path, .modflow_bin/, solvers/, bin/, and PATH. "
+                f"Set {env_name} to an existing MODFLOW 6 executable."
+            )
         if os.name != "nt" and configured_path.suffix.lower() == ".exe":
             raise RuntimeError(
                 f"{env_name} points to a Windows executable ({configured_path.name}), "
                 "which cannot run inside Docker/Linux. Provide a Linux binary instead."
             )
-        return configured
+        resolved = str(configured_path.resolve())
+        logger.info("Resolved %s executable: %s", env_name, resolved)
+        return resolved
 
     local_dirs = [
-        Path.cwd(),
         Path.cwd() / ".modflow_bin",
         Path.cwd() / "solvers",
         Path.cwd() / "bin",
     ]
-
-    windows_only_candidates: list[str] = []
+    windows_only: list[str] = []
 
     for name in fallback_names:
         found = shutil.which(name)
         if found:
-            found_path = Path(found)
+            found_path = Path(found).resolve()
             if os.name != "nt" and found_path.suffix.lower() == ".exe":
-                windows_only_candidates.append(str(found_path))
+                windows_only.append(str(found_path))
                 continue
-            return found
+            resolved = str(found_path)
+            logger.info("Resolved %s executable from PATH: %s", env_name, resolved)
+            return resolved
         for directory in local_dirs:
             local = directory / name
             if local.exists():
                 if os.name != "nt" and local.suffix.lower() == ".exe":
-                    windows_only_candidates.append(str(local))
+                    windows_only.append(str(local))
                     continue
-                return str(local)
+                resolved = str(local.resolve())
+                logger.info("Resolved %s executable: %s", env_name, resolved)
+                return resolved
 
-    if os.name != "nt" and windows_only_candidates:
+    if os.name != "nt" and windows_only:
         raise RuntimeError(
-            f"Only Windows solver binaries were found for {env_name}: {windows_only_candidates}. "
+            f"Only Windows solver binaries were found for {env_name}: {windows_only}. "
             "Docker numerical runs require Linux solver binaries in solvers/ or on PATH."
         )
-
     raise RuntimeError(
-        f"Missing required executable for {env_name}. "
-        f"Set {env_name} or place one of {fallback_names} on PATH."
+        f"Executable not found for {env_name}. Searched .modflow_bin/, solvers/, bin/, and PATH "
+        f"for {fallback_names}. Set {env_name} to an existing MODFLOW 6 executable."
     )
 
 
-def run_numerical_model(
-    Lx: float,
-    Ly: float,
-    ncol: int,
-    nrow: int,
-    prsity: float,
-    al: float,
-    av: float,
-    gamma: float,
-    cd: float,
-    ca: float,
-    h1: float,
-    h2: float,
-    hk: float,
-) -> NumericalModelResult:
-    if flopy is None:
-        raise RuntimeError("flopy is not installed. Install flopy to run the numerical model.")
+def _mf6_exe() -> str:
+    return _resolve_executable("MF6_EXE", ["mf6.exe", "mf6"])
 
-    if min(Lx, Ly, prsity, al, hk) <= 0:
-        raise ValueError("Lx, Ly, prsity, al, and hk must be positive.")
-    if ncol < 2 or nrow < 2:
-        raise ValueError("ncol and nrow must both be at least 2.")
 
-    mf_exe = _resolve_executable("MF2005_EXE", ["mf2005.exe", "mf2005"])
-    mt_exe = _resolve_executable("MT3DMS_EXE", ["mt3dms.exe", "mt3dms"])
+def _nstp(Lx: float, ncol: int, prsity: float, al: float, h1: float, h2: float, hk: float, perlen: float) -> int:
+    """Number of timesteps at Courant = 1 (matching Orlando's script approach)."""
+    gradient = (h1 - h2) / Lx
+    q = hk * gradient
+    v = q / prsity
+    if v <= 0:
+        raise ValueError("Head at left boundary must be greater than head at right boundary.")
+    delr = Lx / ncol
+    dt_target = delr / v
+    return max(int(math.ceil(perlen / dt_target)), 1)
 
-    run_root = Path.cwd() / ".numerical_runs"
-    run_root.mkdir(exist_ok=True)
 
-    with tempfile.TemporaryDirectory(dir=run_root) as tmpdir:
-        workdir = Path(tmpdir)
+def balanced_source_buffers(domain_thickness: float, source_thickness: float) -> tuple[float, float]:
+    """Center a source vertically when the user has not supplied buffer overrides."""
+    if domain_thickness <= 0 or source_thickness <= 0:
+        raise ValueError("Domain thickness and source thickness must be positive.")
+    if source_thickness > domain_thickness:
+        raise ValueError("Source thickness must fit within aquifer thickness.")
+    buffer = (domain_thickness - source_thickness) / 2.0
+    return buffer, buffer
 
-        ztop = 0.0
-        zbot = -1.0
-        nlay = 1
-        delx = Lx / ncol
-        dely = Ly / nrow
-        delv = (ztop - zbot) / nlay
-        perlen = 6000.0
 
-        model_id = workdir.name.replace("-", "_")
-
-        t0_mf = f"T02_mf_{model_id}"
-        mf = flopy.modflow.Modflow(modelname=t0_mf, exe_name=mf_exe, model_ws=str(workdir))
-        flopy.modflow.ModflowDis(
-            mf,
-            nlay=nlay,
-            nrow=nrow,
-            ncol=ncol,
-            delr=delx,
-            delc=dely,
-            top=ztop,
-            botm=[ztop - delv],
-            perlen=perlen,
-        )
-
-        ibound = np.ones((nlay, nrow, ncol), dtype=np.int32)
-        ibound[:, :, 0] = -1
-        ibound[:, :, -1] = -1
-        strt = np.ones((nlay, nrow, ncol), dtype=np.float32)
-        strt[:, :, 0] = h1
-        strt[:, :, -1] = h2
-
-        flopy.modflow.ModflowBas(mf, ibound=ibound, strt=strt)
-        flopy.modflow.ModflowLpf(mf, hk=hk, laytyp=0)
-        flopy.modflow.ModflowGmg(mf)
-        flopy.modflow.ModflowLmt(mf, output_file_format="formatted")
-
-        mf.write_input()
-        success, _ = mf.run_model(silent=True)
-        if not success:
-            raise RuntimeError("MODFLOW execution failed.")
-
-        t0_mt = f"T02_mt_{model_id}"
-        mt = flopy.mt3d.Mt3dms(
-            modelname=t0_mt,
-            exe_name=mt_exe,
-            modflowmodel=mf,
-            ftlfree=True,
-            model_ws=str(workdir),
-        )
-
-        icbund = np.ones((nlay, nrow, ncol), dtype=np.int32)
-        icbund[:, 0, :] = -1
-        icbund[:, :, 0] = -1
-        icbund[:, :, -1] = -1
-
-        sconc = np.zeros((nlay, nrow, ncol), dtype=np.float32)
-        sconc[:, 0, :] = ca
-        sconc[:, :, 0] = (gamma * cd) + (2 * ca)
-        sconc[:, :, -1] = ca
-
-        flopy.mt3d.Mt3dBtn(mt, icbund=icbund, prsity=prsity, sconc=sconc)
-        flopy.mt3d.Mt3dAdv(mt, mixelm=-1)
-        trpt = av / al if al > 0 else 0.1
-        flopy.mt3d.Mt3dDsp(mt, al=al, trpt=trpt)
-        flopy.mt3d.Mt3dGcg(mt)
-        flopy.mt3d.Mt3dSsm(mt)
-
-        mt.write_input()
-        success, buff = mt.run_model(silent=True, report=True)
-        if (not success) and not any("Program completed" in str(line) for line in buff):
-            raise RuntimeError("MT3DMS execution failed.")
-
-        ucn_path = workdir / "MT3D001.UCN"
-        if not ucn_path.exists():
-            raise RuntimeError("MT3DMS did not produce MT3D001.UCN concentration output.")
-
-        conc = _read_mt3d_concentration(ucn_path, nlay=nlay, nrow=nrow, ncol=ncol)
-        conc_slice = conc[0]
-        x_grid = np.linspace(0.0, Lx, ncol)
-        z_grid = np.linspace(0.0, Ly, nrow)
-
-        c0 = 2 * ca
-        fig = plt.figure(figsize=(11, 5))
-        ax = plt.axes()
-        mm = flopy.plot.map.PlotMapView(ax=ax, model=mf)
-        cs = mm.contour_array(conc_slice, levels=[c0], colors=["#163c66"], linewidths=2.0)
-        plt.xlabel("Distance Lx [m]")
-        plt.ylabel("Aquifer Thickness [m]")
-        plt.title("Contaminant Plume")
-
-        img = io.BytesIO()
-        plt.savefig(img, format="png", bbox_inches="tight", dpi=300)
+def _plume_length(x_grid: np.ndarray, y_grid: np.ndarray, concentration: np.ndarray, c0: float) -> float:
+    finite = concentration[np.isfinite(concentration)]
+    if not finite.size or not (float(np.nanmin(finite)) < c0 < float(np.nanmax(finite))):
+        return 0.0
+    fig, ax = plt.subplots()
+    try:
+        cs = ax.contour(x_grid, y_grid, concentration, levels=[c0])
+        segs = cs.allsegs[0] if getattr(cs, "allsegs", None) else []
+        xs = [pt[0] for seg in segs for pt in seg]
+        return float(max(xs)) if xs else 0.0
+    finally:
         plt.close(fig)
-        img.seek(0)
 
-        plot_url = base64.b64encode(img.getvalue()).decode()
 
-        segments = cs.allsegs[0] if getattr(cs, "allsegs", None) else []
-        if not segments or len(segments[0]) == 0:
-            plume_length = 0.0
-        else:
-            plume_length = float(np.max(np.asarray(segments[0])[:, 0]))
+def _check_run(success: bool, buff, label: str) -> None:
+    if not success:
+        detail = "\n".join(str(line) for line in (buff or []))
+        raise RuntimeError(f"{label} execution failed.\n{detail}")
 
-    return NumericalModelResult(
-        plume_length=plume_length,
-        plot_html=f'<img src="data:image/png;base64,{plot_url}" alt="Numerical plume plot" style="width:100%;height:auto;border-radius:12px;" />',
-        concentration=conc_slice,
-        x_grid=x_grid,
-        z_grid=z_grid,
+
+def _numerical_max_cells() -> int:
+    return int(os.getenv("NUMERICAL_MAX_CELLS", os.getenv("MAX_GRID_CELLS", "40000")))
+
+
+def _solver_timeout_seconds() -> float:
+    return float(os.getenv("NUMERICAL_SOLVER_TIMEOUT_S", os.getenv("SOLVER_TIMEOUT_SECONDS", "120")))
+
+
+def _check_grid_size(ncol: int, nrow: int) -> None:
+    total = ncol * nrow
+    max_cells = _numerical_max_cells()
+    if total > max_cells:
+        raise ValueError(
+            f"Grid too large: {ncol} x {nrow} = {total:,} cells exceeds the "
+            f"{max_cells:,}-cell limit. Increase Delta X / Delta Z "
+            "(or Delta Y for horizontal runs) to coarsen the grid."
+        )
+
+
+@contextmanager
+def _timed_stage(label: str):
+    started = time.perf_counter()
+    logger.info("START %s", label)
+    try:
+        yield
+    except Exception:
+        logger.exception("FAILED %s after %.3f s", label, time.perf_counter() - started)
+        raise
+    logger.info("DONE %s in %.3f s", label, time.perf_counter() - started)
+
+
+def _log_solver_output(label: str, stdout: str, stderr: str) -> None:
+    for line in stdout.splitlines():
+        logger.info("%s stdout | %s", label, line)
+    for line in stderr.splitlines():
+        logger.warning("%s stderr | %s", label, line)
+
+
+def _terminate_solver_process(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except ProcessLookupError:
+        return
+
+
+def _checked_run_sim(sim, label: str) -> None:
+    """Run MF6 directly so a timeout can terminate the external solver process."""
+    executable = str(Path(sim.exe_name).resolve())
+    workspace = Path(sim.simulation_data.mfpath.get_sim_path()).resolve()
+    timeout = _solver_timeout_seconds()
+    logger.info("%s executable: %s", label, executable)
+    logger.info("%s workspace: %s", label, workspace)
+    logger.info("%s report=True capture enabled for solver stdout/stderr", label)
+
+    with _timed_stage(f"{label} run_model"):
+        proc = subprocess.Popen(
+            [executable],
+            cwd=workspace,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            start_new_session=(os.name != "nt"),
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _terminate_solver_process(proc)
+            stdout, stderr = proc.communicate()
+            _log_solver_output(label, stdout, stderr)
+            raise RuntimeError(
+                f"{label} timed out after {timeout:g} s and was terminated. "
+                "Use a coarser grid or a shorter simulation time."
+            )
+        _log_solver_output(label, stdout, stderr)
+        success = proc.returncode == 0 and "normal termination" in f"{stdout}\n{stderr}".lower()
+        _check_run(success, [stdout, stderr], label)
+
+
+def _log_grid(orientation: str, domain_length: float, cross_extent: float, ncol: int, nrow: int) -> None:
+    logger.info(
+        "%s numerical grid: L_D=%.6f m, A_T=%.6f m, n_cols=%d, n_rows=%d, cells=%d",
+        orientation,
+        domain_length,
+        cross_extent,
+        ncol,
+        nrow,
+        ncol * nrow,
     )
-
-
-def numerical_model(
-    Lx: float,
-    Ly: float,
-    ncol: int,
-    nrow: int,
-    prsity: float,
-    al: float,
-    av: float,
-    gamma: float,
-    cd: float,
-    ca: float,
-    h1: float,
-    h2: float,
-    hk: float,
-) -> Tuple[float, str]:
-    result = run_numerical_model(Lx, Ly, ncol, nrow, prsity, al, av, gamma, cd, ca, h1, h2, hk)
-    return result.plume_length, result.plot_html
 
 
 def run_numerical_model_horizontal(
@@ -410,134 +278,384 @@ def run_numerical_model_horizontal(
     h1: float,
     h2: float,
     hk: float,
+    perlen: float = 100.0,
+    plume_threshold: float | None = None,
+    source_col_index: int = 5,
 ) -> HorizontalModelResult:
-    """
-    Plan-view (horizontal) 2-D reactive transport model using MODFLOW/MT3DMS.
+    """Plan-view (horizontal) 2-D reactive transport using MODFLOW 6 / GWT.
 
-    Grid orientation:
-      - Columns (ncol): flow direction x (left=inflow h1, right=outflow h2)
-      - Rows (nrow):    horizontal transverse direction y (0=bottom, nrow-1=top)
-
-    Source: strip of width Sw centred in y at the left (x=0) boundary.
-    Ambient reactant at concentration ca enters at top/bottom y-boundaries.
+    Grid: nlay=1, nrow=y-transverse, ncol=x-flow.
+    Source: strip of width Sw centred in y at column source_col_index.
+    Top and bottom rows: ambient reactant (Ca) fixed along full domain.
     """
     if flopy is None:
-        raise RuntimeError("flopy is not installed. Install flopy to run the numerical model.")
-    if min(Lx, A_W, prsity, al, hk) <= 0:
-        raise ValueError("Lx, A_W, prsity, al, hk must all be positive.")
+        raise RuntimeError("flopy is not installed.")
+    if min(Lx, A_W, Sw, prsity, al, alpha_Th, hk, perlen) <= 0:
+        raise ValueError("Lx, A_W, Sw, prsity, al, alpha_Th, hk, and perlen must be positive.")
     if ncol < 2 or nrow < 2:
-        raise ValueError("ncol and nrow must both be at least 2.")
-    if Sw <= 0 or Sw >= A_W:
-        raise ValueError("Source width Sw must be positive and less than domain width A_W.")
+        raise ValueError("ncol and nrow must be at least 2.")
+    _log_grid("Horizontal", Lx, A_W, ncol, nrow)
+    _check_grid_size(ncol, nrow)
+    if Sw >= A_W:
+        raise ValueError("Source width Sw must be less than domain width A_W.")
 
-    mf_exe = _resolve_executable("MF2005_EXE", ["mf2005.exe", "mf2005"])
-    mt_exe = _resolve_executable("MT3DMS_EXE", ["mt3dms.exe", "mt3dms"])
+    with _timed_stage("Horizontal executable resolution"):
+        mf6 = _mf6_exe()
+    nlay = 1
+    delr = Lx / ncol        # x cell size
+    delc = A_W / nrow       # y cell size
+    nts = _nstp(Lx, ncol, prsity, al, h1, h2, hk, perlen)
+    c0 = plume_threshold if plume_threshold is not None else (2.0 * ca)
 
     run_root = Path.cwd() / ".numerical_runs"
     run_root.mkdir(exist_ok=True)
 
     with tempfile.TemporaryDirectory(dir=run_root) as tmpdir:
         workdir = Path(tmpdir)
+        mid = workdir.name.replace("-", "_")[:6]
+        flow_name = f"gwf{mid}"
+        gwf_ws = workdir / "gwf_base"
 
-        ztop = 0.0
-        zbot = -1.0
-        nlay = 1
-        delx = Lx / ncol
-        dely = A_W / nrow
-        delv = ztop - zbot
-        perlen = 6000.0
-
-        model_id = workdir.name.replace("-", "_")
-
-        t0_mf = f"T03_mf_{model_id}"
-        mf = flopy.modflow.Modflow(modelname=t0_mf, exe_name=mf_exe, model_ws=str(workdir))
-        flopy.modflow.ModflowDis(
-            mf, nlay=nlay, nrow=nrow, ncol=ncol,
-            delr=delx, delc=dely,
-            top=ztop, botm=[ztop - delv],
-            perlen=perlen,
+        # ── Flow model ──────────────────────────────────────────────────────────
+        sim = flopy.mf6.MFSimulation(sim_name=flow_name, sim_ws=str(gwf_ws), exe_name=mf6)
+        flopy.mf6.ModflowTdis(sim, perioddata=[[perlen, nts, 1.0]])
+        flopy.mf6.ModflowIms(
+            sim, print_option="SUMMARY", complexity="SIMPLE",
+            outer_dvclose=1e-3, inner_dvclose=1e-3,
+            outer_maximum=100, inner_maximum=200, relaxation_factor=0.97,
         )
-
-        # Left/right columns = specified head; top/bottom rows = active (no-flow)
-        ibound = np.ones((nlay, nrow, ncol), dtype=np.int32)
-        ibound[:, :, 0] = -1
-        ibound[:, :, -1] = -1
-
+        gwf = flopy.mf6.ModflowGwf(sim, modelname=flow_name)
+        flopy.mf6.ModflowGwfdis(
+            gwf, nlay=nlay, nrow=nrow, ncol=ncol,
+            delr=delr, delc=delc, top=0.0, botm=-1.0,
+        )
+        chd_cells = [[(0, row, 0), h1] for row in range(nrow)] + \
+                    [[(0, row, ncol - 1), h2] for row in range(nrow)]
+        flopy.mf6.ModflowGwfchd(gwf, stress_period_data={0: chd_cells})
         strt = np.full((nlay, nrow, ncol), (h1 + h2) / 2.0, dtype=np.float32)
         strt[:, :, 0] = h1
         strt[:, :, -1] = h2
-
-        flopy.modflow.ModflowBas(mf, ibound=ibound, strt=strt)
-        flopy.modflow.ModflowLpf(mf, hk=hk, laytyp=0)
-        flopy.modflow.ModflowGmg(mf)
-        flopy.modflow.ModflowLmt(mf, output_file_format="formatted")
-
-        mf.write_input()
-        success, _ = mf.run_model(silent=True)
-        if not success:
-            raise RuntimeError("MODFLOW (horizontal) execution failed.")
-
-        # --- MT3DMS ---
-        t0_mt = f"T03_mt_{model_id}"
-        mt = flopy.mt3d.Mt3dms(
-            modelname=t0_mt, exe_name=mt_exe,
-            modflowmodel=mf, ftlfree=True,
-            model_ws=str(workdir),
+        flopy.mf6.ModflowGwfic(gwf, strt=strt)
+        flopy.mf6.ModflowGwfnpf(
+            gwf, save_specific_discharge=True, save_saturation=True, icelltype=0, k=hk,
         )
+        flopy.mf6.ModflowGwfoc(
+            gwf,
+            budget_filerecord=f"{flow_name}.cbc",
+            head_filerecord=f"{flow_name}.hds",
+            saverecord=[("HEAD", "ALL"), ("BUDGET", "ALL")],
+        )
+        gwf.name_file.save_flows = True
+        with _timed_stage("MF6 horizontal flow write_input"):
+            sim.write_simulation()
+        _checked_run_sim(sim, "MF6 horizontal flow")
 
-        # Source strip centred in the y-domain
-        source_row_start = max(0, int(np.floor((A_W - Sw) / 2.0 / dely)))
-        source_row_end = min(nrow - 1, int(np.ceil((A_W + Sw) / 2.0 / dely)))
+        # ── Transport model ─────────────────────────────────────────────────────
+        sim_name = f"gwt{mid}"
+        run_name = f"tr{mid}"
+        run_dir = workdir / "transport"
+        simf = flopy.mf6.MFSimulation(sim_name=sim_name, sim_ws=str(run_dir), exe_name=mf6)
+        flopy.mf6.ModflowTdis(simf, perioddata=[[perlen, nts, 1.0]])
+        gwt = flopy.mf6.ModflowGwt(simf, modelname=run_name, save_flows=True)
+        flopy.mf6.ModflowIms(simf, linear_acceleration="bicgstab")
+        flopy.mf6.ModflowGwtdis(
+            gwt, nlay=nlay, nrow=nrow, ncol=ncol,
+            delr=delr, delc=delc, top=0.0, botm=-1.0,
+        )
+        flopy.mf6.ModflowGwtic(gwt, strt=np.full((nlay, nrow, ncol), ca, dtype=np.float32))
+        flopy.mf6.ModflowGwtmst(gwt, porosity=prsity)
+        flopy.mf6.ModflowGwtadv(gwt, scheme="TVD")
+        flopy.mf6.ModflowGwtdsp(gwt, alh=np.full((nlay, nrow, ncol), al), ath1=alpha_Th)
+        flopy.mf6.ModflowGwtssm(gwt)
 
-        icbund = np.ones((nlay, nrow, ncol), dtype=np.int32)
-        icbund[:, :, 0] = -1
-        icbund[:, :, -1] = -1
-        icbund[:, 0, :] = -1
-        icbund[:, -1, :] = -1
+        # Source zone: Sw centred in y at source_col_index
+        n_src = max(1, int(np.round(Sw / delc)))
+        ci = nrow // 2
+        half = n_src // 2
+        s_start = max(0, ci - half)
+        s_end = min(nrow, ci + half + (0 if n_src % 2 == 0 else 1))
+        src_col = min(max(0, int(source_col_index)), ncol - 1)
+        source_conc = (gamma * cd) + (2.0 * ca)
 
-        sconc = np.full((nlay, nrow, ncol), ca, dtype=np.float32)
-        sconc[:, source_row_start:source_row_end + 1, 0] = float(gamma * cd) + 2.0 * float(ca)
-        sconc[:, :, -1] = ca
-        sconc[:, 0, :] = ca
-        sconc[:, -1, :] = ca
+        cnc = {}
+        for row in range(s_start, s_end):
+            cnc[(0, row, src_col)] = source_conc
+        # Top and bottom rows: ambient reactant across full domain
+        for col in range(ncol):
+            cnc.setdefault((0, 0, col), ca)
+            cnc.setdefault((0, nrow - 1, col), ca)
 
-        flopy.mt3d.Mt3dBtn(mt, icbund=icbund, prsity=prsity, sconc=sconc)
-        flopy.mt3d.Mt3dAdv(mt, mixelm=-1)
-        trpt = alpha_Th / al if al > 0 else 0.1
-        flopy.mt3d.Mt3dDsp(mt, al=al, trpt=trpt)
-        flopy.mt3d.Mt3dGcg(mt)
-        flopy.mt3d.Mt3dSsm(mt)
+        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: list(cnc.items())}, filename=f"{run_name}.cnc")
+        flopy.mf6.ModflowGwtfmi(
+            gwt,
+            packagedata=[
+                ("GWFHEAD", str(gwf_ws / f"{flow_name}.hds")),
+                ("GWFBUDGET", str(gwf_ws / f"{flow_name}.cbc")),
+            ],
+        )
+        flopy.mf6.ModflowGwtoc(
+            gwt,
+            budget_filerecord=f"{sim_name}_gwt.cbc",
+            concentration_filerecord=f"{sim_name}.ucn",
+            saverecord=[("CONCENTRATION", "ALL"), ("BUDGET", "ALL")],
+        )
+        with _timed_stage("MF6 horizontal transport write_input"):
+            simf.write_simulation()
+        _checked_run_sim(simf, "MF6 horizontal transport")
 
-        mt.write_input()
-        success, buff = mt.run_model(silent=True, report=True)
-        if (not success) and not any("Program completed" in str(line) for line in buff):
-            raise RuntimeError("MT3DMS (horizontal) execution failed.")
-
-        ucn_path = workdir / "MT3D001.UCN"
-        if not ucn_path.exists():
-            raise RuntimeError("MT3DMS (horizontal) did not produce MT3D001.UCN.")
-
-        conc = _read_mt3d_concentration(ucn_path, nlay=nlay, nrow=nrow, ncol=ncol)
-        conc_slice = conc[0]
+        ucn_path = run_dir / f"{sim_name}.ucn"
+        with _timed_stage("MF6 horizontal UCN read"):
+            logger.info("MF6 horizontal UCN output: %s (exists=%s)", ucn_path.resolve(), ucn_path.exists())
+            conc_slice = np.asarray(gwt.output.concentration().get_data()[0], dtype=float)
         x_grid = np.linspace(0.0, Lx, ncol)
         y_grid = np.linspace(0.0, A_W, nrow)
+        with _timed_stage("MF6 horizontal plume-length extraction"):
+            plume_length = _plume_length(x_grid, y_grid, conc_slice, c0)
+            logger.info("MF6 horizontal plume_length=%.6f m", plume_length)
 
-        # Extract plume length from the c0 = 2*ca contour
-        c0 = 2.0 * ca
-        plume_length = 0.0
+        # Matplotlib figure for PDF export
+        plot_png = b""
         try:
-            fig_tmp, ax_tmp = plt.subplots()
-            cs = ax_tmp.contour(x_grid, y_grid, conc_slice, levels=[c0])
-            segs = cs.allsegs[0] if getattr(cs, "allsegs", None) else []
-            if segs and len(segs[0]):
-                plume_length = float(np.max(np.asarray(segs[0])[:, 0]))
-            plt.close(fig_tmp)
+            with _timed_stage("MF6 horizontal contour build"):
+                fig, ax = plt.subplots(figsize=(11, 4))
+                mesh = ax.pcolormesh(x_grid, y_grid, conc_slice, shading="auto", cmap="jet")
+                fin = conc_slice[np.isfinite(conc_slice)]
+                if fin.size and float(np.nanmin(fin)) < c0 < float(np.nanmax(fin)):
+                    ax.contour(x_grid, y_grid, conc_slice, levels=[c0], colors=["#163c66"], linewidths=2.0)
+                fig.colorbar(mesh, ax=ax, label="Concentration [mg/L]")
+                if plume_length > 0:
+                    ax.axvline(plume_length, color="navy", linestyle="--", linewidth=1.5,
+                               label=f"Lmax = {plume_length:.1f} m")
+                    ax.legend(fontsize=8)
+                ax.set_xlabel("Distance Lx [m]")
+                ax.set_ylabel("Horizontal Width [m]")
+                ax.set_title("Contaminant Plume — Horizontal Model (Plan View)")
+                plt.tight_layout()
+                buf = io.BytesIO()
+                plt.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+                plt.close(fig)
+                plot_png = buf.getvalue()
         except Exception:
-            plume_length = 0.0
+            logger.exception("Horizontal PDF contour image build failed")
 
     return HorizontalModelResult(
         plume_length=plume_length,
         concentration=conc_slice,
         x_grid=x_grid,
         y_grid=y_grid,
+        plot_png=plot_png,
     )
+
+
+def run_numerical_model(
+    Lx: float,
+    Ly: float,
+    ncol: int,
+    nrow: int,
+    prsity: float,
+    al: float,
+    av: float,
+    gamma: float,
+    cd: float,
+    ca: float,
+    h1: float,
+    h2: float,
+    hk: float,
+    vk: float | None = None,
+    source_thickness: float | None = None,
+    source_bottom_buffer: float = 0.0,
+    perlen: float = 100.0,
+    plume_threshold: float | None = None,
+    ath: float | None = None,
+) -> NumericalModelResult:
+    """Vertical cross-section reactive transport using MODFLOW 6 / GWT.
+
+    Grid: nlay=nrow (vertical layers), model_nrow=1, ncol=x-columns.
+    hk = horizontal hydraulic conductivity, vk = vertical hydraulic conductivity.
+    Source zone at left column (col 0): source_conc for source layers, Ca elsewhere.
+    Top layer: ambient reactant (Ca) across full domain.
+    """
+    if flopy is None:
+        raise RuntimeError("flopy is not installed.")
+    if vk is None:
+        vk = hk
+    if ath is None:
+        ath = av
+    if source_thickness is None:
+        source_thickness = Ly
+    if min(Lx, Ly, prsity, al, av, hk, vk, source_thickness, perlen) <= 0:
+        raise ValueError("All positive parameters must be > 0.")
+    if ncol < 2 or nrow < 2:
+        raise ValueError("ncol and nrow must be at least 2.")
+    _log_grid("Vertical", Lx, Ly, ncol, nrow)
+    _check_grid_size(ncol, nrow)
+    if source_bottom_buffer < 0 or source_bottom_buffer + source_thickness > Ly:
+        raise ValueError("Source thickness and buffers must fit within the vertical domain.")
+
+    with _timed_stage("Vertical executable resolution"):
+        mf6 = _mf6_exe()
+    nlay = int(nrow)
+    model_nrow = 1
+    delr = Lx / ncol
+    delv = Ly / nlay
+    botm = np.linspace(-delv, -Ly, nlay)
+    nts = _nstp(Lx, ncol, prsity, al, h1, h2, hk, perlen)
+    c0 = plume_threshold if plume_threshold is not None else (2.0 * ca)
+
+    run_root = Path.cwd() / ".numerical_runs"
+    run_root.mkdir(exist_ok=True)
+
+    with tempfile.TemporaryDirectory(dir=run_root) as tmpdir:
+        workdir = Path(tmpdir)
+        mid = workdir.name.replace("-", "_")[:6]
+        flow_name = f"gwf{mid}"
+        gwf_ws = workdir / "gwf_base"
+
+        # ── Flow model ──────────────────────────────────────────────────────────
+        sim = flopy.mf6.MFSimulation(sim_name=flow_name, sim_ws=str(gwf_ws), exe_name=mf6)
+        flopy.mf6.ModflowTdis(sim, perioddata=[[perlen, nts, 1.0]])
+        flopy.mf6.ModflowIms(
+            sim, print_option="SUMMARY", complexity="SIMPLE",
+            outer_dvclose=1e-3, inner_dvclose=1e-3,
+            outer_maximum=100, inner_maximum=200, relaxation_factor=0.97,
+        )
+        gwf = flopy.mf6.ModflowGwf(sim, modelname=flow_name)
+        flopy.mf6.ModflowGwfdis(
+            gwf, nlay=nlay, nrow=model_nrow, ncol=ncol,
+            delr=delr, delc=1.0, top=0.0, botm=botm,
+        )
+        chd_cells = [[(lay, 0, 0), h1] for lay in range(nlay)] + \
+                    [[(lay, 0, ncol - 1), h2] for lay in range(nlay)]
+        flopy.mf6.ModflowGwfchd(gwf, stress_period_data={0: chd_cells})
+        strt = np.full((nlay, model_nrow, ncol), (h1 + h2) / 2.0, dtype=np.float32)
+        strt[:, :, 0] = h1
+        strt[:, :, -1] = h2
+        flopy.mf6.ModflowGwfic(gwf, strt=strt)
+        flopy.mf6.ModflowGwfnpf(
+            gwf, save_specific_discharge=True, save_saturation=True,
+            icelltype=0, k=hk, k33=vk,
+        )
+        flopy.mf6.ModflowGwfoc(
+            gwf,
+            budget_filerecord=f"{flow_name}.cbc",
+            head_filerecord=f"{flow_name}.hds",
+            saverecord=[("HEAD", "ALL"), ("BUDGET", "ALL")],
+        )
+        gwf.name_file.save_flows = True
+        with _timed_stage("MF6 vertical flow write_input"):
+            sim.write_simulation()
+        _checked_run_sim(sim, "MF6 vertical flow")
+
+        # ── Transport model ─────────────────────────────────────────────────────
+        sim_name = f"gwt{mid}"
+        run_name = f"tr{mid}"
+        run_dir = workdir / "transport"
+        simf = flopy.mf6.MFSimulation(sim_name=sim_name, sim_ws=str(run_dir), exe_name=mf6)
+        flopy.mf6.ModflowTdis(simf, perioddata=[[perlen, nts, 1.0]])
+        gwt = flopy.mf6.ModflowGwt(simf, modelname=run_name, save_flows=True)
+        flopy.mf6.ModflowIms(simf, linear_acceleration="bicgstab")
+        flopy.mf6.ModflowGwtdis(
+            gwt, nlay=nlay, nrow=model_nrow, ncol=ncol,
+            delr=delr, delc=1.0, top=0.0, botm=botm,
+        )
+        flopy.mf6.ModflowGwtic(gwt, strt=np.full((nlay, model_nrow, ncol), ca, dtype=np.float32))
+        flopy.mf6.ModflowGwtmst(gwt, porosity=prsity)
+        flopy.mf6.ModflowGwtadv(gwt, scheme="TVD")
+        flopy.mf6.ModflowGwtdsp(
+            gwt,
+            alh=np.full((nlay, model_nrow, ncol), al),
+            ath1=ath,
+            atv=av,
+        )
+        flopy.mf6.ModflowGwtssm(gwt)
+
+        # Identify source layers from z-position
+        layer_z = Ly - ((np.arange(nlay) + 0.5) * delv)  # z-center of each layer from bottom
+        source_top = source_bottom_buffer + source_thickness
+        src_layers = np.where((layer_z >= source_bottom_buffer) & (layer_z <= source_top))[0]
+        if src_layers.size == 0:
+            src_mid = source_bottom_buffer + source_thickness / 2.0
+            src_layers = np.array([int(np.argmin(np.abs(layer_z - src_mid)))])
+        source_set = set(int(l) for l in src_layers)
+        source_conc = (gamma * cd) + (2.0 * ca)
+
+        cnc = {}
+        # Left column: source concentration for source layers, Ca for buffer layers
+        for lay in range(nlay):
+            cnc[(lay, 0, 0)] = source_conc if lay in source_set else ca
+        # Top layer: ambient reactant across full domain length
+        for col in range(ncol):
+            cnc.setdefault((0, 0, col), ca)
+
+        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: list(cnc.items())}, filename=f"{run_name}.cnc")
+        flopy.mf6.ModflowGwtfmi(
+            gwt,
+            packagedata=[
+                ("GWFHEAD", str(gwf_ws / f"{flow_name}.hds")),
+                ("GWFBUDGET", str(gwf_ws / f"{flow_name}.cbc")),
+            ],
+        )
+        flopy.mf6.ModflowGwtoc(
+            gwt,
+            budget_filerecord=f"{sim_name}_gwt.cbc",
+            concentration_filerecord=f"{sim_name}.ucn",
+            saverecord=[("CONCENTRATION", "ALL"), ("BUDGET", "ALL")],
+        )
+        with _timed_stage("MF6 vertical transport write_input"):
+            simf.write_simulation()
+        _checked_run_sim(simf, "MF6 vertical transport")
+
+        ucn_path = run_dir / f"{sim_name}.ucn"
+        with _timed_stage("MF6 vertical UCN read"):
+            logger.info("MF6 vertical UCN output: %s (exists=%s)", ucn_path.resolve(), ucn_path.exists())
+            conc_slice = np.asarray(gwt.output.concentration().get_data()[:, 0, :], dtype=float)
+        x_grid = np.linspace(0.0, Lx, ncol)
+        z_grid = np.linspace(0.0, Ly, nlay)
+        with _timed_stage("MF6 vertical plume-length extraction"):
+            plume_length = _plume_length(x_grid, z_grid, conc_slice, c0)
+            logger.info("MF6 vertical plume_length=%.6f m", plume_length)
+
+        with _timed_stage("MF6 vertical contour build"):
+            fig, ax = plt.subplots(figsize=(11, 5))
+            mesh = ax.pcolormesh(x_grid, z_grid, conc_slice, shading="auto", cmap="jet")
+            fin = conc_slice[np.isfinite(conc_slice)]
+            if fin.size and float(np.nanmin(fin)) < c0 < float(np.nanmax(fin)):
+                ax.contour(x_grid, z_grid, conc_slice, levels=[c0], colors=["#163c66"], linewidths=2.0)
+            fig.colorbar(mesh, ax=ax, label="Concentration [mg/L]")
+            ax.set_xlabel("Distance Lx [m]")
+            ax.set_ylabel("Aquifer Thickness [m]")
+            ax.set_title("Contaminant Plume — Vertical Model")
+            plt.tight_layout()
+            img = io.BytesIO()
+            fig.savefig(img, format="png", bbox_inches="tight", dpi=150)
+            plt.close(fig)
+            plot_bytes = img.getvalue()
+            plot_url = base64.b64encode(plot_bytes).decode()
+
+    return NumericalModelResult(
+        plume_length=plume_length,
+        plot_html=f'<img src="data:image/png;base64,{plot_url}" alt="Numerical plume plot" style="width:100%;height:auto;border-radius:12px;" />',
+        concentration=conc_slice,
+        x_grid=x_grid,
+        z_grid=z_grid,
+        plot_png=plot_bytes,
+    )
+
+
+def numerical_model(
+    Lx: float,
+    Ly: float,
+    ncol: int,
+    nrow: int,
+    prsity: float,
+    al: float,
+    av: float,
+    gamma: float,
+    cd: float,
+    ca: float,
+    h1: float,
+    h2: float,
+    hk: float,
+) -> tuple[float, str]:
+    result = run_numerical_model(Lx, Ly, ncol, nrow, prsity, al, av, gamma, cd, ca, h1, h2, hk)
+    return result.plume_length, result.plot_html

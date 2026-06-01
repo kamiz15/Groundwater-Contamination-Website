@@ -24,6 +24,10 @@ services:
     command: gunicorn --workers 4 --bind 0.0.0.0:5000 app:app
     env_file:
       - .env.docker
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      DB_USER: ${DB_USER:?Set DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -40,8 +44,12 @@ services:
     command: python panel_server.py
     env_file:
       - .env.docker
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      DB_USER: ${DB_USER:?Set DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5007/panel_liedl_single', timeout=10)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5007/panel/panel_liedl_single', timeout=10)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -51,10 +59,10 @@ services:
   db:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: cast_project
-      MYSQL_USER: cast_user
-      MYSQL_PASSWORD: cast_password
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-cast_project}
+      MYSQL_USER: ${DB_USER:?Set DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db_setup.sql:/docker-entrypoint-initdb.d/01-init.sql:ro

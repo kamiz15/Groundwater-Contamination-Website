@@ -3,7 +3,13 @@
 {% block content %}
 <section class="section-spaced model-page">
   <h2>Birla et al. - Single Simulation</h2>
-  <p class="small">Manual model inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <p class="small">Inputs are edited on this page. The output panel below updates from these values and contains only the result visualisation.</p>
+
+  <div class="card-like conceptual-figure">
+    <h3>Conceptual Model</h3>
+    <img src="{{ url_for('static', filename='images/conceptual_birla.png') }}" alt="Conceptual model diagram for Birla et al." class="conceptual-img" loading="eager" />
+  </div>
+
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">
@@ -20,11 +26,17 @@
       {% endif %}
     </form>
   </div>
-  {% else %}
-  <p class="small">No uploaded site data found. The model is currently in manual input mode.</p>
   {% endif %}
-  <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
+
+  {% include "model_input_form.html" %}
+
+  <div class="card-like model-output-card">
+    <h3>Output Visualisation</h3>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+    </div>
   </div>
+
+  {% include "report_download_card.html" %}
 </section>
 {% endblock %}

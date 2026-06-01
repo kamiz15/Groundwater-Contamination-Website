@@ -3,10 +3,10 @@
 {% block content %}
 <section class="section-spaced model-page">
   <h2>Ham et al. - Multiple Simulation</h2>
-  <p class="small">Manual scenario inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <p class="small">Enter scenarios in the table inside the panel below and click Run to compare multiple simulations. Uploaded database records appear as comparison points.</p>
   <div class="card-like conceptual-figure">
     <h3>Conceptual Model</h3>
-    <img src="{{ url_for('static', filename='images/conceptual_ham.png') }}" alt="Conceptual model diagram for Ham et al." class="conceptual-img" loading="lazy" />
+    <img src="{{ url_for('static', filename='images/conceptual_ham.png') }}" alt="Conceptual model diagram for Ham et al." class="conceptual-img" loading="eager" />
   </div>
   {% if sites %}
   <div class="card-like">
@@ -25,8 +25,12 @@
     </form>
   </div>
   {% endif %}
-  <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
+  {% include "model_input_form.html" %}
+  <div class="card-like model-output-card">
+    <h3>Simulation Panel</h3>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+    </div>
   </div>
 </section>
 {% endblock %}

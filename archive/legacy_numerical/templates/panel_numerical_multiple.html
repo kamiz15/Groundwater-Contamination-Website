@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Numerical Model - Single Simulation{% endblock %}
+{% block title %}Numerical Model - Multiple Simulation{% endblock %}
 {% block content %}
 <section class="section-spaced model-page">
-  <h2>Numerical Model - Single Simulation</h2>
-  <p class="small">Manual numerical inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <h2>Numerical Model - Multiple Simulation</h2>
+  <p class="small">Manual numerical scenario inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
   <div class="card-like conceptual-figure conceptual-figure--numerical">
     <h3>Conceptual Models</h3>
     <div class="conceptual-pair">
       <figure class="conceptual-panel">
         <figcaption>Vertical Model</figcaption>
-        <img src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}" alt="Vertical numerical model diagram showing domain length, aquifer thickness, source thickness, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="lazy" />
+        <img src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}" alt="Vertical numerical model diagram showing domain length, aquifer thickness, source thickness, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="eager" />
       </figure>
       <figure class="conceptual-panel">
         <figcaption>Horizontal Model</figcaption>
-        <img src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}" alt="Horizontal numerical model diagram showing domain length, domain width, source width, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="lazy" />
+        <img src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}" alt="Horizontal numerical model diagram showing domain length, domain width, source width, reactant zones, grid spacing, and transport parameters" class="conceptual-img conceptual-img--wide" loading="eager" />
       </figure>
     </div>
   </div>
@@ -36,8 +36,10 @@
   {% else %}
   <p class="small">No uploaded site data found. The model is currently in manual input mode.</p>
   {% endif %}
+  {% include "model_input_form.html" %}
+
   <div class="panel-shell panel-shell--numerical">
-    <iframe src="{{ panel_src }}" class="panel-frame panel-frame--numerical" loading="lazy"></iframe>
+    <iframe src="{{ panel_src }}" class="panel-frame panel-frame--numerical" loading="eager"></iframe>
   </div>
 </section>
 {% endblock %}

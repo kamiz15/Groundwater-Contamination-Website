@@ -343,6 +343,106 @@ def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W):
     return p
 
 
+def _numerical_view_arrays(C, x_grid, cross_grid):
+    C = np.asarray(C, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    cross_grid = np.asarray(cross_grid, dtype=float)
+    if C.shape != (len(cross_grid), len(x_grid)):
+        raise ValueError("Concentration grid dimensions do not match the numerical view axes.")
+    return C, x_grid, cross_grid
+
+
+def plot_concentration_profile_interactive(C, x_grid, cross_grid, *, cross_axis_label, title):
+    """Average a retained numerical result across its transverse axis."""
+    C, x_grid, _ = _numerical_view_arrays(C, x_grid, cross_grid)
+    with np.errstate(invalid="ignore"):
+        profile = np.nanmean(C, axis=0)
+    source = ColumnDataSource(data={"x": x_grid, "concentration": profile})
+    p = figure(
+        title=f"{title} - Mean Concentration Profile",
+        x_axis_label="Distance Lx [m]",
+        y_axis_label="Mean Concentration [mg/L]",
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=340,
+    )
+    p.line("x", "concentration", source=source, color="#0d766e", line_width=3)
+    p.scatter("x", "concentration", source=source, color="#0d766e", size=5, alpha=0.7)
+    p.add_tools(HoverTool(tooltips=[("Distance", "@x{0.00} m"), ("Mean concentration", "@concentration{0.000} mg/L")]))
+    p.grid.grid_line_alpha = 0.25
+    return p
+
+
+def plot_concentration_gradient_vectors_interactive(C, x_grid, cross_grid, *, cross_axis_label, title):
+    """Show decreasing-concentration vectors derived from a retained numerical result."""
+    C, x_grid, cross_grid = _numerical_view_arrays(C, x_grid, cross_grid)
+    dcross, dx = np.gradient(C, cross_grid, x_grid, edge_order=1)
+    u = -dx
+    v = -dcross
+    magnitude = np.hypot(u, v)
+
+    row_step = max(int(np.ceil(len(cross_grid) / 14)), 1)
+    col_step = max(int(np.ceil(len(x_grid) / 24)), 1)
+    rows = np.arange(0, len(cross_grid), row_step)
+    cols = np.arange(0, len(x_grid), col_step)
+    xx, yy = np.meshgrid(x_grid[cols], cross_grid[rows])
+    uu = u[np.ix_(rows, cols)]
+    vv = v[np.ix_(rows, cols)]
+    mm = magnitude[np.ix_(rows, cols)]
+
+    finite_nonzero = np.isfinite(mm) & (mm > 0)
+    safe_mm = np.where(finite_nonzero, mm, 1.0)
+    x_scale = (float(x_grid.max()) - float(x_grid.min())) / max(len(cols), 1) * 0.65
+    y_scale = (float(cross_grid.max()) - float(cross_grid.min())) / max(len(rows), 1) * 0.65
+    x1 = xx + np.where(finite_nonzero, uu / safe_mm, 0.0) * x_scale
+    y1 = yy + np.where(finite_nonzero, vv / safe_mm, 0.0) * y_scale
+    angle = np.arctan2(y1 - yy, x1 - xx) - (np.pi / 2.0)
+
+    source = ColumnDataSource(data={
+        "x0": xx.ravel(),
+        "y0": yy.ravel(),
+        "x1": x1.ravel(),
+        "y1": y1.ravel(),
+        "angle": angle.ravel(),
+        "magnitude": mm.ravel(),
+    })
+    p = figure(
+        title=f"{title} - Decreasing-Concentration Vector View",
+        x_axis_label="Distance Lx [m]",
+        y_axis_label=cross_axis_label,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=430,
+        x_range=(float(x_grid.min()), float(x_grid.max())),
+        y_range=(float(cross_grid.min()), float(cross_grid.max())),
+    )
+    finite = C[np.isfinite(C)]
+    c_min = float(np.nanmin(finite)) if finite.size else 0.0
+    c_max = float(np.nanmax(finite)) if finite.size else 1.0
+    if c_min == c_max:
+        c_max = c_min + 1.0
+    mapper = LinearColorMapper(palette=list(reversed(RdYlGn11)), low=c_min, high=c_max)
+    p.image(
+        image=[np.flipud(C)],
+        x=float(x_grid.min()),
+        y=float(cross_grid.min()),
+        dw=float(x_grid.max()) - float(x_grid.min()),
+        dh=float(cross_grid.max()) - float(cross_grid.min()),
+        color_mapper=mapper,
+        alpha=0.45,
+    )
+    p.segment("x0", "y0", "x1", "y1", source=source, color="#163c66", line_width=1.4, alpha=0.8)
+    p.scatter("x1", "y1", angle="angle", source=source, marker="triangle", color="#163c66", size=7, alpha=0.9)
+    p.add_tools(HoverTool(tooltips=[("Gradient magnitude", "@magnitude{0.000}")]))
+    return p
+
+
 def plot_numerical_vs_cirpka_comparison(
     numerical_lmax_v: float,
     numerical_lmax_h: float,
@@ -497,7 +597,7 @@ def create_bargraph(table_data: List[list]) -> Tuple[str, str]:
         x_axis_label="Index",
         y_axis_label="Plume Length (m)",
         height=420,
-        sizing_mode="stretch_both",
+        sizing_mode="stretch_width",
         toolbar_location="above",
     )
 
@@ -523,9 +623,10 @@ def create_bargraph(table_data: List[list]) -> Tuple[str, str]:
         plotted = True
 
     if not plotted:
-        p.title.text = "No plume length data available yet."
-
-    p.legend.location = "top_right"
+        p.title.text = "No data available for plume length."
+        p.text(x=[0], y=[0], text=["No data available"], text_align="center")
+    else:
+        p.legend.location = "top_right"
     return components(p)
 
 
@@ -546,7 +647,7 @@ def create_boxplot(label: str, table_data: list[list], index: int):
         x_range=["Original", "User"],
         y_axis_label=label,
         height=420,
-        sizing_mode="stretch_both",
+        sizing_mode="stretch_width",
         toolbar_location="above",
     )
 
@@ -570,8 +671,8 @@ def create_boxplot(label: str, table_data: list[list], index: int):
 
     if not orig_vals and not user_vals:
         p.title.text = f"No data available for '{label}'."
+        p.text(x=["Original"], y=[0], text=["No data available"], text_align="center")
 
-    p.legend.location = "top_right"
     return components(p)
 
 
@@ -592,7 +693,7 @@ def create_histogram(feature: str, table_data: List[list], index: int, parameter
         x_axis_label=parameter,
         y_axis_label="Density",
         height=420,
-        sizing_mode="stretch_both",
+        sizing_mode="stretch_width",
         toolbar_location="above",
     )
 
@@ -634,8 +735,9 @@ def create_histogram(feature: str, table_data: List[list], index: int, parameter
 
     if not plotted:
         p.title.text = f"No data available for '{parameter}'."
-
-    p.legend.location = "top_right"
+        p.text(x=[0], y=[0], text=["No data available"], text_align="center")
+    else:
+        p.legend.location = "top_right"
     return components(p)
 
 

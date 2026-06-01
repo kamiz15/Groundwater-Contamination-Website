@@ -12,6 +12,7 @@
         <p class="login-subtitle">Join the CAST platform to access your dashboard ⚙️</p>
 
         <form id="registerForm">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="reg_username">Username</label>
                 <input type="text" id="reg_username" name="username" placeholder="Your full name" required>
@@ -32,16 +33,6 @@
                 <input type="password" id="reg_confirm" name="confirmPassword" placeholder="Re-enter password" required>
             </div>
 
-            <div class="form-group">
-                <label for="reg_country">Country</label>
-                <input type="text" id="reg_country" name="country" placeholder="Your country" required>
-            </div>
-
-            <div class="form-group">
-                <label for="reg_org">Organisation</label>
-                <input type="text" id="reg_org" name="organisation" placeholder="Your organisation or university" required>
-            </div>
-
             <button type="submit" class="btn-primary">Sign Up</button>
 
             <div id="registerMessage"></div>
@@ -51,38 +42,5 @@
             </p>
         </form>
     </div>
-    <script>
-document.getElementById("registerForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const data = {
-        username: document.getElementById("reg_username").value,
-        email: document.getElementById("reg_email").value,
-        password: document.getElementById("reg_password").value,
-        confirmPassword: document.getElementById("reg_confirm").value,
-        country: document.getElementById("reg_country").value,
-        organisation: document.getElementById("reg_org").value
-    };
-
-    const response = await fetch("/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-    const msgBox = document.getElementById("registerMessage");
-    msgBox.textContent = result.message || "";
-
-    if (result.success) {
-        msgBox.style.color = "green";
-        msgBox.textContent = "Registration successful! Redirecting...";
-        setTimeout(() => window.location.href = result.redirect, 1000);
-    } else {
-        msgBox.style.color = "red";
-    }
-});
-</script>
-
 </body>
 </html>

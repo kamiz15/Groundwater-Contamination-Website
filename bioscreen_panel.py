@@ -6,6 +6,7 @@ import panel as pn
 from bioscreen_model import bio
 from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, query_str, summary_card
 from pdf_report import CASTReport
+from security import user_safe_error
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -36,7 +37,7 @@ def bioscreen_single_app():
     run_btn = pn.widgets.Button(name="Run BIOSCREEN simulation", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the BIOSCREEN model to compute plume length."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "demo@example.com")
+    email = query_str("email", "")
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
@@ -85,11 +86,15 @@ def bioscreen_single_app():
             })
             export_btn.visible = True
         except Exception as exc:
-            result_pane.object = error_card(str(exc))
+            result_pane.object = error_card(exc)
             plot_pane.object = None
             export_btn.visible = False
 
     run_btn.on_click(_run)
+    if query_int("output_only", 0):
+        if query_int("run", 0):
+            _run()
+        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column(
         "## BIOSCREEN-AT (Single)",
@@ -110,7 +115,7 @@ def bioscreen_multiple_app():
     result_pane = pn.pane.HTML(info_card("Run the BIOSCREEN sweep to compare plume lengths over time."), sizing_mode="stretch_width")
     table = pn.widgets.Tabulator(pd.DataFrame(columns=["time_years", "lmax_m"]), height=240, sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "demo@example.com")
+    email = query_str("email", "")
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
@@ -165,12 +170,17 @@ def bioscreen_multiple_app():
             })
             export_btn.visible = True
         except Exception as exc:
-            table.value = pd.DataFrame([{"error": str(exc)}])
-            result_pane.object = error_card(str(exc))
+            safe_error = user_safe_error(exc)
+            table.value = pd.DataFrame([{"error": safe_error}])
+            result_pane.object = error_card(safe_error)
             plot_pane.object = None
             export_btn.visible = False
 
     run_btn.on_click(_run)
+    if query_int("output_only", 0):
+        if query_int("run", 0):
+            _run()
+        return pn.Column(result_pane, table, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column(
         "## BIOSCREEN-AT (Multiple)",

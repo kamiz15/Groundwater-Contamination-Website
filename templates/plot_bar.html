@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
+<section class="section-spaced">
   <h2>Plume Length Bar Graph</h2>
   {% if plot_div %}
-    {{ plot_div | safe }}
+    <div class="card-like analysis-plot-shell bokeh-output">
+      {{ plot_div | safe }}
+    </div>
     {{ plot_script | safe }}
   {% else %}
     <p>No data available to plot yet.</p>
   {% endif %}
+</section>
 {% endblock %}

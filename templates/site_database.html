@@ -20,6 +20,7 @@
       <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity, electron_donor, electron_acceptor_o2, electron_acceptor_no3</code>
     </p>
     <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="upload_csv">
       <label class="file-label">
         <span id="csvFileLabel">Choose CSV file…</span>
@@ -32,6 +33,7 @@
   <div class="card-like">
     <h3>Add Single Site Manually</h3>
     <form method="POST" class="site-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="manual">
 
       <input type="text" name="site_unit" placeholder="Site Unit" required>
@@ -41,7 +43,7 @@
         <input type="number" step="any" name="aquifer_thickness" placeholder="Aquifer Thickness (m)">
         <input type="number" step="any" name="plume_length" placeholder="Plume Length (m)">
         <input type="number" step="any" name="plume_width" placeholder="Plume Width (m)">
-        <input type="number" step="any" name="hydraulic_conductivity" placeholder="Hydraulic Conductivity (10⁻³ m/s)">
+        <input type="number" step="any" name="hydraulic_conductivity" placeholder="Hydraulic Conductivity K [m/s]">
         <input type="number" step="any" name="electron_donor" placeholder="Electron Donor (mg/l)">
         <input type="number" step="any" name="electron_acceptor_o2" placeholder="O₂ (mg/l)">
         <input type="number" step="any" name="electron_acceptor_no3" placeholder="NO₃ (mg/l)">

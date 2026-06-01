@@ -1,6 +1,3 @@
-CREATE DATABASE cast_project;
-USE cast_project;
-
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100),
@@ -22,5 +19,7 @@ CREATE TABLE sites (
     electron_donor FLOAT,
     electron_acceptor_o2 FLOAT,
     electron_acceptor_no3 FLOAT,
-    FOREIGN KEY (user_email) REFERENCES users(email)
+    CONSTRAINT fk_sites_user_email
+        FOREIGN KEY (user_email) REFERENCES users(email)
+        ON DELETE CASCADE
 );

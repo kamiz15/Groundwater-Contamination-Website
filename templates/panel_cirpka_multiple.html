@@ -3,7 +3,7 @@
 {% block content %}
 <section class="section-spaced model-page">
   <h2>Cirpka et al. (2005) - Multiple Simulation</h2>
-  <p class="small">Each table row is a separate scenario. Uploaded database records remain separate and appear only as comparison points.</p>
+  <p class="small">Enter scenarios in the table inside the panel below and click Run to compare multiple simulations. Uploaded database records appear as comparison points.</p>
 
   <div class="card-like conceptual-figure">
     <h3>Conceptual Model</h3>
@@ -11,7 +11,7 @@
       src="{{ url_for('static', filename='images/conceptual_cirpka.png') }}"
       alt="Conceptual model diagram for Cirpka et al. (2005)"
       class="conceptual-img"
-      loading="lazy"
+      loading="eager"
     />
   </div>
 
@@ -32,8 +32,12 @@
     </form>
   </div>
   {% endif %}
-  <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame"></iframe>
+  {% include "model_input_form.html" %}
+  <div class="card-like model-output-card">
+    <h3>Simulation Panel</h3>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+    </div>
   </div>
 </section>
 {% endblock %}

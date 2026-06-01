@@ -3,11 +3,13 @@
 {% block content %}
 <section class="section-spaced model-page">
   <h2>BIOSCREEN-AT - Multiple Simulation</h2>
-  <p class="small">Manual scenario inputs inside the graph panel are separate from uploaded database records. Use the optional loader below only if you want to prefill the model from a saved site.</p>
+  <p class="small">Enter scenarios in the panel below and click Run to compare multiple simulations. Uploaded database records appear as comparison points.</p>
+
   <div class="card-like conceptual-figure">
     <h3>Conceptual Model</h3>
-    <img src="{{ url_for('static', filename='images/conceptual_bioscreen.png') }}" alt="Conceptual model diagram for BIOSCREEN-AT" class="conceptual-img" loading="lazy" />
+    <img src="{{ url_for('static', filename='images/conceptual_bioscreen.png') }}" alt="Conceptual model diagram for BIOSCREEN-AT" class="conceptual-img" loading="eager" />
   </div>
+
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">
@@ -24,11 +26,15 @@
       {% endif %}
     </form>
   </div>
-  {% else %}
-  <p class="small">No uploaded site data found. The model is currently in manual input mode.</p>
   {% endif %}
-  <div class="panel-shell">
-    <iframe src="{{ panel_src }}" class="panel-frame" loading="lazy" allow="clipboard-read; clipboard-write"></iframe>
+
+  {% include "model_input_form.html" %}
+
+  <div class="card-like model-output-card">
+    <h3>Simulation Panel</h3>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager" allow="clipboard-read; clipboard-write"></iframe>
+    </div>
   </div>
 </section>
 {% endblock %}

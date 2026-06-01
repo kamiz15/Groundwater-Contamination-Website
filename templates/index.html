@@ -50,7 +50,7 @@
   <div class="tile-grid">
     <a id="model-site-db"
        class="tile"
-       href="{{ url_for('site_bp.site_database') if user else url_for('login_page') }}">
+       href="{{ url_for('site_bp.site_database') if current_user.is_authenticated else url_for('login_page') }}">
       <div class="tile-image tile-img-1"></div>
       <div class="tile-label">SITE DATABASE<br>AND<br>MODEL INPUT</div>
     </a>

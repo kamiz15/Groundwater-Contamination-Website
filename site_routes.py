@@ -2,13 +2,17 @@
 
 import csv
 import io
+import logging
 
-from flask import Blueprint, render_template, request, jsonify, session
+from flask import Blueprint, render_template, request, jsonify
+from flask_login import current_user, login_required
 
 from data_queries import get_user_sites, get_user_sites_rows, insert_site, insert_sites_bulk, SITE_FIELDS
 from plot_functions import create_bargraph, create_histogram, create_boxplot
+from security import csrf_protect, form_data_or_400, json_object_or_400
 
 site_bp = Blueprint("site_bp", __name__)
+logger = logging.getLogger(__name__)
 
 # ---- column config ----   
 COLUMN_DEFS = [
@@ -49,13 +53,8 @@ def _get_column_index(label: str):
     return None
 
 
-def _demo_email() -> str:
-    """Dummy email; change to something that exists in your `sites` table."""
-    return "demo@example.com"
-
-
 def _current_email():
-    return session.get("email") or _demo_email()
+    return current_user.email
 
 
 def _normalize_header(name: str) -> str:
@@ -191,19 +190,9 @@ def _sort_sites(rows, sort_field, sort_dir):
 # MAIN TABLE VIEWS
 # -----------------------------
 
-"""""
-@site_bp.route("/", methods=["GET"])
-def index():
-    table_data = get_user_sites(_demo_email())
-    column_names = _get_column_names()
-    return render_template(
-        "site_database.html",
-        table_data=table_data,
-        column_names=column_names,
-    )
-"""
-
 @site_bp.route("/sites", methods=["GET", "POST"])
+@login_required
+@csrf_protect
 def site_database():
     """
     Explicit URL for the same view as index().
@@ -214,20 +203,17 @@ def site_database():
     error = None
 
     if request.method == "POST":
-        action = request.form.get("action", "").strip().lower()
+        form = form_data_or_400()
+        action = form.get("action", "").strip().lower()
         try:
             if action == "manual":
-                if not session.get("email"):
-                    raise ValueError("Please log in before adding site data.")
-                payload = {field: request.form.get(field) for field in SITE_FIELDS}
+                payload = {field: form.get(field) for field in SITE_FIELDS}
                 if not payload.get("site_unit") or not payload.get("compound"):
                     raise ValueError("Site Unit and Compound are required.")
                 insert_site(email, payload)
                 message = "Site added successfully."
 
             elif action == "upload_csv":
-                if not session.get("email"):
-                    raise ValueError("Please log in before uploading CSV data.")
                 file = request.files.get("csv_file")
                 if not file or not file.filename:
                     raise ValueError("Please choose a CSV file before uploading.")
@@ -264,8 +250,11 @@ def site_database():
 
             else:
                 raise ValueError("Unsupported form action.")
-        except Exception as exc:
+        except ValueError as exc:
             error = str(exc)
+        except Exception:
+            logger.exception("Database error while updating site data")
+            error = "Unable to save site data. Please try again later."
 
     table_data = get_user_sites(email)
     sites = get_user_sites_rows(email)
@@ -294,6 +283,7 @@ def site_database():
 # -----------------------------
 
 @site_bp.route("/plot_bar", methods=["GET"])
+@login_required
 def plot_bar():
     """
     Endpoint used in base.html: url_for('site_bp.plot_bar')
@@ -309,6 +299,7 @@ def plot_bar():
 
 
 @site_bp.route("/plot_hist", methods=["GET"])
+@login_required
 def plot_hist():
     """
     Endpoint used in base.html: url_for('site_bp.plot_hist')
@@ -327,6 +318,7 @@ def plot_hist():
 
 
 @site_bp.route("/plot_box", methods=["GET"])
+@login_required
 def plot_box():
     """
     Endpoint used in base.html: url_for('site_bp.plot_box')
@@ -348,14 +340,17 @@ def plot_box():
 # OPTIONAL JSON ENDPOINTS (keep if you want AJAX later)
 # -----------------------------
 @site_bp.route("/plots/histogram", methods=["POST"])
+@login_required
+@csrf_protect
 def histogram_json():
     if request.is_json:
-        data = request.get_json()
+        data = json_object_or_400()
         feature = data.get("feature", "Gaussian")
         parameter = data.get("parameter")
     else:
-        feature = request.form.get("feature", "Gaussian")
-        parameter = request.form.get("parameter")
+        form = form_data_or_400()
+        feature = form.get("feature", "Gaussian")
+        parameter = form.get("parameter")
 
     if not parameter:
         return jsonify({"error": "No parameter provided"}), 400
@@ -378,12 +373,15 @@ def histogram_json():
 
 
 @site_bp.route("/plots/boxplot", methods=["POST"])
+@login_required
+@csrf_protect
 def boxplot_json():
     if request.is_json:
-        data = request.get_json()
+        data = json_object_or_400()
         parameter = data.get("parameter")
     else:
-        parameter = request.form.get("parameter")
+        form = form_data_or_400()
+        parameter = form.get("parameter")
 
     if not parameter:
         return jsonify({"error": "No parameter provided"}), 400

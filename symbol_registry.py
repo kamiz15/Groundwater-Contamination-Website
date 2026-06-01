@@ -6,19 +6,27 @@ database columns, UI labels, and model function arguments.
 RULE: Conceptual Model Symbol == UI Label == Variable Name (or mapped alias)
 """
 
+from settings import NUMERICAL_HK_MAX_M_PER_DAY, NUMERICAL_HK_MIN_M_PER_DAY
+
+
+SECONDS_PER_DAY = 86400.0
+# Assumption pending domain-expert confirmation: DB K is stored in m/s and numerical hk uses m/d.
+DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = SECONDS_PER_DAY
+
+
 SYMBOL_REGISTRY = {
     # --- Geometric parameters ---
     "M": {
         "db": "aquifer_thickness",
         "ui": "Aquifer Thickness M [m]",
         "unit": "m",
-        "models": ["liedl", "liedl3d", "ham", "maier"],
+        "models": ["liedl", "liedl3d", "ham", "maier", "bioscreen", "numerical"],
     },
     "S_w": {
         "db": "plume_width",
         "ui": "Source Width Sw [m]",
         "unit": "m",
-        "models": ["chu", "cirpka", "numerical"],
+        "models": ["chu", "cirpka", "bioscreen", "numerical"],
     },
     "S_T": {
         "db": None,
@@ -26,15 +34,15 @@ SYMBOL_REGISTRY = {
         "unit": "m",
         "models": ["numerical"],
     },
-    "R_Ta": {
+    "S_Ta": {
         "db": None,
-        "ui": "Buffer Above Source R_T^a [m]",
+        "ui": "Buffer Above STa [m]",
         "unit": "m",
         "models": ["numerical"],
     },
-    "R_Tb": {
+    "S_Tb": {
         "db": None,
-        "ui": "Buffer Below Source R_T^b [m]",
+        "ui": "Buffer Below STb [m]",
         "unit": "m",
         "models": ["numerical"],
     },
@@ -50,12 +58,18 @@ SYMBOL_REGISTRY = {
         "db": None,
         "ui": "Horizontal Transverse Dispersivity \u03b1Th [m]",
         "unit": "m",
-        "models": ["chu", "liedl3d", "cirpka"],
+        "models": ["chu", "liedl3d", "cirpka", "numerical"],
     },
     "K": {
         "db": "hydraulic_conductivity",
         "ui": "Hydraulic Conductivity K [m/s]",
         "unit": "m/s",
+        "models": ["numerical"],
+    },
+    "K_v": {
+        "db": None,
+        "ui": "Vertical Hydraulic Conductivity K_v [m/d]",
+        "unit": "m/d",
         "models": ["numerical"],
     },
 
@@ -64,13 +78,13 @@ SYMBOL_REGISTRY = {
         "db": "electron_donor",
         "ui": "Electron Donor CD [mg/L]",
         "unit": "mg/L",
-        "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "numerical"],
+        "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "bioscreen", "numerical"],
     },
     "C_A": {
         "db": "electron_acceptor_o2",
         "ui": "Electron Acceptor CA [mg/L]",
         "unit": "mg/L",
-        "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "numerical"],
+        "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "bioscreen", "numerical"],
     },
 
     # --- Stoichiometric / reaction ---
@@ -100,6 +114,26 @@ def db_to_model(db_row: dict, model_name: str) -> dict:
         if value is not None:
             result[symbol] = value
     return result
+
+
+def db_hydraulic_conductivity_to_numerical_hk(value) -> float:
+    """
+    Convert a database hydraulic-conductivity value in m/s to numerical hk in m/d.
+
+    The bounds intentionally flag suspicious site-linked inputs after conversion.
+    They are configurable because the domain expert must confirm the accepted range.
+    """
+    try:
+        numerical_hk = float(value) * DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Database hydraulic conductivity K must be numeric.") from exc
+    if not NUMERICAL_HK_MIN_M_PER_DAY <= numerical_hk <= NUMERICAL_HK_MAX_M_PER_DAY:
+        raise ValueError(
+            "Converted hydraulic conductivity hk "
+            f"({numerical_hk:g} m/d) is outside the configured bounds "
+            f"[{NUMERICAL_HK_MIN_M_PER_DAY:g}, {NUMERICAL_HK_MAX_M_PER_DAY:g}] m/d."
+        )
+    return numerical_hk
 
 
 def get_ui_label(symbol: str) -> str:

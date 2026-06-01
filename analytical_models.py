@@ -191,9 +191,30 @@ def cirpka_lmax(Sw: float, alpha_Th: float, gamma: float, C_A: float, C_D: float
     return cirpka_2005(Sw=Sw, Ath=alpha_Th, Ca=C_A, Cd=C_D, Ga=gamma)
 
 
-def cirpka_domain_length(lmax: float) -> float:
+DOMAIN_LENGTH_FACTOR = 1.5
+
+
+def analytical_domain_length(lmax: float, override: float | None = None) -> float:
+    """Return an explicit positive override or derive LD = 1.5 * Lmax."""
+    if lmax <= 0:
+        raise ValueError("Analytical Lmax must be positive.")
+    if override not in (None, ""):
+        override = float(override)
+        if math.isnan(override) or override == 0:
+            override = None
+        elif override < 0:
+            raise ValueError("Domain length override LD must be positive or zero for automatic sizing.")
+    return float(override if override is not None else DOMAIN_LENGTH_FACTOR * lmax)
+
+
+def liedl_domain_length(lmax: float, override: float | None = None) -> float:
+    """Size a vertical Liedl-driven numerical domain, unless explicitly overridden."""
+    return analytical_domain_length(lmax, override)
+
+
+def cirpka_domain_length(lmax: float, override: float | None = None) -> float:
     """Domain length = 1.5 × L_max."""
-    return 1.5 * lmax
+    return analytical_domain_length(lmax, override)
 
 
 def compute_cirpka_multiple(entries):

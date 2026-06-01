@@ -1,0 +1,19 @@
+{
+  "brand": {
+    "primary": "#1B3A6B",
+    "secondary": "#2E6EBD",
+    "accent": "#0D9887"
+  },
+  "page": {
+    "size": "A4",
+    "margin_mm": 20
+  },
+  "fonts": {
+    "heading": "Helvetica-Bold",
+    "body": "Helvetica"
+  },
+  "logos": {
+    "cast": "logo_cast.png",
+    "university": "logo_uni.png"
+  }
+}

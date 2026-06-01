@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="section-spaced model-page">
+  <h2>{% block model_title %}Model Title{% endblock %}</h2>
+  <p class="small">Inputs are edited on this page. The output panel below updates from these values and contains only the result visualisation.</p>
+
+  <div class="card-like conceptual-figure">
+    <h3>Conceptual Model</h3>
+    <img
+      src="{% block conceptual_image %}{{ url_for('static', filename='images/placeholder.png') }}{% endblock %}"
+      alt="{% block conceptual_alt %}Conceptual model diagram{% endblock %}"
+      class="conceptual-img"
+      loading="eager"
+    />
+  </div>
+
+  {% block site_loader %}{% endblock %}
+  {% include "model_input_form.html" %}
+
+  <div class="card-like model-output-card">
+    <h3>Output Visualisation</h3>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+    </div>
+  </div>
+
+  {% include "report_download_card.html" %}
+</section>
+{% endblock %}

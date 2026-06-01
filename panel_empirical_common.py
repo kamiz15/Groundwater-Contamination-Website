@@ -4,12 +4,33 @@ import panel as pn
 from bokeh.plotting import figure
 
 from data_queries import get_user_sites
+from security import user_safe_error
+
+
+PARAM_ALIASES = {
+    "M": ("M", "H", "aquifer_thickness"),
+    "Ca": ("Ca", "C_A", "C_EA0", "electron_acceptor_o2"),
+    "Cd": ("Cd", "C_D", "C_ED0", "c0", "electron_donor"),
+    "tv": ("tv", "alpha_Tv", "av"),
+    "g": ("g", "gamma"),
+    "R": ("R",),
+}
+
+
+def _request_arg(name: str):
+    req = pn.state.curdoc.session_context.request
+    names = PARAM_ALIASES.get(name, (name,))
+    for candidate in names:
+        if candidate in req.arguments:
+            return req.arguments[candidate][0].decode()
+    return None
 
 
 def query_float(name: str, default: float) -> float:
     try:
-        req = pn.state.curdoc.session_context.request
-        raw = req.arguments.get(name, [str(default).encode()])[0].decode()
+        raw = _request_arg(name)
+        if raw is None or raw == "":
+            return default
         return float(raw)
     except Exception:
         return default
@@ -17,16 +38,18 @@ def query_float(name: str, default: float) -> float:
 
 def query_int(name: str, default: int = 0) -> int:
     try:
-        req = pn.state.curdoc.session_context.request
-        return int(float(req.arguments.get(name, [str(default).encode()])[0].decode()))
+        raw = _request_arg(name)
+        if raw is None or raw == "":
+            return default
+        return int(float(raw))
     except Exception:
         return default
 
 
 def query_str(name: str, default: str = "") -> str:
     try:
-        req = pn.state.curdoc.session_context.request
-        return req.arguments.get(name, [default.encode()])[0].decode()
+        raw = _request_arg(name)
+        return raw if raw is not None else default
     except Exception:
         return default
 
@@ -34,7 +57,8 @@ def query_str(name: str, default: str = "") -> str:
 def load_field_points(email: str):
     try:
         rows = get_user_sites(email)
-    except Exception:
+    except Exception as exc:
+        user_safe_error(exc, "Database error while loading empirical comparison points")
         return [], []
     xs, ys = [], []
     for i, row in enumerate(rows, start=1):
@@ -83,7 +107,8 @@ def summary_card(items: list[tuple[str, str]], title: str = "Simulation Summary"
     """
 
 
-def error_card(message: str) -> str:
+def error_card(message) -> str:
+    message = user_safe_error(message)
     return f"""
     <div style="background:#fff4f4;border:1px solid #f1b7b7;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(17,24,39,0.05);">
       <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#9f2d2d;margin-bottom:6px;">Error</div>

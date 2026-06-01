@@ -21,7 +21,7 @@ def birla_single_app():
 
     result_pane = pn.pane.HTML(info_card("Run the Birla et al. model to compute plume length."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "demo@example.com")
+    email = query_str("email", "")
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
@@ -58,11 +58,15 @@ def birla_single_app():
             })
             export_btn.visible = True
         except Exception as exc:
-            result_pane.object = error_card(str(exc))
+            result_pane.object = error_card(exc)
             plot_pane.object = None
             export_btn.visible = False
 
     run_btn.on_click(_run)
+    if query_int("output_only", 0):
+        if query_int("run", 0):
+            _run()
+        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column("## Birla et al. - Single Simulation", "### Manual inputs", w_M, w_tv, w_g, w_Ca, w_Cd, w_R, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})
     outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})

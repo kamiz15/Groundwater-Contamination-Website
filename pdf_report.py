@@ -4,6 +4,8 @@ ReportLab-based with embedded matplotlib charts and CAST branding.
 """
 
 import io
+from pathlib import Path
+from xml.etree import ElementTree as ET
 from datetime import datetime
 
 import matplotlib
@@ -17,6 +19,10 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.graphics import renderPDF
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.svgpath import SvgPath
 from reportlab.platypus import (
     HRFlowable, Image, KeepTogether, Paragraph,
     SimpleDocTemplate, Spacer, Table, TableStyle,
@@ -32,6 +38,9 @@ _WHITE   = colors.white
 _DARK    = colors.Color(0.118, 0.145, 0.196)   # #1E2532
 _GRAY    = colors.Color(0.50, 0.53, 0.58)
 _LGRAY   = colors.Color(0.85, 0.87, 0.90)
+_DFG_BLUE = colors.Color(0.000, 0.329, 0.612)
+_TUE_RED = colors.Color(0.702, 0.000, 0.188)
+_SOFT_BG = colors.Color(0.965, 0.975, 0.988)
 
 # matplotlib hex equivalents
 _MPL_NAVY   = "#1B3A6B"
@@ -43,16 +52,23 @@ _MPL_STRIPE = "#E0E8F2"
 
 PAGE_W, PAGE_H = A4
 CONTENT_W = PAGE_W - 40 * mm
+HEADER_H = 42 * mm
+FOOTER_H = 14 * mm
+BASE_DIR = Path(__file__).resolve().parent
+REPORT_ASSET_DIR = BASE_DIR / "static" / "report_assets"
+DFG_LOGO_PATH = REPORT_ASSET_DIR / "dfg-logo-foerderung" / "dfg_logo_schriftzug_blau_foerderung_de.png"
+TUEBINGEN_LOGO_PATH = REPORT_ASSET_DIR / "Logo_Universitaet_Tuebingen.svg"
 
 
 class CASTReport:
     """Professional PDF report for all CAST model types."""
 
-    VERSION = "2.0"
+    VERSION = "2.1"
 
-    def __init__(self, title: str, model_name: str):
+    def __init__(self, title: str, model_name: str, logo_path: str = None):
         self.title = title
         self.model_name = model_name
+        self.logo_path = logo_path
         self.date = datetime.now().strftime("%d %b %Y  %H:%M")
         self._build_styles()
 
@@ -123,44 +139,114 @@ class CASTReport:
 
     # ── Header / footer canvas callbacks ──────────────────────────────────────
 
+    def _draw_project_mark(self, canvas, x, y):
+        canvas.setFillColor(_WHITE)
+        canvas.setFont("Helvetica-Bold", 13)
+        canvas.drawString(x, y, "HYMCAT")
+        canvas.setFont("Helvetica-Bold", 8)
+        canvas.setFillColor(colors.Color(0.78, 0.88, 1.0))
+        canvas.drawString(x + 24 * mm, y, "CAST")
+        canvas.setFont("Helvetica", 7)
+        canvas.drawString(x, y - 4.5 * mm, "Contaminant Assessment & Source Tool")
+
+    def _draw_image_fit(self, canvas, path: Path, x, y, max_w, max_h):
+        if not path.exists():
+            return False
+        reader = ImageReader(str(path))
+        img_w, img_h = reader.getSize()
+        scale = min(max_w / img_w, max_h / img_h)
+        draw_w = img_w * scale
+        draw_h = img_h * scale
+        canvas.drawImage(
+            str(path),
+            x + (max_w - draw_w) / 2,
+            y + (max_h - draw_h) / 2,
+            width=draw_w,
+            height=draw_h,
+            mask="auto",
+        )
+        return True
+
+    def _load_svg_drawing(self, path: Path):
+        if not path.exists():
+            return None
+
+        root = ET.parse(path).getroot()
+        view_box = root.attrib.get("viewBox", "0 0 0 0").replace(",", " ").split()
+        if len(view_box) != 4:
+            return None
+        _min_x, _min_y, width, height = [float(value) for value in view_box]
+        drawing = Drawing(width, height)
+
+        for elem in root.iter():
+            if not elem.tag.endswith("path"):
+                continue
+            path_data = elem.attrib.get("d")
+            if not path_data:
+                continue
+            fill = elem.attrib.get("fill", "#000000")
+            fill_color = None if fill == "none" else colors.HexColor(fill)
+            drawing.add(SvgPath(path_data, fillColor=fill_color, strokeColor=None, vswap=1))
+        return drawing
+
+    def _draw_svg_fit(self, canvas, path: Path, x, y, max_w, max_h):
+        drawing = self._load_svg_drawing(path)
+        if drawing is None:
+            return False
+        scale = min(max_w / drawing.width, max_h / drawing.height)
+        draw_w = drawing.width * scale
+        draw_h = drawing.height * scale
+        canvas.saveState()
+        canvas.translate(x + (max_w - draw_w) / 2, y + (max_h - draw_h) / 2)
+        canvas.scale(scale, scale)
+        renderPDF.draw(drawing, canvas, 0, 0)
+        canvas.restoreState()
+        return True
+
     def _header_footer(self, canvas, doc):
         canvas.saveState()
         w, h = PAGE_W, PAGE_H
 
-        # ── Top stripe (navy) ─────────────────────────────────────────────────
-        canvas.setFillColor(_NAVY)
-        canvas.rect(0, h - 22 * mm, w, 22 * mm, fill=1, stroke=0)
-
-        # Left: CAST branding
+        header_bottom = h - HEADER_H
         canvas.setFillColor(_WHITE)
-        canvas.setFont("Helvetica-Bold", 11)
-        canvas.drawString(20 * mm, h - 10 * mm, "CAST")
-        canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(colors.Color(0.7, 0.82, 1.0))
-        canvas.drawString(20 * mm, h - 17 * mm, "Contaminant Assessment & Source Tool")
+        canvas.rect(0, header_bottom, w, HEADER_H, fill=1, stroke=0)
 
-        # Right: model name + date
-        canvas.setFillColor(_WHITE)
-        canvas.setFont("Helvetica-Bold", 9)
-        canvas.drawRightString(w - 20 * mm, h - 10 * mm, self.model_name)
-        canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(colors.Color(0.7, 0.82, 1.0))
-        canvas.drawRightString(w - 20 * mm, h - 17 * mm, self.date)
+        self._draw_image_fit(canvas, DFG_LOGO_PATH, 18 * mm, h - 32 * mm, 78 * mm, 23 * mm)
+        self._draw_svg_fit(canvas, TUEBINGEN_LOGO_PATH, 112 * mm, h - 32 * mm, 78 * mm, 23 * mm)
 
-        # ── Bottom bar (navy) ─────────────────────────────────────────────────
+        canvas.setStrokeColor(_LGRAY)
+        canvas.setLineWidth(0.6)
+        canvas.line(18 * mm, h - 31 * mm, w - 18 * mm, h - 31 * mm)
+
         canvas.setFillColor(_NAVY)
-        canvas.rect(0, 0, w, 14 * mm, fill=1, stroke=0)
+        canvas.rect(0, header_bottom, w, 11 * mm, fill=1, stroke=0)
+        self._draw_project_mark(canvas, 20 * mm, header_bottom + 4.7 * mm)
 
-        # Thin teal accent line above bottom bar
+        canvas.setFillColor(_WHITE)
+        canvas.setFont("Helvetica-Bold", 8.5)
+        canvas.drawRightString(w - 20 * mm, header_bottom + 6 * mm, self.model_name)
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.Color(0.78, 0.88, 1.0))
+        canvas.drawRightString(w - 20 * mm, header_bottom + 2.4 * mm, self.date)
+
         canvas.setStrokeColor(_TEAL)
+        canvas.setLineWidth(1.1)
+        canvas.line(0, header_bottom, w, header_bottom)
+
+        canvas.setFillColor(_NAVY)
+        canvas.rect(0, 0, w, FOOTER_H, fill=1, stroke=0)
+
+        canvas.setStrokeColor(_DFG_BLUE)
         canvas.setLineWidth(1.5)
-        canvas.line(0, 14 * mm, w, 14 * mm)
+        canvas.line(0, FOOTER_H, w / 2, FOOTER_H)
+        canvas.setStrokeColor(_TUE_RED)
+        canvas.line(w / 2, FOOTER_H, w, FOOTER_H)
 
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.Color(0.7, 0.82, 1.0))
         canvas.drawCentredString(
             w / 2, 5.5 * mm,
-            f"Page {doc.page}  ·  Generated by CAST v{self.VERSION}  ·  For research and educational use only",
+            f"Page {doc.page}  |  HYMCAT / CAST v{self.VERSION}  |  DFG-funded research report",
         )
 
         canvas.restoreState()
@@ -179,7 +265,6 @@ class CASTReport:
         data = [[Paragraph(text, self.s_h2)]]
         t = Table(data, colWidths=[CONTENT_W])
         t.setStyle(TableStyle([
-            ("LINEBEFOREE", (0, 0), (0, 0), 3, _TEAL),
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
@@ -196,16 +281,23 @@ class CASTReport:
                 Paragraph(f"<b>Model:</b>  {self.model_name}", self.s_normal),
                 Paragraph(f"<b>Generated:</b>  {self.date}", self.s_normal),
                 Paragraph(f"<b>Report version:</b>  {self.VERSION}", self.s_normal),
+            ],
+            [
+                Paragraph("<b>Project:</b>  HYMCAT / CAST", self.s_normal),
+                Paragraph("<b>Institution:</b>  Eberhard Karls Universit\u00e4t T\u00fcbingen", self.s_normal),
+                Paragraph("<b>Funding:</b>  DFG - Deutsche Forschungsgemeinschaft", self.s_normal),
             ]
         ]
         t = Table(cells, colWidths=[CONTENT_W / 3] * 3)
         t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), _LIGHT),
+            ("BACKGROUND", (0, 0), (-1, 0), _LIGHT),
+            ("BACKGROUND", (0, 1), (-1, 1), _SOFT_BG),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("LINEBELOW", (0, 0), (-1, -1), 1.5, _BLUE),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, _LGRAY),
+            ("LINEBELOW", (0, 1), (-1, 1), 1.5, _BLUE),
         ]))
         return t
 
@@ -391,10 +483,10 @@ class CASTReport:
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
             buffer, pagesize=A4,
-            topMargin=28 * mm, bottomMargin=20 * mm,
+            topMargin=50 * mm, bottomMargin=20 * mm,
             leftMargin=20 * mm, rightMargin=20 * mm,
             title=self.title,
-            author="CAST Platform",
+            author="HYMCAT / CAST Platform",
         )
 
         story = []

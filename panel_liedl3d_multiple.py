@@ -22,7 +22,7 @@ def liedl3d_multiple_app():
     run_btn = pn.widgets.Button(name="Run Liedl 3D scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Liedl 3D scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "demo@example.com")
+    email = query_str("email", "")
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
@@ -61,11 +61,15 @@ def liedl3d_multiple_app():
             })
             export_btn.visible = True
         except Exception as exc:
-            result_pane.object = error_card(str(exc))
+            result_pane.object = error_card(exc)
             plot_pane.object = None
             export_btn.visible = False
 
     run_btn.on_click(_run)
+    if query_int("output_only", 0):
+        if query_int("run", 0):
+            _run()
+        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column("## Liedl 3D - Multiple Simulation", "### Manual scenario inputs", table, sizing_mode="stretch_width", styles={"flex": "1 1 380px", "min-width": "300px"})
     outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
