@@ -69,6 +69,20 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
         "/cirpka/single/export",
         "/empirical/maier/single/export",
         "/empirical/birla/single/export",
+    ],
+)
+def test_single_run_pdf_export_returns_non_empty_pdf(path, authenticated_wrapper_client):
+    response = authenticated_wrapper_client.get(path)
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data.startswith(b"%PDF")
+    assert len(response.data) > 1000
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
         (
             "/numerical/horizontal/single/export?"
             "Lx=6&Ly=4&source=1&ncol=6&nrow=4&al=1&at=0.1&"
@@ -82,13 +96,15 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
         ),
     ],
 )
-def test_single_run_pdf_export_returns_non_empty_pdf(path, authenticated_wrapper_client):
+def test_numerical_export_submits_background_job(path, authenticated_wrapper_client, monkeypatch):
+    monkeypatch.setattr(numerical_routes, "submit_job", lambda _kind, _params: "job-123")
+
     response = authenticated_wrapper_client.get(path)
 
-    assert response.status_code == 200
-    assert response.mimetype == "application/pdf"
-    assert response.data.startswith(b"%PDF")
-    assert len(response.data) > 1000
+    assert response.status_code == 202
+    body = response.get_json()
+    assert body["job_id"]
+    assert body["status_url"].startswith("/numerical/jobs/")
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,9 @@
 import io
 import logging
 
-import numpy as np
 import panel as pn
 
-from numerical_models import run_numerical_model_horizontal
+from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
 from panel_numerical_optional_views import LazyNumericalViews
 from pdf_report import CASTReport
@@ -34,10 +33,12 @@ def numerical_horizontal_single_app():
     perlen = pn.widgets.FloatInput(name="Simulation Time [day]", value=query_float("perlen", 100.0), step=1.0)
 
     run_btn = pn.widgets.Button(name="Run Horizontal Simulation", button_type="primary", sizing_mode="stretch_width")
+    cancel_btn = pn.widgets.Button(name="Cancel Job", button_type="danger", sizing_mode="stretch_width", visible=False)
     result_pane = pn.pane.HTML(info_card("Enter horizontal model parameters and run the simulation."), sizing_mode="stretch_width")
     graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=340)
     state = {}
+    poller = {"callback": None}
     optional_views = LazyNumericalViews(lambda: state.get("optional_view"))
 
     def _pdf_callback():
@@ -60,11 +61,102 @@ def numerical_horizontal_single_app():
         visible=False,
     )
 
+    def _stop_polling():
+        cancel_btn.visible = False
+        run_btn.disabled = False
+        run_btn.name = "Run Horizontal Simulation"
+        if poller["callback"] is not None:
+            poller["callback"].stop()
+            poller["callback"] = None
+
+    def _render_completed_result(result):
+        graph_pane.object = plot_horizontal_plume_interactive(
+            result.concentration,
+            result.x_grid,
+            result.y_grid,
+            result.plume_length,
+            lx.value,
+            source.value,
+            ly.value,
+        )
+        logger.info("Horizontal single graph_pane.object assigned")
+        comparison_pane.object = None
+        result_pane.object = summary_card(
+            [
+                ("Numerical Lmax", f"{result.plume_length:.2f} m"),
+                ("Domain Length Lx", f"{lx.value:.2f} m"),
+            ],
+            title="Horizontal Simulation Results",
+        )
+        state.update({
+            "parameters": [
+                {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
+                {"symbol": "Ly", "name": "Domain Width", "value": ly.value, "unit": "m"},
+                {"symbol": "nrow", "name": "Rows", "value": nrow.value, "unit": "-"},
+                {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
+                {"symbol": "source", "name": "Source Width", "value": source.value, "unit": "m"},
+                {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
+                {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
+                {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
+                {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
+                {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
+                {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
+                {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
+            ],
+            "outputs": [
+                {"label": "Horizontal Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
+                {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
+            ],
+            "plot_data": {
+                "labels": ["Horizontal numerical"],
+                "values": [result.plume_length],
+                "ylabel": "Plume Length (m)",
+                "title": "Horizontal Numerical",
+            },
+            "plot_images": [
+                {
+                    "title": "Horizontal Plume Concentration",
+                    "bytes": result.plot_png,
+                    "caption": "Simulated contaminant plume - plan view (horizontal model).",
+                }
+            ] if result.plot_png else [],
+            "optional_view": {
+                "concentration": result.concentration,
+                "x_grid": result.x_grid,
+                "cross_grid": result.y_grid,
+                "cross_axis_label": "Horizontal Width [m]",
+                "title": "Horizontal Numerical Model",
+            },
+        })
+        export_btn.visible = True
+
+    def _poll(job_id):
+        status = job_status(job_id)
+        if not status:
+            result_pane.object = error_card(f"Unknown numerical job {job_id}")
+            _stop_polling()
+            return
+        fields = [("Job", job_id), ("Status", status["status"])]
+        if status["status"] == "queued":
+            fields.append(("Queue position", status.get("queue_position", "?")))
+        result_pane.object = summary_card(fields, title="Horizontal Simulation Status")
+        if status["status"] == "done":
+            _render_completed_result(fetch_result(job_id))
+            _stop_polling()
+        elif status["status"] == "failed":
+            result_pane.object = error_card(status.get("error") or "Numerical job failed.")
+            _stop_polling()
+        elif status["status"] == "cancelled":
+            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Horizontal Simulation Cancelled")
+            _stop_polling()
+
     def _run(_=None):
         state.pop("optional_view", None)
         optional_views.reset()
+        export_btn.visible = False
         run_btn.disabled = True
-        run_btn.name = "Running Horizontal Simulation..."
+        run_btn.name = "Submitting Horizontal Simulation..."
         try:
             if min(lx.value, ly.value, source.value, prsity.value, alpha_l.value, at.value, hk.value, c0.value, perlen.value) <= 0:
                 raise ValueError("Lx, Ly, source, porosity, dispersivity, K, C0, and simulation time must be positive.")
@@ -72,105 +164,58 @@ def numerical_horizontal_single_app():
                 raise ValueError("nrow must be at least 2 and ncol must be at least 6 for Orlando's source column.")
             if h1.value <= h2.value:
                 raise ValueError("Head H_L must be greater than H_R.")
-
-            result = run_numerical_model_horizontal(
-                lx.value,
-                ly.value,
-                source.value,
-                ncol.value,
-                nrow.value,
-                prsity.value,
-                alpha_l.value,
-                at.value,
-                gamma.value,
-                cd.value,
-                ca.value,
-                h1.value,
-                h2.value,
-                hk.value,
-                perlen=perlen.value,
-                plume_threshold=c0.value,
-            )
-            run_btn.name = "Run Horizontal Simulation"
-
-            graph_pane.object = plot_horizontal_plume_interactive(
-                result.concentration,
-                result.x_grid,
-                result.y_grid,
-                result.plume_length,
-                lx.value,
-                source.value,
-                ly.value,
-            )
-            logger.info("Horizontal single graph_pane.object assigned")
+            params = {
+                "Lx": lx.value,
+                "A_W": ly.value,
+                "Sw": source.value,
+                "ncol": ncol.value,
+                "nrow": nrow.value,
+                "prsity": prsity.value,
+                "al": alpha_l.value,
+                "alpha_Th": at.value,
+                "gamma": gamma.value,
+                "cd": cd.value,
+                "ca": ca.value,
+                "h1": h1.value,
+                "h2": h2.value,
+                "hk": hk.value,
+                "perlen": perlen.value,
+                "plume_threshold": c0.value,
+            }
+            job_id = submit_job("horizontal_single", params)
+            state["job_id"] = job_id
+            cancel_btn.visible = True
+            graph_pane.object = None
             comparison_pane.object = None
-            result_pane.object = summary_card(
-                [
-                    ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-                    ("Domain Length Lx", f"{lx.value:.2f} m"),
-                ],
-                title="Horizontal Simulation Results",
-            )
-            state.update({
-                "parameters": [
-                    {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
-                    {"symbol": "Ly", "name": "Domain Width", "value": ly.value, "unit": "m"},
-                    {"symbol": "nrow", "name": "Rows", "value": nrow.value, "unit": "-"},
-                    {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
-                    {"symbol": "source", "name": "Source Width", "value": source.value, "unit": "m"},
-                    {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                    {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
-                    {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
-                    {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
-                    {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
-                    {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
-                    {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
-                    {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                ],
-                "outputs": [
-                    {"label": "Horizontal Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                    {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
-                ],
-                "plot_data": {
-                    "labels": ["Horizontal numerical"],
-                    "values": [result.plume_length],
-                    "ylabel": "Plume Length (m)",
-                    "title": "Horizontal Numerical",
-                },
-                "plot_images": [
-                    {
-                        "title": "Horizontal Plume Concentration",
-                        "bytes": result.plot_png,
-                        "caption": "Simulated contaminant plume — plan view (horizontal model).",
-                    }
-                ] if result.plot_png else [],
-                "optional_view": {
-                    "concentration": result.concentration,
-                    "x_grid": result.x_grid,
-                    "cross_grid": result.y_grid,
-                    "cross_axis_label": "Horizontal Width [m]",
-                    "title": "Horizontal Numerical Model",
-                },
-            })
-            export_btn.visible = True
+            run_btn.name = "Run Horizontal Simulation"
+            result_pane.object = summary_card([("Job", job_id), ("Status", "queued")], title="Horizontal Simulation Submitted")
+            poller["callback"] = pn.state.add_periodic_callback(lambda: _poll(job_id), 2000, start=True)
+            _poll(job_id)
         except Exception as exc:
             logger.exception("Horizontal numerical single simulation failed")
             result_pane.object = error_card(exc)
             graph_pane.object = None
             comparison_pane.object = None
-            export_btn.visible = False
-        finally:
+            cancel_btn.visible = False
             run_btn.disabled = False
             run_btn.name = "Run Horizontal Simulation"
 
+    def _cancel(_=None):
+        job_id = state.get("job_id")
+        if job_id and cancel_job(job_id):
+            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Horizontal Simulation Cancelled")
+            _stop_polling()
+
     run_btn.on_click(_run)
+    cancel_btn.on_click(_cancel)
+
     if query_int("output_only", 0):
         should_run = query_int("run", 0)
         if should_run:
             _run()
         output_objects = [result_pane]
         if should_run:
-            output_objects.extend([graph_pane, comparison_pane, optional_views.panel])
+            output_objects.extend([graph_pane, comparison_pane, optional_views.panel, cancel_btn])
         return pn.Column(*output_objects, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     return pn.Column(
@@ -181,6 +226,7 @@ def numerical_horizontal_single_app():
         pn.Row(h1, h2, gamma, sizing_mode="stretch_width"),
         pn.Row(cd, ca, c0, perlen, sizing_mode="stretch_width"),
         run_btn,
+        cancel_btn,
         result_pane,
         graph_pane,
         comparison_pane,

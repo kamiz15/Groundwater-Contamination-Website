@@ -1,10 +1,9 @@
 import io
 import logging
 
-import numpy as np
 import panel as pn
 
-from numerical_models import run_numerical_model
+from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
 from panel_numerical_optional_views import LazyNumericalViews
 from pdf_report import CASTReport
@@ -34,10 +33,12 @@ def numerical_vertical_single_app():
     perlen = pn.widgets.FloatInput(name="Simulation Time [day]", value=query_float("perlen", 100.0), step=1.0)
 
     run_btn = pn.widgets.Button(name="Run Vertical Simulation", button_type="primary", sizing_mode="stretch_width")
+    cancel_btn = pn.widgets.Button(name="Cancel Job", button_type="danger", sizing_mode="stretch_width", visible=False)
     result_pane = pn.pane.HTML(info_card("Enter vertical model parameters and run the simulation."), sizing_mode="stretch_width")
     graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=340)
     state = {}
+    poller = {"callback": None}
     optional_views = LazyNumericalViews(lambda: state.get("optional_view"))
 
     def _pdf_callback():
@@ -60,11 +61,104 @@ def numerical_vertical_single_app():
         visible=False,
     )
 
+    def _stop_polling():
+        cancel_btn.visible = False
+        run_btn.disabled = False
+        run_btn.name = "Run Vertical Simulation"
+        if poller["callback"] is not None:
+            poller["callback"].stop()
+            poller["callback"] = None
+
+    def _render_completed_result(result):
+        graph_pane.object = plot_vertical_plume_interactive(
+            result.concentration,
+            result.x_grid,
+            result.z_grid,
+            result.plume_length,
+            lx.value,
+            max(lz.value - (lz.value / nlay.value), 0.0),
+            0.0,
+            0.0,
+            lz.value,
+        )
+        logger.info("Vertical single graph_pane.object assigned")
+        comparison_pane.object = None
+        result_pane.object = summary_card(
+            [
+                ("Numerical Lmax", f"{result.plume_length:.2f} m"),
+                ("Domain Length Lx", f"{lx.value:.2f} m"),
+            ],
+            title="Vertical Simulation Results",
+        )
+        state.update({
+            "parameters": [
+                {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
+                {"symbol": "Lz", "name": "Domain Thickness", "value": lz.value, "unit": "m"},
+                {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
+                {"symbol": "nlay", "name": "Layers", "value": nlay.value, "unit": "-"},
+                {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
+                {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
+                {"symbol": "atv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
+                {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
+                {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
+                {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
+                {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
+                {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
+            ],
+            "outputs": [
+                {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
+                {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
+            ],
+            "plot_data": {
+                "labels": ["Vertical numerical"],
+                "values": [result.plume_length],
+                "ylabel": "Plume Length (m)",
+                "title": "Vertical Numerical",
+            },
+            "plot_images": [
+                {
+                    "title": "Vertical Plume Concentration",
+                    "bytes": result.plot_png,
+                    "caption": "Simulated contaminant plume - vertical cross-section.",
+                }
+            ] if result.plot_png else [],
+            "optional_view": {
+                "concentration": result.concentration,
+                "x_grid": result.x_grid,
+                "cross_grid": result.z_grid,
+                "cross_axis_label": "Aquifer Thickness [m]",
+                "title": "Vertical Numerical Model",
+            },
+        })
+        export_btn.visible = True
+
+    def _poll(job_id):
+        status = job_status(job_id)
+        if not status:
+            result_pane.object = error_card(f"Unknown numerical job {job_id}")
+            _stop_polling()
+            return
+        fields = [("Job", job_id), ("Status", status["status"])]
+        if status["status"] == "queued":
+            fields.append(("Queue position", status.get("queue_position", "?")))
+        result_pane.object = summary_card(fields, title="Vertical Simulation Status")
+        if status["status"] == "done":
+            _render_completed_result(fetch_result(job_id))
+            _stop_polling()
+        elif status["status"] == "failed":
+            result_pane.object = error_card(status.get("error") or "Numerical job failed.")
+            _stop_polling()
+        elif status["status"] == "cancelled":
+            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
+            _stop_polling()
+
     def _run(_=None):
         state.pop("optional_view", None)
         optional_views.reset()
+        export_btn.visible = False
         run_btn.disabled = True
-        run_btn.name = "Running Vertical Simulation..."
+        run_btn.name = "Submitting Vertical Simulation..."
         try:
             if min(lx.value, lz.value, prsity.value, alpha_l.value, at.value, atv.value, hk.value, c0.value, perlen.value) <= 0:
                 raise ValueError("Lx, Lz, porosity, dispersivity, K, C0, and simulation time must be positive.")
@@ -72,107 +166,58 @@ def numerical_vertical_single_app():
                 raise ValueError("ncol must be at least 6 and nlay must be at least 2 for Orlando's source column.")
             if h1.value <= h2.value:
                 raise ValueError("Head H_L must be greater than H_R.")
-
-            result = run_numerical_model(
-                lx.value,
-                lz.value,
-                ncol.value,
-                nlay.value,
-                prsity.value,
-                alpha_l.value,
-                atv.value,
-                gamma.value,
-                cd.value,
-                ca.value,
-                h1.value,
-                h2.value,
-                hk.value,
-                perlen=perlen.value,
-                plume_threshold=c0.value,
-                ath=at.value,
-            )
-            run_btn.name = "Run Vertical Simulation"
-
-            graph_pane.object = plot_vertical_plume_interactive(
-                result.concentration,
-                result.x_grid,
-                result.z_grid,
-                result.plume_length,
-                lx.value,
-                max(lz.value - (lz.value / nlay.value), 0.0),
-                0.0,
-                0.0,
-                lz.value,
-            )
-            logger.info("Vertical single graph_pane.object assigned")
+            params = {
+                "Lx": lx.value,
+                "Ly": lz.value,
+                "ncol": ncol.value,
+                "nrow": nlay.value,
+                "prsity": prsity.value,
+                "al": alpha_l.value,
+                "av": atv.value,
+                "gamma": gamma.value,
+                "cd": cd.value,
+                "ca": ca.value,
+                "h1": h1.value,
+                "h2": h2.value,
+                "hk": hk.value,
+                "perlen": perlen.value,
+                "plume_threshold": c0.value,
+                "ath": at.value,
+            }
+            job_id = submit_job("vertical_single", params)
+            state["job_id"] = job_id
+            cancel_btn.visible = True
+            graph_pane.object = None
             comparison_pane.object = None
-            result_pane.object = summary_card(
-                [
-                    ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-                    ("Domain Length Lx", f"{lx.value:.2f} m"),
-                ],
-                title="Vertical Simulation Results",
-            )
-            state.update({
-                "parameters": [
-                    {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
-                    {"symbol": "Lz", "name": "Domain Thickness", "value": lz.value, "unit": "m"},
-                    {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
-                    {"symbol": "nlay", "name": "Layers", "value": nlay.value, "unit": "-"},
-                    {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                    {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
-                    {"symbol": "atv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
-                    {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
-                    {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
-                    {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
-                    {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
-                    {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
-                    {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                ],
-                "outputs": [
-                    {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                    {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
-                ],
-                "plot_data": {
-                    "labels": ["Vertical numerical"],
-                    "values": [result.plume_length],
-                    "ylabel": "Plume Length (m)",
-                    "title": "Vertical Numerical",
-                },
-                "plot_images": [
-                    {
-                        "title": "Vertical Plume Concentration",
-                        "bytes": result.plot_png,
-                        "caption": "Simulated contaminant plume — vertical cross-section.",
-                    }
-                ] if result.plot_png else [],
-                "optional_view": {
-                    "concentration": result.concentration,
-                    "x_grid": result.x_grid,
-                    "cross_grid": result.z_grid,
-                    "cross_axis_label": "Aquifer Thickness [m]",
-                    "title": "Vertical Numerical Model",
-                },
-            })
-            export_btn.visible = True
+            run_btn.name = "Run Vertical Simulation"
+            result_pane.object = summary_card([("Job", job_id), ("Status", "queued")], title="Vertical Simulation Submitted")
+            poller["callback"] = pn.state.add_periodic_callback(lambda: _poll(job_id), 2000, start=True)
+            _poll(job_id)
         except Exception as exc:
             logger.exception("Vertical numerical single simulation failed")
             result_pane.object = error_card(exc)
             graph_pane.object = None
             comparison_pane.object = None
-            export_btn.visible = False
-        finally:
+            cancel_btn.visible = False
             run_btn.disabled = False
             run_btn.name = "Run Vertical Simulation"
 
+    def _cancel(_=None):
+        job_id = state.get("job_id")
+        if job_id and cancel_job(job_id):
+            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
+            _stop_polling()
+
     run_btn.on_click(_run)
+    cancel_btn.on_click(_cancel)
+
     if query_int("output_only", 0):
         should_run = query_int("run", 0)
         if should_run:
             _run()
         output_objects = [result_pane]
         if should_run:
-            output_objects.extend([graph_pane, comparison_pane, optional_views.panel])
+            output_objects.extend([graph_pane, comparison_pane, optional_views.panel, cancel_btn])
         return pn.Column(*output_objects, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     return pn.Column(
@@ -183,6 +228,7 @@ def numerical_vertical_single_app():
         pn.Row(h1, h2, gamma, sizing_mode="stretch_width"),
         pn.Row(cd, ca, c0, perlen, sizing_mode="stretch_width"),
         run_btn,
+        cancel_btn,
         result_pane,
         graph_pane,
         comparison_pane,

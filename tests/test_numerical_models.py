@@ -10,6 +10,7 @@ from numerical_models import (
     _checked_run_sim,
     _mf6_exe,
     _resolve_executable,
+    _solver_timeout_seconds,
     balanced_source_buffers,
     run_numerical_model,
     run_numerical_model_horizontal,
@@ -38,6 +39,13 @@ def test_grid_cap_rejects_oversized_run_before_solver(monkeypatch):
 
     with pytest.raises(ValueError, match="Grid too large: 11 x 10 = 110 cells.*Increase Delta X / Delta Z"):
         _check_grid_size(11, 10)
+
+
+def test_solver_timeout_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("NUMERICAL_SOLVER_TIMEOUT_S", raising=False)
+    monkeypatch.delenv("SOLVER_TIMEOUT_SECONDS", raising=False)
+
+    assert _solver_timeout_seconds() == 0.0
 
 
 def test_solver_timeout_terminates_external_process(monkeypatch, tmp_path):

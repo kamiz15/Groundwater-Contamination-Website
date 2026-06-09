@@ -6,6 +6,7 @@ import pandas as pd
 import panel as pn
 
 from numerical_models import run_numerical_model
+from numerical_jobs import fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
 from panel_numerical_optional_views import LazyNumericalViews
 from pdf_report import CASTReport
@@ -47,6 +48,7 @@ def numerical_vertical_multiple_app():
     graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=360)
     state = {}
+    poller = {"callback": None}
     optional_views = LazyNumericalViews(lambda: state.get("optional_view"))
 
     def _pdf_callback():
@@ -76,6 +78,69 @@ def numerical_vertical_multiple_app():
         run_btn.name = "Running Vertical Scenarios..."
         try:
             df = pd.DataFrame(table.value)
+            job_ids = [
+                submit_job("vertical_single", {
+                    "Lx": float(row["Lx"]),
+                    "Ly": float(row["Lz"]),
+                    "ncol": int(row["ncol"]),
+                    "nrow": int(row["nlay"]),
+                    "prsity": float(row["n"]),
+                    "al": float(row["alpha_L"]),
+                    "av": float(row["atv"]),
+                    "gamma": float(row["gamma"]),
+                    "cd": float(row["C_D"]),
+                    "ca": float(row["C_A"]),
+                    "h1": float(row["h1"]),
+                    "h2": float(row["h2"]),
+                    "hk": float(row["K [m/d]"]),
+                    "perlen": float(row["perlen"]),
+                    "plume_threshold": float(row["C0"]),
+                    "ath": float(row["at"]),
+                })
+                for _idx, row in df.iterrows()
+            ]
+
+            def _stop_polling():
+                run_btn.disabled = False
+                run_btn.name = "Run Vertical Scenarios"
+                if poller["callback"] is not None:
+                    poller["callback"].stop()
+                    poller["callback"] = None
+
+            def _poll():
+                statuses = [job_status(job_id) for job_id in job_ids]
+                counts = {}
+                for status in statuses:
+                    counts[status["status"]] = counts.get(status["status"], 0) + 1
+                result_pane.object = summary_card(
+                    [(key, str(value)) for key, value in sorted(counts.items())],
+                    title=f"{len(job_ids)} Vertical Scenario Job(s)",
+                )
+                if any(status["status"] == "failed" for status in statuses):
+                    failed = next(status for status in statuses if status["status"] == "failed")
+                    result_pane.object = error_card(failed.get("error") or "A numerical scenario failed.")
+                    _stop_polling()
+                elif all(status["status"] == "done" for status in statuses):
+                    results = [fetch_result(job_id) for job_id in job_ids]
+                    outputs = [
+                        {"label": f"Scenario {idx + 1} numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"}
+                        for idx, result in enumerate(results)
+                    ]
+                    result_pane.object = summary_card(
+                        [(item["label"], f"{item['value']} {item['unit']}") for item in outputs],
+                        title=f"{len(df)} Vertical Scenario(s) Complete",
+                    )
+                    state.update({
+                        "parameters": [{"symbol": "Rows", "name": "Scenario Count", "value": len(df), "unit": "-"}],
+                        "outputs": outputs,
+                    })
+                    export_btn.visible = True
+                    _stop_polling()
+
+            poller["callback"] = pn.state.add_periodic_callback(_poll, 2000, start=True)
+            _poll()
+            return
+
             outputs = []
             numerical_values = []
             first_result = None

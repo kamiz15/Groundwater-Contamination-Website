@@ -35,6 +35,7 @@ panel-temp/
 
 # Local runtime artifacts
 .numerical_runs/
+.numerical_jobs/
 tmpclaude-*/
 .modflow_bin/
 

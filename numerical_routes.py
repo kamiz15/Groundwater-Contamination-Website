@@ -1,11 +1,12 @@
 from urllib.parse import urlencode
 
 import numpy as np
-from flask import Blueprint, Response, redirect, render_template, request, url_for
+from flask import Blueprint, Response, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from data_queries import get_user_sites_rows
 from numerical_models import balanced_source_buffers, run_numerical_model, run_numerical_model_horizontal
+from numerical_jobs import cancel_job, job_status, queue_counts, submit_job
 from pdf_report import CASTReport
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_hydraulic_conductivity_to_numerical_hk, db_to_model
@@ -245,6 +246,25 @@ def _simulation_pdf(parameters, outputs, plot_data, title, model_name, filename,
 
 def _horizontal_pdf(input_fields):
     values = _field_values(input_fields)
+    job_id = submit_job("horizontal_single", {
+        "Lx": values["Lx"],
+        "A_W": values["Ly"],
+        "Sw": values["source"],
+        "ncol": int(values["ncol"]),
+        "nrow": int(values["nrow"]),
+        "prsity": values["prsity"],
+        "al": values["al"],
+        "alpha_Th": values["at"],
+        "gamma": values["gamma"],
+        "cd": values["C_D"],
+        "ca": values["C_A"],
+        "h1": values["h1"],
+        "h2": values["h2"],
+        "hk": values["hk"],
+        "perlen": values["perlen"],
+        "plume_threshold": values["C0"],
+    })
+    return jsonify({"job_id": job_id, "status_url": url_for("numerical_bp.numerical_job_status", job_id=job_id)}), 202
     result = run_numerical_model_horizontal(
         values["Lx"],
         values["Ly"],
@@ -291,6 +311,25 @@ def _horizontal_pdf(input_fields):
 
 def _vertical_pdf(input_fields):
     values = _field_values(input_fields)
+    job_id = submit_job("vertical_single", {
+        "Lx": values["Lx"],
+        "Ly": values["Lz"],
+        "ncol": int(values["ncol"]),
+        "nrow": int(values["nlay"]),
+        "prsity": values["prsity"],
+        "al": values["al"],
+        "av": values["atv"],
+        "gamma": values["gamma"],
+        "cd": values["C_D"],
+        "ca": values["C_A"],
+        "h1": values["h1"],
+        "h2": values["h2"],
+        "hk": values["hk"],
+        "perlen": values["perlen"],
+        "plume_threshold": values["C0"],
+        "ath": values["at"],
+    })
+    return jsonify({"job_id": job_id, "status_url": url_for("numerical_bp.numerical_job_status", job_id=job_id)}), 202
     result = run_numerical_model(
         values["Lx"],
         values["Lz"],
@@ -333,6 +372,33 @@ def _vertical_pdf(input_fields):
         "numerical_vertical_single_report.pdf",
         plot_images=plot_images,
     )
+
+
+@numerical_bp.route("/numerical/jobs")
+@login_required
+def numerical_jobs_summary():
+    return jsonify(queue_counts())
+
+
+@numerical_bp.route("/numerical/jobs/<job_id>")
+@login_required
+def numerical_job_status(job_id):
+    status = job_status(job_id)
+    if status is None:
+        return jsonify({"error": "Unknown numerical job"}), 404
+    return jsonify({
+        "job_id": job_id,
+        "status": status["status"],
+        "queue_position": status.get("queue_position"),
+        "plume_length": status.get("plume_length"),
+        "error": status.get("error"),
+    })
+
+
+@numerical_bp.route("/numerical/jobs/<job_id>/cancel", methods=["POST"])
+@login_required
+def numerical_job_cancel(job_id):
+    return jsonify({"job_id": job_id, "cancelled": cancel_job(job_id)})
 
 
 @numerical_bp.route("/numerical")

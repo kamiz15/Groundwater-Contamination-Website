@@ -160,7 +160,7 @@ def _numerical_max_cells() -> int:
 
 
 def _solver_timeout_seconds() -> float:
-    return float(os.getenv("NUMERICAL_SOLVER_TIMEOUT_S", os.getenv("SOLVER_TIMEOUT_SECONDS", "120")))
+    return float(os.getenv("NUMERICAL_SOLVER_TIMEOUT_S", os.getenv("SOLVER_TIMEOUT_SECONDS", "0")))
 
 
 def _check_grid_size(ncol: int, nrow: int) -> None:
@@ -261,16 +261,19 @@ def _checked_run_sim(sim, label: str) -> None:
             errors="replace",
             start_new_session=(os.name != "nt"),
         )
-        try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            _terminate_solver_process(proc)
+        if timeout > 0:
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                _terminate_solver_process(proc)
+                stdout, stderr = proc.communicate()
+                _log_solver_output(label, stdout, stderr)
+                raise RuntimeError(
+                    f"{label} timed out after {timeout:g} s and was terminated. "
+                    "Use a coarser grid or a shorter simulation time."
+                )
+        else:
             stdout, stderr = proc.communicate()
-            _log_solver_output(label, stdout, stderr)
-            raise RuntimeError(
-                f"{label} timed out after {timeout:g} s and was terminated. "
-                "Use a coarser grid or a shorter simulation time."
-            )
         _log_solver_output(label, stdout, stderr)
         success = proc.returncode == 0 and "normal termination" in f"{stdout}\n{stderr}".lower()
         _check_run(success, [stdout, stderr], label)
