@@ -4,10 +4,8 @@ import logging
 import numpy as np
 import panel as pn
 
-from analytical_models import liedl_domain_length, liedl_lmax
-from numerical_models import balanced_source_buffers, run_numerical_model
+from numerical_models import run_numerical_model
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
-from panel_numerical_comparison import single_comparison_plot
 from panel_numerical_optional_views import LazyNumericalViews
 from pdf_report import CASTReport
 from plot_functions import plot_vertical_plume_interactive
@@ -18,22 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 def numerical_vertical_single_app():
-    m = pn.widgets.FloatInput(name="Aquifer Thickness M [m]", value=query_float("M", 5.0), step=0.1)
-    s_t = pn.widgets.FloatInput(name="Source Thickness ST [m]", value=query_float("S_T", min(1.0, m.value)), step=0.1)
-    try:
-        default_s_ta, default_s_tb = balanced_source_buffers(m.value, s_t.value)
-    except ValueError:
-        default_s_ta, default_s_tb = 0.0, 0.0
-    s_ta = pn.widgets.FloatInput(name="Buffer Above STa [m]", value=query_float("S_Ta", query_float("R_Ta", default_s_ta)), step=0.1)
-    s_tb = pn.widgets.FloatInput(name="Buffer Below STb [m]", value=query_float("S_Tb", query_float("R_Tb", default_s_tb)), step=0.1)
-    delta_x = pn.widgets.FloatInput(name="Grid Spacing dx [m]", value=query_float("delta_x", 1.0), step=0.1)
-    delta_z = pn.widgets.FloatInput(name="Vertical Grid Spacing dz [m]", value=query_float("delta_z", 0.25), step=0.05)
+    lx = pn.widgets.FloatInput(name="Domain Length Lx [m]", value=query_float("Lx", 200.0), step=1.0)
+    lz = pn.widgets.FloatInput(name="Domain Thickness Lz [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
+    ncol = pn.widgets.IntInput(name="Columns ncol [-]", value=query_int("ncol", 200), step=1)
+    nlay = pn.widgets.IntInput(name="Layers nlay [-]", value=query_int("nlay", 20), step=1)
     alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity alpha L [m]", value=query_float("al", 5.0), step=0.1)
-    alpha_th = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity alpha Th [m]", value=query_float("alpha_Th", query_float("at", 0.2)), step=0.01)
-    alpha_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity alpha Tv [m]", value=query_float("alpha_Tv", query_float("av", 0.5)), step=0.1)
+    at = pn.widgets.FloatInput(name="Transverse Dispersivity at [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
+    atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity atv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
     prsity = pn.widgets.FloatInput(name="Porosity n [-]", value=query_float("prsity", 0.3), step=0.01)
-    hk = pn.widgets.FloatInput(name="Horizontal Hydraulic Conductivity K_h [m/d]", value=query_float("hk", 1.0), step=0.1)
-    vk = pn.widgets.FloatInput(name="Vertical Hydraulic Conductivity K_v [m/d]", value=query_float("vk", query_float("K_v", hk.value)), step=0.1)
+    hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 1.0), step=0.1)
     h1 = pn.widgets.FloatInput(name="Head at Left Domain H_L [m]", value=query_float("h1", 10.0), step=0.1)
     h2 = pn.widgets.FloatInput(name="Head at Right Domain H_R [m]", value=query_float("h2", 9.0), step=0.1)
     cd = pn.widgets.FloatInput(name="Electron Donor CD [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
@@ -41,7 +32,6 @@ def numerical_vertical_single_app():
     c0 = pn.widgets.FloatInput(name="Plume Contour Threshold C0 [mg/L]", value=query_float("C0", 8.0), step=0.1)
     gamma = pn.widgets.FloatInput(name="Stoichiometric Ratio gamma [-]", value=query_float("gamma", 3.5), step=0.1)
     perlen = pn.widgets.FloatInput(name="Simulation Time [day]", value=query_float("perlen", 100.0), step=1.0)
-    ld_override = pn.widgets.FloatInput(name="Domain Length LD Override [m] (0 = automatic)", value=query_float("L_D_override", 0.0), step=1.0)
 
     run_btn = pn.widgets.Button(name="Run Vertical Simulation", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Enter vertical model parameters and run the simulation."), sizing_mode="stretch_width")
@@ -76,40 +66,30 @@ def numerical_vertical_single_app():
         run_btn.disabled = True
         run_btn.name = "Running Vertical Simulation..."
         try:
-            if min(m.value, s_t.value, delta_x.value, delta_z.value, prsity.value, alpha_l.value, alpha_th.value, alpha_tv.value, hk.value, vk.value, c0.value, perlen.value) <= 0:
-                raise ValueError("Thickness, source thickness, grid spacing, porosity, dispersivity, hydraulic conductivities, C0, and simulation time must be positive.")
-            if s_ta.value < 0 or s_tb.value < 0:
-                raise ValueError("Vertical source buffers cannot be negative.")
-            if s_ta.value + s_t.value + s_tb.value > m.value:
-                raise ValueError("STa + ST + STb must fit within aquifer thickness M.")
+            if min(lx.value, lz.value, prsity.value, alpha_l.value, at.value, atv.value, hk.value, c0.value, perlen.value) <= 0:
+                raise ValueError("Lx, Lz, porosity, dispersivity, K, C0, and simulation time must be positive.")
+            if ncol.value < 6 or nlay.value < 2:
+                raise ValueError("ncol must be at least 6 and nlay must be at least 2 for Orlando's source column.")
             if h1.value <= h2.value:
                 raise ValueError("Head H_L must be greater than H_R.")
 
-            analytical_lmax = liedl_lmax(m.value, alpha_tv.value, gamma.value, ca.value, cd.value)
-            ld = liedl_domain_length(analytical_lmax, ld_override.value)
-            ncol = max(int(np.ceil(ld / delta_x.value)), 2)
-            nrow = max(int(np.ceil(m.value / delta_z.value)), 2)
-
             result = run_numerical_model(
-                ld,
-                m.value,
-                ncol,
-                nrow,
+                lx.value,
+                lz.value,
+                ncol.value,
+                nlay.value,
                 prsity.value,
                 alpha_l.value,
-                alpha_tv.value,
+                atv.value,
                 gamma.value,
                 cd.value,
                 ca.value,
                 h1.value,
                 h2.value,
                 hk.value,
-                vk.value,
-                source_thickness=s_t.value,
-                source_bottom_buffer=s_tb.value,
                 perlen=perlen.value,
                 plume_threshold=c0.value,
-                ath=alpha_th.value,
+                ath=at.value,
             )
             run_btn.name = "Run Vertical Simulation"
 
@@ -118,56 +98,46 @@ def numerical_vertical_single_app():
                 result.x_grid,
                 result.z_grid,
                 result.plume_length,
-                ld,
-                s_t.value,
-                s_ta.value,
-                s_tb.value,
-                m.value,
+                lx.value,
+                max(lz.value - (lz.value / nlay.value), 0.0),
+                0.0,
+                0.0,
+                lz.value,
             )
             logger.info("Vertical single graph_pane.object assigned")
-            comparison_pane.object = single_comparison_plot(
-                "Vertical Numerical vs Liedl",
-                "Liedl analytical",
-                "Vertical numerical",
-                analytical_lmax,
-                result.plume_length,
-            )
+            comparison_pane.object = None
             result_pane.object = summary_card(
                 [
                     ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-                    ("Liedl Lmax", f"{analytical_lmax:.2f} m"),
-                    ("Domain Length LD", f"{ld:.2f} m"),
+                    ("Domain Length Lx", f"{lx.value:.2f} m"),
                 ],
                 title="Vertical Simulation Results",
             )
             state.update({
                 "parameters": [
-                    {"symbol": "M", "name": "Aquifer Thickness", "value": m.value, "unit": "m"},
-                    {"symbol": "ST", "name": "Source Thickness", "value": s_t.value, "unit": "m"},
-                    {"symbol": "STa", "name": "Buffer Above", "value": s_ta.value, "unit": "m"},
-                    {"symbol": "STb", "name": "Buffer Below", "value": s_tb.value, "unit": "m"},
+                    {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
+                    {"symbol": "Lz", "name": "Domain Thickness", "value": lz.value, "unit": "m"},
+                    {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
+                    {"symbol": "nlay", "name": "Layers", "value": nlay.value, "unit": "-"},
                     {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                    {"symbol": "alpha Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th.value, "unit": "m"},
-                    {"symbol": "alpha Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv.value, "unit": "m"},
-                    {"symbol": "K_h", "name": "Horizontal Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
-                    {"symbol": "K_v", "name": "Vertical Hydraulic Conductivity", "value": vk.value, "unit": "m/d"},
+                    {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
+                    {"symbol": "atv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
+                    {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
                     {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
                     {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
-                    {"symbol": "LD", "name": "Domain Length Override", "value": ld_override.value or "automatic", "unit": "m"},
                     {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
                     {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
                     {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
                 ],
                 "outputs": [
                     {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                    {"label": "Liedl Lmax", "value": f"{analytical_lmax:.2f}", "unit": "m"},
-                    {"label": "Domain Length LD", "value": f"{ld:.2f}", "unit": "m"},
+                    {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
                 ],
                 "plot_data": {
-                    "labels": ["Liedl analytical", "Vertical numerical"],
-                    "values": [analytical_lmax, result.plume_length],
+                    "labels": ["Vertical numerical"],
+                    "values": [result.plume_length],
                     "ylabel": "Plume Length (m)",
-                    "title": "Vertical Numerical vs Liedl",
+                    "title": "Vertical Numerical",
                 },
                 "plot_images": [
                     {
@@ -207,13 +177,11 @@ def numerical_vertical_single_app():
 
     return pn.Column(
         "## Vertical Numerical Model",
-        pn.Row(m, s_t, s_ta, s_tb, sizing_mode="stretch_width"),
-        pn.Row(delta_x, delta_z, prsity, sizing_mode="stretch_width"),
-        pn.Row(alpha_l, alpha_th, alpha_tv, sizing_mode="stretch_width"),
-        pn.Row(hk, vk, sizing_mode="stretch_width"),
+        pn.Row(lx, lz, ncol, nlay, sizing_mode="stretch_width"),
+        pn.Row(alpha_l, at, atv, prsity, sizing_mode="stretch_width"),
+        pn.Row(hk, sizing_mode="stretch_width"),
         pn.Row(h1, h2, gamma, sizing_mode="stretch_width"),
         pn.Row(cd, ca, c0, perlen, sizing_mode="stretch_width"),
-        pn.Accordion(("Advanced Overrides", pn.Column(ld_override, sizing_mode="stretch_width")), active=[]),
         run_btn,
         result_pane,
         graph_pane,

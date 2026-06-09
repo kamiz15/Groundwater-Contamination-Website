@@ -4,7 +4,6 @@ import numpy as np
 from flask import Blueprint, Response, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from analytical_models import cirpka_domain_length, cirpka_lmax, liedl_domain_length, liedl_lmax
 from data_queries import get_user_sites_rows
 from numerical_models import balanced_source_buffers, run_numerical_model, run_numerical_model_horizontal
 from pdf_report import CASTReport
@@ -15,13 +14,13 @@ numerical_bp = Blueprint("numerical_bp", __name__)
 
 NUMERICAL_INPUT_SPECS = {
     "horizontal": [
-        ("Sw", "Source Width Sw [m]", 5.0, "0.1", "0.000001"),
-        ("R_Wu", "Upper Reactant Buffer R_Wu [m]", 7.5, "0.1", "0"),
-        ("R_Wb", "Lower Reactant Buffer R_Wb [m]", 7.5, "0.1", "0"),
-        ("delta_x", "Grid Spacing dx [m]", 1.0, "0.1", "0.000001"),
-        ("delta_y", "Lateral Grid Spacing dy [m]", 0.25, "0.05", "0.000001"),
+        ("Lx", "Domain Length Lx [m]", 100.0, "1", "0.000001"),
+        ("Ly", "Domain Width Ly [m]", 20.0, "1", "0.000001"),
+        ("nrow", "Number of Rows nrow [-]", 40, "1", "2"),
+        ("ncol", "Number of Columns ncol [-]", 100, "1", "6"),
+        ("source", "Source Width source [m]", 5.0, "0.1", "0.000001"),
         ("al", "Longitudinal Dispersivity alpha L [m]", 5.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.1, "0.01", "0.000001"),
+        ("at", "Transverse Dispersivity at [m]", 0.1, "0.01", "0.000001"),
         ("prsity", "Porosity n [-]", 0.3, "0.01", "0.000001"),
         ("hk", "Hydraulic Conductivity K [m/d]", 1.0, "0.1", "0.000001"),
         ("h1", "Head at Left Domain H_L [m]", 10.0, "0.1", None),
@@ -33,18 +32,15 @@ NUMERICAL_INPUT_SPECS = {
         ("perlen", "Simulation Time [day]", 100.0, "1", "0.000001"),
     ],
     "vertical": [
-        ("M", "Aquifer Thickness M [m]", 5.0, "0.1", "0.000001"),
-        ("S_T", "Source Thickness ST [m]", 1.0, "0.1", "0.000001"),
-        ("S_Ta", "Buffer Above STa [m]", 2.0, "0.1", "0"),
-        ("S_Tb", "Buffer Below STb [m]", 2.0, "0.1", "0"),
-        ("delta_x", "Grid Spacing dx [m]", 1.0, "0.1", "0.000001"),
-        ("delta_z", "Vertical Grid Spacing dz [m]", 0.25, "0.05", "0.000001"),
+        ("Lx", "Domain Length Lx [m]", 200.0, "1", "0.000001"),
+        ("Lz", "Domain Thickness Lz [m]", 10.0, "0.1", "0.000001"),
+        ("ncol", "Number of Columns ncol [-]", 200, "1", "6"),
+        ("nlay", "Number of Layers nlay [-]", 20, "1", "2"),
         ("al", "Longitudinal Dispersivity alpha L [m]", 5.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.2, "0.01", "0.000001"),
-        ("alpha_Tv", "Vertical Transverse Dispersivity alpha Tv [m]", 0.5, "0.1", "0.000001"),
+        ("at", "Transverse Dispersivity at [m]", 0.2, "0.01", "0.000001"),
+        ("atv", "Vertical Transverse Dispersivity atv [m]", 0.1, "0.01", "0.000001"),
         ("prsity", "Porosity n [-]", 0.3, "0.01", "0.000001"),
-        ("hk", "Horizontal Hydraulic Conductivity K_h [m/d]", 1.0, "0.1", "0.000001"),
-        ("vk", "Vertical Hydraulic Conductivity K_v [m/d]", 1.0, "0.1", "0.000001"),
+        ("hk", "Hydraulic Conductivity K [m/d]", 1.0, "0.1", "0.000001"),
         ("h1", "Head at Left Domain H_L [m]", 10.0, "0.1", None),
         ("h2", "Head at Right Domain H_R [m]", 9.0, "0.1", None),
         ("C_D", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
@@ -56,12 +52,8 @@ NUMERICAL_INPUT_SPECS = {
 }
 
 NUMERICAL_ADVANCED_INPUT_SPECS = {
-    "horizontal": [
-        ("L_D_override", "Domain Length LD Override [m]", None, "1", "0"),
-    ],
-    "vertical": [
-        ("L_D_override", "Domain Length LD Override [m]", None, "1", "0"),
-    ],
+    "horizontal": [],
+    "vertical": [],
 }
 
 
@@ -105,19 +97,12 @@ def _request_float(name, default):
 
 def _input_fields(orientation, site):
     db_query = _build_panel_query(site, orientation=orientation)
-    dynamic_defaults = {}
-    if orientation == "vertical":
-        m = _request_float("M", db_query.get("M", 5.0))
-        s_t = _request_float("S_T", min(1.0, m))
-        if m > 0 and 0 < s_t <= m:
-            s_ta, s_tb = balanced_source_buffers(m, s_t)
-            dynamic_defaults = {"M": m, "S_T": s_t, "S_Ta": s_ta, "S_Tb": s_tb}
     fields = []
     for name, label, default, step, minimum in NUMERICAL_INPUT_SPECS.get(orientation, []):
         fields.append({
             "name": name,
             "label": label,
-            "value": _request_float(name, db_query.get(name, dynamic_defaults.get(name, default))),
+            "value": _request_float(name, db_query.get(name, default)),
             "step": step,
             "min": minimum,
             "from_db": name in db_query,
@@ -168,9 +153,11 @@ def _build_panel_query(site, orientation=None):
     for symbol, value in canonical.items():
         if symbol == "M":
             query["M"] = value
+            query["Lz"] = value
         elif symbol == "S_w":
             query["S_w"] = value
             query["Sw"] = value
+            query["source"] = value
         elif symbol == "K":
             numerical_hk = db_hydraulic_conductivity_to_numerical_hk(value)
             query["K"] = numerical_hk
@@ -258,21 +245,15 @@ def _simulation_pdf(parameters, outputs, plot_data, title, model_name, filename,
 
 def _horizontal_pdf(input_fields):
     values = _field_values(input_fields)
-    analytical_lmax = cirpka_lmax(values["Sw"], values["alpha_Th"], values["gamma"], values["C_A"], values["C_D"])
-    ld = cirpka_domain_length(analytical_lmax, values.get("L_D_override"))
-    domain_width = values["R_Wb"] + values["Sw"] + values["R_Wu"]
-    ncol = max(int(np.ceil(ld / values["delta_x"])), 2)
-    nrow = max(int(np.ceil(domain_width / values["delta_y"])), 2)
-
     result = run_numerical_model_horizontal(
-        ld,
-        domain_width,
-        values["Sw"],
-        ncol,
-        nrow,
+        values["Lx"],
+        values["Ly"],
+        values["source"],
+        int(values["ncol"]),
+        int(values["nrow"]),
         values["prsity"],
         values["al"],
-        values["alpha_Th"],
+        values["at"],
         values["gamma"],
         values["C_D"],
         values["C_A"],
@@ -293,14 +274,13 @@ def _horizontal_pdf(input_fields):
         _parameters_from_input_fields(input_fields),
         [
             {"label": "Horizontal Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-            {"label": "Cirpka Lmax", "value": f"{analytical_lmax:.2f}", "unit": "m"},
-            {"label": "Domain Length LD", "value": f"{ld:.2f}", "unit": "m"},
+            {"label": "Domain Length Lx", "value": f"{values['Lx']:.2f}", "unit": "m"},
         ],
         {
-            "labels": ["Cirpka analytical", "Horizontal numerical"],
-            "values": [analytical_lmax, result.plume_length],
+            "labels": ["Horizontal numerical"],
+            "values": [result.plume_length],
             "ylabel": "Plume Length (m)",
-            "title": "Horizontal Numerical vs Cirpka",
+            "title": "Horizontal Numerical",
         },
         "Numerical Horizontal Model - Single Simulation",
         "Numerical Horizontal",
@@ -311,31 +291,23 @@ def _horizontal_pdf(input_fields):
 
 def _vertical_pdf(input_fields):
     values = _field_values(input_fields)
-    analytical_lmax = liedl_lmax(values["M"], values["alpha_Tv"], values["gamma"], values["C_A"], values["C_D"])
-    ld = liedl_domain_length(analytical_lmax, values.get("L_D_override"))
-    ncol = max(int(np.ceil(ld / values["delta_x"])), 2)
-    nrow = max(int(np.ceil(values["M"] / values["delta_z"])), 2)
-
     result = run_numerical_model(
-        ld,
-        values["M"],
-        ncol,
-        nrow,
+        values["Lx"],
+        values["Lz"],
+        int(values["ncol"]),
+        int(values["nlay"]),
         values["prsity"],
         values["al"],
-        values["alpha_Tv"],
+        values["atv"],
         values["gamma"],
         values["C_D"],
         values["C_A"],
         values["h1"],
         values["h2"],
         values["hk"],
-        values["vk"],
-        source_thickness=values["S_T"],
-        source_bottom_buffer=values["S_Tb"],
         perlen=values["perlen"],
         plume_threshold=values["C0"],
-        ath=values["alpha_Th"],
+        ath=values["at"],
     )
     plot_images = []
     if result.plot_png:
@@ -348,14 +320,13 @@ def _vertical_pdf(input_fields):
         _parameters_from_input_fields(input_fields),
         [
             {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-            {"label": "Liedl Lmax", "value": f"{analytical_lmax:.2f}", "unit": "m"},
-            {"label": "Domain Length LD", "value": f"{ld:.2f}", "unit": "m"},
+            {"label": "Domain Length Lx", "value": f"{values['Lx']:.2f}", "unit": "m"},
         ],
         {
-            "labels": ["Liedl analytical", "Vertical numerical"],
-            "values": [analytical_lmax, result.plume_length],
+            "labels": ["Vertical numerical"],
+            "values": [result.plume_length],
             "ylabel": "Plume Length (m)",
-            "title": "Vertical Numerical vs Liedl",
+            "title": "Vertical Numerical",
         },
         "Numerical Vertical Model - Single Simulation",
         "Numerical Vertical",

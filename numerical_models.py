@@ -174,6 +174,31 @@ def _check_grid_size(ncol: int, nrow: int) -> None:
         )
 
 
+def _grid_points(length: float, count: int) -> np.ndarray:
+    return np.linspace(0.0, float(length), int(count))
+
+
+def _horizontal_plume_length_from_flopy(gwf, concentration: np.ndarray, c0: float) -> float:
+    finite = concentration[np.isfinite(concentration)]
+    if not finite.size or not (float(np.nanmin(finite)) < c0 < float(np.nanmax(finite))):
+        return 0.0
+    fig, ax = plt.subplots()
+    try:
+        pmv = flopy.plot.PlotMapView(model=gwf, layer=0, ax=ax)
+        cs = pmv.contour_array(concentration, levels=[c0], colors="k")
+        xs = [pt[0] for seg in cs.allsegs[0] for pt in seg]
+        return float(max(xs)) if xs else 0.0
+    finally:
+        plt.close(fig)
+
+
+def _vertical_plume_length_by_mask(concentration: np.ndarray, delr: float, c0: float) -> float:
+    mask = concentration >= c0
+    if not np.any(mask):
+        return 0.0
+    return float(np.max(np.where(mask)[2]) * delr)
+
+
 @contextmanager
 def _timed_stage(label: str):
     started = time.perf_counter()
@@ -305,7 +330,7 @@ def run_numerical_model_horizontal(
     delr = Lx / ncol        # x cell size
     delc = A_W / nrow       # y cell size
     nts = _nstp(Lx, ncol, prsity, al, h1, h2, hk, perlen)
-    c0 = plume_threshold if plume_threshold is not None else (2.0 * ca)
+    c0 = plume_threshold if plume_threshold is not None else 8.0
 
     run_root = Path.cwd() / ".numerical_runs"
     run_root.mkdir(exist_ok=True)
@@ -368,24 +393,33 @@ def run_numerical_model_horizontal(
         flopy.mf6.ModflowGwtdsp(gwt, alh=np.full((nlay, nrow, ncol), al), ath1=alpha_Th)
         flopy.mf6.ModflowGwtssm(gwt)
 
-        # Source zone: Sw centred in y at source_col_index
-        n_src = max(1, int(np.round(Sw / delc)))
+        n_src = int(np.round(Sw / delc))
+        if n_src < 1:
+            raise ValueError("Horizontal source width is smaller than one row.")
         ci = nrow // 2
         half = n_src // 2
-        s_start = max(0, ci - half)
-        s_end = min(nrow, ci + half + (0 if n_src % 2 == 0 else 1))
-        src_col = min(max(0, int(source_col_index)), ncol - 1)
+        if n_src % 2 == 0:
+            s_start = ci - half
+            s_end = ci + half
+        else:
+            s_start = ci - half
+            s_end = ci + half + 1
+        if s_start < 0 or s_end > nrow:
+            raise ValueError("Horizontal source width must fit within Ly.")
+        src_col = int(source_col_index)
+        if src_col < 0 or src_col >= ncol:
+            raise ValueError("Horizontal source column index must fit within ncol.")
         source_conc = (gamma * cd) + (2.0 * ca)
 
-        cnc = {}
+        cnc_cells = []
         for row in range(s_start, s_end):
-            cnc[(0, row, src_col)] = source_conc
-        # Top and bottom rows: ambient reactant across full domain
+            cnc_cells.append(((0, row, src_col), source_conc))
         for col in range(ncol):
-            cnc.setdefault((0, 0, col), ca)
-            cnc.setdefault((0, nrow - 1, col), ca)
+            cnc_cells.append(((0, 0, col), ca))
+        for col in range(ncol):
+            cnc_cells.append(((0, nrow - 1, col), ca))
 
-        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: list(cnc.items())}, filename=f"{run_name}.cnc")
+        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: cnc_cells}, filename=f"{run_name}.cnc")
         flopy.mf6.ModflowGwtfmi(
             gwt,
             packagedata=[
@@ -407,10 +441,10 @@ def run_numerical_model_horizontal(
         with _timed_stage("MF6 horizontal UCN read"):
             logger.info("MF6 horizontal UCN output: %s (exists=%s)", ucn_path.resolve(), ucn_path.exists())
             conc_slice = np.asarray(gwt.output.concentration().get_data()[0], dtype=float)
-        x_grid = np.linspace(0.0, Lx, ncol)
-        y_grid = np.linspace(0.0, A_W, nrow)
+        x_grid = _grid_points(Lx, ncol)
+        y_grid = _grid_points(A_W, nrow)
         with _timed_stage("MF6 horizontal plume-length extraction"):
-            plume_length = _plume_length(x_grid, y_grid, conc_slice, c0)
+            plume_length = _horizontal_plume_length_from_flopy(gwf, conc_slice, c0)
             logger.info("MF6 horizontal plume_length=%.6f m", plume_length)
 
         # Matplotlib figure for PDF export
@@ -467,30 +501,26 @@ def run_numerical_model(
     perlen: float = 100.0,
     plume_threshold: float | None = None,
     ath: float | None = None,
+    source_col_index: int = 5,
 ) -> NumericalModelResult:
     """Vertical cross-section reactive transport using MODFLOW 6 / GWT.
 
-    Grid: nlay=nrow (vertical layers), model_nrow=1, ncol=x-columns.
-    hk = horizontal hydraulic conductivity, vk = vertical hydraulic conductivity.
-    Source zone at left column (col 0): source_conc for source layers, Ca elsewhere.
-    Top layer: ambient reactant (Ca) across full domain.
+    Grid: nlay=nrow (vertical layers), model_nrow=1, ncol=x-columns.  The
+    source and plume-length calculation intentionally match Orlando's
+    validated vertical script.
     """
     if flopy is None:
         raise RuntimeError("flopy is not installed.")
-    if vk is None:
-        vk = hk
     if ath is None:
         ath = av
-    if source_thickness is None:
-        source_thickness = Ly
-    if min(Lx, Ly, prsity, al, av, hk, vk, source_thickness, perlen) <= 0:
+    if min(Lx, Ly, prsity, al, ath, hk, perlen) <= 0:
         raise ValueError("All positive parameters must be > 0.")
     if ncol < 2 or nrow < 2:
         raise ValueError("ncol and nrow must be at least 2.")
+    if int(source_col_index) < 0 or int(source_col_index) >= ncol:
+        raise ValueError("Vertical source column index must fit within ncol.")
     _log_grid("Vertical", Lx, Ly, ncol, nrow)
     _check_grid_size(ncol, nrow)
-    if source_bottom_buffer < 0 or source_bottom_buffer + source_thickness > Ly:
-        raise ValueError("Source thickness and buffers must fit within the vertical domain.")
 
     with _timed_stage("Vertical executable resolution"):
         mf6 = _mf6_exe()
@@ -500,7 +530,7 @@ def run_numerical_model(
     delv = Ly / nlay
     botm = np.linspace(-delv, -Ly, nlay)
     nts = _nstp(Lx, ncol, prsity, al, h1, h2, hk, perlen)
-    c0 = plume_threshold if plume_threshold is not None else (2.0 * ca)
+    c0 = plume_threshold if plume_threshold is not None else 8.0
 
     run_root = Path.cwd() / ".numerical_runs"
     run_root.mkdir(exist_ok=True)
@@ -533,7 +563,7 @@ def run_numerical_model(
         flopy.mf6.ModflowGwfic(gwf, strt=strt)
         flopy.mf6.ModflowGwfnpf(
             gwf, save_specific_discharge=True, save_saturation=True,
-            icelltype=0, k=hk, k33=vk,
+            icelltype=0, k=hk,
         )
         flopy.mf6.ModflowGwfoc(
             gwf,
@@ -565,29 +595,18 @@ def run_numerical_model(
             gwt,
             alh=np.full((nlay, model_nrow, ncol), al),
             ath1=ath,
-            atv=av,
         )
         flopy.mf6.ModflowGwtssm(gwt)
 
-        # Identify source layers from z-position
-        layer_z = Ly - ((np.arange(nlay) + 0.5) * delv)  # z-center of each layer from bottom
-        source_top = source_bottom_buffer + source_thickness
-        src_layers = np.where((layer_z >= source_bottom_buffer) & (layer_z <= source_top))[0]
-        if src_layers.size == 0:
-            src_mid = source_bottom_buffer + source_thickness / 2.0
-            src_layers = np.array([int(np.argmin(np.abs(layer_z - src_mid)))])
-        source_set = set(int(l) for l in src_layers)
-        source_conc = (gamma * cd) + (2.0 * ca)
-
-        cnc = {}
-        # Left column: source concentration for source layers, Ca for buffer layers
-        for lay in range(nlay):
-            cnc[(lay, 0, 0)] = source_conc if lay in source_set else ca
-        # Top layer: ambient reactant across full domain length
+        source_conc = (gamma * cd) + ca
+        src_col = int(source_col_index)
+        cnc_cells = []
+        for lay in range(1, nlay):
+            cnc_cells.append(((lay, 0, src_col), source_conc))
         for col in range(ncol):
-            cnc.setdefault((0, 0, col), ca)
+            cnc_cells.append(((0, 0, col), ca))
 
-        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: list(cnc.items())}, filename=f"{run_name}.cnc")
+        flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: cnc_cells}, filename=f"{run_name}.cnc")
         flopy.mf6.ModflowGwtfmi(
             gwt,
             packagedata=[
@@ -608,11 +627,12 @@ def run_numerical_model(
         ucn_path = run_dir / f"{sim_name}.ucn"
         with _timed_stage("MF6 vertical UCN read"):
             logger.info("MF6 vertical UCN output: %s (exists=%s)", ucn_path.resolve(), ucn_path.exists())
-            conc_slice = np.asarray(gwt.output.concentration().get_data()[:, 0, :], dtype=float)
-        x_grid = np.linspace(0.0, Lx, ncol)
-        z_grid = np.linspace(0.0, Ly, nlay)
+            conc = np.asarray(gwt.output.concentration().get_data(), dtype=float)
+            conc_slice = conc[:, 0, :]
+        x_grid = _grid_points(Lx, ncol)
+        z_grid = _grid_points(Ly, nlay)
         with _timed_stage("MF6 vertical plume-length extraction"):
-            plume_length = _plume_length(x_grid, z_grid, conc_slice, c0)
+            plume_length = _vertical_plume_length_by_mask(conc, delr, c0)
             logger.info("MF6 vertical plume_length=%.6f m", plume_length)
 
         with _timed_stage("MF6 vertical contour build"):

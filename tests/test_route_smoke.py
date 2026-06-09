@@ -71,15 +71,14 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
         "/empirical/birla/single/export",
         (
             "/numerical/horizontal/single/export?"
-            "Sw=1&R_Wu=1.5&R_Wb=1.5&delta_x=1&delta_y=1&al=1&alpha_Th=0.1&"
+            "Lx=6&Ly=4&source=1&ncol=6&nrow=4&al=1&at=0.1&"
             "prsity=0.3&hk=1&h1=10&h2=9&C_D=0.2&C_A=8&C0=8.1&gamma=3.5&"
-            "perlen=1&L_D_override=6"
+            "perlen=1"
         ),
         (
             "/numerical/vertical/single/export?"
-            "M=4&S_T=1&S_Ta=1.5&S_Tb=1.5&delta_x=1&delta_z=1&al=1&alpha_Th=0.1&"
-            "alpha_Tv=0.1&prsity=0.3&hk=1&vk=1&h1=10&h2=9&C_D=0.2&C_A=8&"
-            "C0=8.1&gamma=3.5&perlen=1&L_D_override=6"
+            "Lx=6&Lz=4&ncol=6&nlay=4&al=1&at=0.1&atv=0.1&prsity=0.3&"
+            "hk=1&h1=10&h2=9&C_D=0.2&C_A=8&C0=8.1&gamma=3.5&perlen=1"
         ),
     ],
 )
@@ -96,28 +95,17 @@ def test_single_run_pdf_export_returns_non_empty_pdf(path, authenticated_wrapper
     "path",
     ["/numerical/horizontal/single", "/numerical/vertical/single"],
 )
-def test_numerical_domain_override_is_optional_and_advanced(path, authenticated_wrapper_client):
+def test_numerical_orlando_grid_fields_are_rendered_and_forwarded(path, authenticated_wrapper_client):
     response = authenticated_wrapper_client.get(path)
     page = response.get_data(as_text=True)
     iframe_src = html.unescape(page.split('iframe src="', 1)[1].split('"', 1)[0])
+    iframe_query = parse_qs(urlparse(iframe_src).query)
 
     assert response.status_code == 200
-    assert "<summary>Advanced Overrides</summary>" in page
-    assert 'name="L_D_override"' in page
-    assert "L_D_override" not in parse_qs(urlparse(iframe_src).query)
-
-
-@pytest.mark.parametrize(
-    "path",
-    ["/numerical/horizontal/single", "/numerical/vertical/single"],
-)
-def test_numerical_domain_override_is_forwarded_for_power_users(path, authenticated_wrapper_client):
-    response = authenticated_wrapper_client.get(f"{path}?L_D_override=250")
-    page = response.get_data(as_text=True)
-    iframe_src = html.unescape(page.split('iframe src="', 1)[1].split('"', 1)[0])
-
-    assert response.status_code == 200
-    assert parse_qs(urlparse(iframe_src).query)["L_D_override"] == ["250"]
+    assert 'name="Lx"' in page
+    assert 'name="ncol"' in page
+    assert "Lx" in iframe_query
+    assert "ncol" in iframe_query
 
 
 @pytest.mark.parametrize(
@@ -150,15 +138,14 @@ def test_numerical_multiple_wrapper_has_only_panel_run_action(path, authenticate
     assert "Run Model" not in page
 
 
-def test_vertical_database_defaults_rebalance_source_buffers(authenticated_wrapper_client, monkeypatch):
+def test_vertical_database_defaults_map_aquifer_thickness_to_lz(authenticated_wrapper_client, monkeypatch):
     site = {"id": 7, "aquifer_thickness": 3.5}
     monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
 
     page = authenticated_wrapper_client.get("/numerical/vertical/single?site_id=7").get_data(as_text=True)
 
-    assert 'name="S_Ta"' in page
-    assert 'name="S_Tb"' in page
-    assert page.count('value="1.25"') >= 2
+    assert 'name="Lz"' in page
+    assert 'value="3.5"' in page
 
 
 @pytest.mark.parametrize(
