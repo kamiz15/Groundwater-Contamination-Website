@@ -2,7 +2,7 @@
 
 CAST is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, Bokeh visualisations, and branded PDF reports.
 
-This README documents the implementation currently present in this working tree as of 1 June 2026. It is intentionally detailed: it explains what has been built, how requests move through the system, how to run the project, which routes exist, what every source file is responsible for, and which parts are still incomplete or inconsistent.
+This README documents the implementation currently present in this working tree as of 9 June 2026. It is intentionally detailed: it explains what has been built, how requests move through the system, how to run the project, which routes exist, what every source file is responsible for, and which parts are still incomplete or inconsistent.
 
 ## Contents
 
@@ -151,31 +151,31 @@ Without `output_only=1`, most direct Panel pages show their own widgets, run but
 
 Horizontal numerical pages:
 
-1. Compute analytical `Lmax` with Cirpka.
-2. Derive domain length `LD = 1.5 * Lmax`, unless a power user supplies the advanced `L_D_override`.
-3. Derive grid dimensions from domain dimensions and requested grid spacing.
-4. Run a MODFLOW 6 groundwater-flow model.
-5. Feed its heads and budget into a MODFLOW 6 groundwater-transport model.
-6. Derive numerical plume length from the requested concentration contour.
-7. Render an interactive plan-view plot and an analytical-versus-numerical comparison.
-8. Offer profile and decreasing-concentration vector views as click-to-compute options; neither runs during the default simulation path.
-9. Keep initial page load idle. MODFLOW runs only after the wrapper-level `Run Model` action is submitted.
+1. Read the explicit Orlando-style domain and grid inputs: `Lx`, `Ly`, `nrow`, `ncol`, and `source`.
+2. Run one MODFLOW 6 GWF flow model with the fixed-head, confined NPF, IMS, TDIS, and OC settings from Orlando's validated horizontal script.
+3. Feed the saved flow heads and budget into a separate GWT transport simulation through FMI.
+4. Apply the horizontal CNC source exactly as Orlando's script does: source rows centred in `y` at column `5`, donor value `gamma * Cd + 2 * Ca`, and acceptor `Ca` on the top and bottom rows.
+5. Derive numerical plume length from the `C0 = 8` contour using the same contour-geometry method as Orlando's script.
+6. Render an interactive plan-view plot.
+7. Offer profile and decreasing-concentration vector views as click-to-compute options; neither runs during the default simulation path.
+8. Keep initial page load idle. MODFLOW runs only after the wrapper-level `Run Model` action is submitted.
 
 Vertical numerical pages:
 
-1. Compute analytical `Lmax` with Liedl.
-2. Derive domain length `LD = 1.5 * Lmax`, unless a power user supplies the advanced `L_D_override`.
-3. Derive the vertical grid from aquifer thickness and requested grid spacing.
-4. Run MODFLOW 6 flow and transport simulations.
-5. Derive numerical plume length from the requested concentration contour.
-6. Render an interactive cross-section plot and an analytical-versus-numerical comparison.
+1. Read the explicit Orlando-style domain and grid inputs: `Lx`, `Lz`, `ncol`, and `nlay`.
+2. Run one MODFLOW 6 GWF flow model with `nrow = 1`, `delc = 1`, top `0`, and Orlando's fixed-head, confined NPF, IMS, TDIS, and OC settings.
+3. Feed the saved flow heads and budget into a separate GWT transport simulation through FMI.
+4. Apply the vertical CNC source exactly as Orlando's script does: donor cells `(k, 0, 5)` for `k in range(1, nlay)` with value `gamma * Cd + Ca`, and acceptor `Ca` across the top layer.
+5. Derive numerical plume length from the `C0 = 8` mask/index method used by Orlando's script: `max(np.where(conc >= C0)[2]) * delr`, with no-cell cases returning `0`.
+6. Render an interactive cross-section plot.
 7. Offer profile and decreasing-concentration vector views as click-to-compute options; neither runs during the default simulation path.
 8. Keep initial page load idle. MODFLOW runs only after the wrapper-level `Run Model` action is submitted.
-9. Center default source buffers within the selected aquifer thickness unless a user explicitly overrides them.
 
 Temporary numerical workspaces are created under `.numerical_runs/`.
 Optional 3D numerical visualisation remains a long-term TODO and is not computed.
 Multiple-scenario numerical pages keep one Panel-side run button because their editable scenario table lives inside Panel. Their wrapper pages do not add a second run form.
+
+The numerical path intentionally no longer sizes domains from analytical `Lmax`, no longer accepts `L_D_override`, and no longer derives grids from `delta_x`, `delta_y`, or `delta_z`. Those analytical sizing controls changed numerical results and were removed from the active numerical execution path.
 
 ## Model Catalogue
 
@@ -203,10 +203,17 @@ All standard analytical models provide single and multiple simulation pages. Sin
 
 | Model | Primary implementation | Dashboard files | Main output |
 | --- | --- | --- | --- |
-| Horizontal plan view `(x, y)` | `run_numerical_model_horizontal()` | `panel_numerical_horizontal_single.py`, `panel_numerical_horizontal_multiple.py` | Simulated plume contour and `Lmax`, compared with Cirpka |
-| Vertical cross-section `(x, z)` | `run_numerical_model()` | `panel_numerical_vertical_single.py`, `panel_numerical_vertical_multiple.py` | Simulated plume contour and `Lmax`, compared with Liedl |
+| Horizontal plan view `(x, y)` | `run_numerical_model_horizontal()` | `panel_numerical_horizontal_single.py`, `panel_numerical_horizontal_multiple.py` | Simulated plume contour and Orlando-parity `Lmax` |
+| Vertical cross-section `(x, z)` | `run_numerical_model()` | `panel_numerical_vertical_single.py`, `panel_numerical_vertical_multiple.py` | Simulated concentration mask and Orlando-parity `Lmax` |
 
 The numerical runner, Docker image, environment templates, UI labels, and PDF labels consistently use MODFLOW 6 GWF/GWT through FloPy.
+The checked-in Orlando fixtures under `tests/fixtures/orlando_reference/` pin the current fidelity targets:
+
+| Fixture | Reference plume_length | App plume_length |
+| --- | ---: | ---: |
+| `input_vertical.csv` with `vertical_model.py` | `42.0` | `42.0` |
+| `input2.csv` with `Horizontal_sim_final.py` | `36.1` | `36.10288085194749` |
+
 Earlier combined-orientation dashboards are retained under `archive/legacy_numerical/` for reference only.
 
 ## Database and Autofill
@@ -629,7 +636,7 @@ cast_landing_demo/
 | `analytical_models.py` | Liedl, Chu, Ham, Liedl 3D, and Cirpka equations plus multiple-run helpers. |
 | `empirical_models.py` | Maier and Grathwohl and Birla plume-length equations. |
 | `bioscreen_model.py` | BIOSCREEN-style numerical concentration integration using Gauss-Legendre quadrature; returns plume length and optional concentration curve. |
-| `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, contour-based plume-length extraction, and PNG generation. |
+| `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, Orlando-parity source setup, orientation-specific plume-length extraction, and PNG generation. |
 | `symbol_registry.py` | Central canonical symbols, database columns, UI labels, units, and model-specific applicability. |
 
 ### Flask Model Route Files
@@ -673,10 +680,10 @@ cast_landing_demo/
 
 | File | Responsibility |
 | --- | --- |
-| `panel_numerical_horizontal_single.py` | Current horizontal single dashboard: Cirpka sizing, FloPy run, interactive plume chart, comparison chart, and PDF. |
-| `panel_numerical_horizontal_multiple.py` | Current horizontal scenario table and multiple-run dashboard. |
-| `panel_numerical_vertical_single.py` | Current vertical single dashboard: Liedl sizing, FloPy run, interactive plume chart, comparison chart, and PDF. |
-| `panel_numerical_vertical_multiple.py` | Current vertical scenario table and multiple-run dashboard. |
+| `panel_numerical_horizontal_single.py` | Current horizontal single dashboard: explicit Orlando-style grid/domain inputs, FloPy run, interactive plume chart, and PDF. |
+| `panel_numerical_horizontal_multiple.py` | Current horizontal scenario table and multiple-run dashboard using explicit Orlando-style grid/domain inputs. |
+| `panel_numerical_vertical_single.py` | Current vertical single dashboard: explicit Orlando-style grid/domain inputs, FloPy run, interactive plume chart, and PDF. |
+| `panel_numerical_vertical_multiple.py` | Current vertical scenario table and multiple-run dashboard using explicit Orlando-style grid/domain inputs. |
 | `archive/legacy_numerical/` | Retired combined numerical dashboards retained for reference only. |
 
 ### Plotting and Reporting
@@ -846,11 +853,19 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-The suite covers analytical and empirical equation regressions, canonical symbol mappings, CSV alias and SQL `NULL` normalization, authentication flows and security failure paths, authenticated wrapper rendering, PDF generation, schema consistency, numerical conductivity autofill, MODFLOW 6 executable discovery, and a real smallest-grid MODFLOW 6 smoke simulation.
+The suite covers analytical and empirical equation regressions, canonical symbol mappings, CSV alias and SQL `NULL` normalization, authentication flows and security failure paths, authenticated wrapper rendering, PDF generation, schema consistency, numerical conductivity autofill, MODFLOW 6 executable discovery, real smallest-grid MODFLOW 6 smoke simulations, and Orlando reference parity for the horizontal and vertical numerical fixtures.
 
 ## Change History
 
 Keep this section updated whenever implementation, configuration, reporting, or documentation behaviour changes. Add new entries above older entries before committing.
+
+### 9 June 2026 - Orlando MODFLOW 6 Numerical Parity
+
+- Added Orlando's validated reference scripts and inputs under `tests/fixtures/orlando_reference/`.
+- Reworked horizontal and vertical numerical runners to match Orlando's explicit MODFLOW 6 domain, grid, time stepping, flow, transport, CNC source, and plume-length methods.
+- Removed analytical `Lmax` domain sizing, `L_D_override`, and grid-spacing-derived numerical domains from the active numerical execution path.
+- Updated numerical Flask and Panel inputs to surface Orlando's required parameters directly: `Lx`, `Lz`/`Ly`, `ncol`, `nlay`/`nrow`, `source`, `prsity`, `al`, `at`, `atv`, `gamma`, `C_D`, `C_A`, `C0`, `h1`, `h2`, `hk`, and `perlen`.
+- Added regression tests pinning app output to Orlando's captured plume lengths: vertical `42.0` and horizontal `36.1`.
 
 ### 1 June 2026 - Deferred Numerical Runs and Shared Reports
 
