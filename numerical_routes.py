@@ -5,8 +5,9 @@ from flask import Blueprint, Response, jsonify, redirect, render_template, reque
 from flask_login import current_user, login_required
 
 from data_queries import get_user_sites_rows
-from numerical_models import balanced_source_buffers, run_numerical_model, run_numerical_model_horizontal
+from numerical_models import run_numerical_model, run_numerical_model_horizontal
 from numerical_jobs import cancel_job, job_status, queue_counts, submit_job
+from numerical_input_validation import filter_valid_vertical_sites, format_issues, vertical_inputs_from_site
 from pdf_report import CASTReport
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_hydraulic_conductivity_to_numerical_hk, db_to_model
@@ -97,7 +98,10 @@ def _request_float(name, default):
 
 
 def _input_fields(orientation, site):
-    db_query = _build_panel_query(site, orientation=orientation)
+    try:
+        db_query = _build_panel_query(site, orientation=orientation)
+    except ValueError:
+        db_query = {}
     fields = []
     for name, label, default, step, minimum in NUMERICAL_INPUT_SPECS.get(orientation, []):
         fields.append({
@@ -127,22 +131,54 @@ def _export_href(input_fields):
     return f"{request.path}/export?{urlencode(query)}"
 
 
-def _selected_site():
+def _selected_site(orientation=None):
     sites = get_user_sites_rows(_current_email())
+    invalid_message = None
+    if orientation == "vertical":
+        sites, invalid_sites = filter_valid_vertical_sites(sites)
+    else:
+        invalid_sites = {}
     if not sites:
-        return sites, None
+        selected_id = request.args.get("site_id", type=int)
+        if selected_id is not None and selected_id in invalid_sites:
+            invalid_message = f"This site can't be modelled: {format_issues(invalid_sites[selected_id])}"
+        return sites, None, invalid_message
     selected_id = request.args.get("site_id", type=int)
     if selected_id is None:
-        return sites, None
+        return sites, None, None
+    if selected_id in invalid_sites:
+        invalid_message = f"This site can't be modelled: {format_issues(invalid_sites[selected_id])}"
+        return sites, None, invalid_message
     for site in sites:
         if site.get("id") == selected_id:
-            return sites, site
-    return sites, None
+            return sites, site, None
+    return sites, None, None
 
 
 def _build_panel_query(site, orientation=None):
     if not site:
         return {}
+
+    if orientation == "vertical":
+        vertical_inputs, issues = vertical_inputs_from_site(site)
+        if issues:
+            raise ValueError(format_issues(issues))
+        query = {"email": _current_email()}
+        query["orientation"] = "vertical"
+        if site.get("id") is not None:
+            query["site_id"] = int(site.get("id"))
+        query["M"] = vertical_inputs["Lz"]
+        query["Lz"] = vertical_inputs["Lz"]
+        query["K"] = vertical_inputs["hk"]
+        query["hk"] = vertical_inputs["hk"]
+        query["C_D"] = vertical_inputs["C_D"]
+        query["Cd"] = vertical_inputs["C_D"]
+        query["C_ED0"] = vertical_inputs["C_D"]
+        query["c0"] = vertical_inputs["C_D"]
+        query["C_A"] = vertical_inputs["C_A"]
+        query["Ca"] = vertical_inputs["C_A"]
+        query["C_EA0"] = vertical_inputs["C_A"]
+        return query
 
     canonical = db_to_model(site, "numerical")
 
@@ -422,13 +458,14 @@ def numerical_multiple():
 @numerical_bp.route("/numerical/horizontal/single")
 @login_required
 def numerical_horizontal_single():
-    sites, selected_site = _selected_site()
+    sites, selected_site, invalid_site_message = _selected_site("horizontal")
     input_fields = _input_fields("horizontal", selected_site)
     return render_template(
         "panel_numerical_horizontal_single.html",
         panel_src=_panel_src("panel_numerical_horizontal_single", selected_site, orientation="horizontal"),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
+        invalid_site_message=invalid_site_message,
         input_fields=input_fields,
         export_href=_export_href(input_fields),
     )
@@ -444,13 +481,14 @@ def numerical_horizontal_single_export():
 @numerical_bp.route("/numerical/horizontal/multiple")
 @login_required
 def numerical_horizontal_multiple():
-    sites, selected_site = _selected_site()
+    sites, selected_site, invalid_site_message = _selected_site("horizontal")
     input_fields = _input_fields("horizontal", selected_site)
     return render_template(
         "panel_numerical_horizontal_multiple.html",
         panel_src=_panel_src("panel_numerical_horizontal_multiple", selected_site, orientation="horizontal", output_only=False),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
+        invalid_site_message=invalid_site_message,
         input_fields=input_fields,
         export_href=_export_href(input_fields),
     )
@@ -459,13 +497,14 @@ def numerical_horizontal_multiple():
 @numerical_bp.route("/numerical/vertical/single")
 @login_required
 def numerical_vertical_single():
-    sites, selected_site = _selected_site()
+    sites, selected_site, invalid_site_message = _selected_site("vertical")
     input_fields = _input_fields("vertical", selected_site)
     return render_template(
         "panel_numerical_vertical_single.html",
         panel_src=_panel_src("panel_numerical_vertical_single", selected_site, orientation="vertical"),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
+        invalid_site_message=invalid_site_message,
         input_fields=input_fields,
         export_href=_export_href(input_fields),
     )
@@ -481,13 +520,14 @@ def numerical_vertical_single_export():
 @numerical_bp.route("/numerical/vertical/multiple")
 @login_required
 def numerical_vertical_multiple():
-    sites, selected_site = _selected_site()
+    sites, selected_site, invalid_site_message = _selected_site("vertical")
     input_fields = _input_fields("vertical", selected_site)
     return render_template(
         "panel_numerical_vertical_multiple.html",
         panel_src=_panel_src("panel_numerical_vertical_multiple", selected_site, orientation="vertical", output_only=False),
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
+        invalid_site_message=invalid_site_message,
         input_fields=input_fields,
         export_href=_export_href(input_fields),
     )

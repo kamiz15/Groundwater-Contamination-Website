@@ -17,7 +17,7 @@ class NumericalAutofillTests(unittest.TestCase):
         self.assertEqual(query["hk"], 86.4)
 
     def test_converted_db_k_outside_configured_bounds_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "outside the configured bounds"):
+        with self.assertRaisesRegex(ValueError, "hk 86400 m/d exceeds max"):
             db_hydraulic_conductivity_to_numerical_hk(1.0)
 
 

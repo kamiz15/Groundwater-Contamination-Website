@@ -6,12 +6,11 @@ database columns, UI labels, and model function arguments.
 RULE: Conceptual Model Symbol == UI Label == Variable Name (or mapped alias)
 """
 
-from settings import NUMERICAL_HK_MAX_M_PER_DAY, NUMERICAL_HK_MIN_M_PER_DAY
-
-
-SECONDS_PER_DAY = 86400.0
-# Assumption pending domain-expert confirmation: DB K is stored in m/s and numerical hk uses m/d.
-DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = SECONDS_PER_DAY
+from numerical_input_validation import (
+    DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D,
+    SECONDS_PER_DAY,
+    convert_database_hk_to_m_per_day,
+)
 
 
 SYMBOL_REGISTRY = {
@@ -123,17 +122,7 @@ def db_hydraulic_conductivity_to_numerical_hk(value) -> float:
     The bounds intentionally flag suspicious site-linked inputs after conversion.
     They are configurable because the domain expert must confirm the accepted range.
     """
-    try:
-        numerical_hk = float(value) * DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Database hydraulic conductivity K must be numeric.") from exc
-    if not NUMERICAL_HK_MIN_M_PER_DAY <= numerical_hk <= NUMERICAL_HK_MAX_M_PER_DAY:
-        raise ValueError(
-            "Converted hydraulic conductivity hk "
-            f"({numerical_hk:g} m/d) is outside the configured bounds "
-            f"[{NUMERICAL_HK_MIN_M_PER_DAY:g}, {NUMERICAL_HK_MAX_M_PER_DAY:g}] m/d."
-        )
-    return numerical_hk
+    return convert_database_hk_to_m_per_day(value)
 
 
 def get_ui_label(symbol: str) -> str:

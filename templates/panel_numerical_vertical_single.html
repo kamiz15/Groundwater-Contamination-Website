@@ -5,6 +5,11 @@
 {% block conceptual_alt %}Vertical numerical model cross-section showing x-z spreading, aquifer thickness, source thickness, and vertical transverse dispersivity alpha Tv{% endblock %}
 {% block site_loader %}
   <p class="small">Vertical configuration: cross-section (x, z) with aquifer thickness M, source thickness ST, and vertical transverse dispersivity alpha Tv.</p>
+  {% if invalid_site_message %}
+  <div class="card-like">
+    <p class="model-input-empty">{{ invalid_site_message }}</p>
+  </div>
+  {% endif %}
   {% if sites %}
   <div class="card-like">
     <form method="GET" class="site-form csv-form">

@@ -166,6 +166,39 @@ def test_vertical_database_defaults_map_aquifer_thickness_to_lz(authenticated_wr
 
 @pytest.mark.parametrize(
     "path",
+    ["/numerical/vertical/single", "/numerical/vertical/multiple"],
+)
+def test_vertical_pages_filter_invalid_high_hk_sites_and_still_load(path, authenticated_wrapper_client, monkeypatch):
+    valid = {
+        "id": 7,
+        "site_unit": "Valid Site",
+        "compound": "BTEX",
+        "aquifer_thickness": 10.0,
+        "hydraulic_conductivity": 0.001,
+        "electron_donor": 5.0,
+        "electron_acceptor_o2": 0.0,
+    }
+    invalid = {
+        "id": 8,
+        "site_unit": "Coarse Gravel",
+        "compound": "BTEX",
+        "aquifer_thickness": 10.0,
+        "hydraulic_conductivity": 0.026,
+        "electron_donor": 5.0,
+        "electron_acceptor_o2": 0.0,
+    }
+    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [invalid, valid])
+
+    page = authenticated_wrapper_client.get(f"{path}?site_id=8").get_data(as_text=True)
+    unescaped_page = html.unescape(page)
+
+    assert "This site can't be modelled: hk 2246.4 m/d exceeds max" in unescaped_page
+    assert "#7 - Valid Site" in page
+    assert "#8 - Coarse Gravel" not in page
+
+
+@pytest.mark.parametrize(
+    "path",
     [
         "/liedl/single",
         "/liedl3d/single",

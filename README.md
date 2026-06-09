@@ -464,9 +464,11 @@ The Docker image downloads the official MODFLOW 6 `6.7.0` Linux release archive,
 | `PANEL_ALLOW_ORIGINS` | Comma-separated websocket origins accepted by Panel. |
 | `MF6_EXE` | MODFLOW 6 executable used by numerical code. The Docker image installs it at `/usr/local/bin/mf6`. |
 | `NUMERICAL_MAX_CELLS` | Hard pre-run cap on `n_cols * n_rows`, default `40000`. Increase grid spacing before raising this limit. |
-| `NUMERICAL_SOLVER_TIMEOUT_S` | Per-process timeout for each MF6 flow or transport run, default `120` seconds. Timed-out processes are terminated and reported to the user. |
+| `NUMERICAL_SOLVER_TIMEOUT_S` | Per-process timeout for each MF6 flow or transport run, default `0` for disabled. Set a positive value only when a deployment needs an explicit ceiling. |
 | `NUMERICAL_HK_MIN_M_PER_DAY` | Lower plausibility bound for site-linked conductivity after conversion to numerical `hk` in `m/d`, default `0.000001`. |
 | `NUMERICAL_HK_MAX_M_PER_DAY` | Upper plausibility bound for site-linked conductivity after conversion to numerical `hk` in `m/d`, default `1000`. |
+| `VERTICAL_NUMERICAL_NCOL_MIN` | Minimum accepted vertical-model column count for site-linked runs, default `6`. |
+| `VERTICAL_NUMERICAL_NLAY_MIN` | Minimum accepted vertical-model layer count for site-linked runs, default `2`. |
 
 Keep `.env` private. Copy placeholder names from the tracked `.env.example`, then provide real values only through your local environment or ignored `.env`. The tracked `.env.docker` file contains non-secret Docker settings only.
 
@@ -637,6 +639,7 @@ cast_landing_demo/
 | `empirical_models.py` | Maier and Grathwohl and Birla plume-length equations. |
 | `bioscreen_model.py` | BIOSCREEN-style numerical concentration integration using Gauss-Legendre quadrature; returns plume length and optional concentration curve. |
 | `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, Orlando-parity source setup, orientation-specific plume-length extraction, and PNG generation. |
+| `numerical_input_validation.py` | Shared vertical numerical site-input validation, configurable plausibility ranges, database `K` to `hk` conversion, and valid-site filtering. |
 | `symbol_registry.py` | Central canonical symbols, database columns, UI labels, units, and model-specific applicability. |
 
 ### Flask Model Route Files
@@ -645,7 +648,13 @@ cast_landing_demo/
 | --- | --- |
 | `analytical_routes.py` | Analytical landing page, site selection, alias expansion, external input fields, Panel iframe URLs, analytical single-run PDFs, and specialised Cirpka preparation. |
 | `empirical_routes.py` | Empirical landing page, site selection, basic autofill, Panel iframe URLs, and empirical single-run PDFs. |
-| `numerical_routes.py` | Numerical landing page, compatibility redirects, orientation-specific field specifications, site autofill, Panel iframe URLs, and simulation-backed horizontal/vertical PDF routes. |
+| `numerical_routes.py` | Numerical landing page, compatibility redirects, orientation-specific field specifications, vertical site validation/filtering, site autofill, Panel iframe URLs, and simulation-backed horizontal/vertical PDF routes. |
+
+### Utility Scripts
+
+| File | Responsibility |
+| --- | --- |
+| `scripts/audit_vertical_sites.py` | Scans the site database with the same vertical validation function used by dropdown filtering and reports excluded site ids, names, fields, values, and reasons. |
 
 ### Panel Server and Shared Helpers
 
@@ -810,9 +819,9 @@ Numeric parsing intentionally converts invalid numeric text to `NULL` rather tha
 
 ### Hydraulic Conductivity Conversion Awaits Scientific Review
 
-The current implementation assumption is that the database stores hydraulic conductivity `K` in `m/s` and numerical models consume `hk` in `m/d`. Numerical site autofill applies one explicit conversion in `symbol_registry.py` using `DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = 86400`. Converted values outside the configurable `NUMERICAL_HK_MIN_M_PER_DAY` and `NUMERICAL_HK_MAX_M_PER_DAY` range are rejected.
+The current implementation assumption is that the database stores hydraulic conductivity `K` in `m/s` and numerical models consume `hk` in `m/d`. Numerical site autofill applies one explicit conversion in `numerical_input_validation.py` using `DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = 86400`. Converted values outside the configurable `NUMERICAL_HK_MIN_M_PER_DAY` and `NUMERICAL_HK_MAX_M_PER_DAY` range are rejected for vertical site-linked modelling.
 
-The conversion assumption and default plausibility bounds still require confirmation by the domain expert before scientific interpretation.
+The conversion assumption and default plausibility bounds still require confirmation by the domain expert before scientific interpretation. Run `python scripts/audit_vertical_sites.py` to list sites excluded from the vertical numerical dropdown, including the failed field, converted value, and validation reason.
 
 ### Runtime Schema Is Not a Migration System
 
