@@ -35,6 +35,8 @@ WRAPPER_ROUTES = [
     "/numerical/horizontal/multiple",
     "/numerical/vertical/single",
     "/numerical/vertical/multiple",
+    "/source/geometry",
+    "/source/inversion",
 ]
 
 
@@ -56,6 +58,17 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
 
     assert response.status_code == 200
     assert b"<html" in response.data.lower()
+
+
+def test_headbar_contains_source_geometry_routes(authenticated_wrapper_client):
+    response = authenticated_wrapper_client.get("/")
+    page = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'href="/source/geometry"' in page
+    assert 'href="/source/inversion"' in page
+    assert ">Source Geometry</a>" in page
+    assert ">Source Inversion</a>" in page
 
 
 @pytest.mark.parametrize(
