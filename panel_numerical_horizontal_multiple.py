@@ -1,11 +1,9 @@
 import io
 import logging
 
-import numpy as np
 import pandas as pd
 import panel as pn
 
-from numerical_models import run_numerical_model_horizontal
 from numerical_jobs import fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
 from panel_numerical_optional_views import LazyNumericalViews
@@ -45,7 +43,7 @@ def numerical_horizontal_multiple_app():
     )
     run_btn = pn.widgets.Button(name="Run Horizontal Scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Edit the horizontal scenario table and run the simulations."), sizing_mode="stretch_width")
-    graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
+    graphs_column = pn.Column(sizing_mode="stretch_width")
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=360)
     state = {}
     poller = {"callback": None}
@@ -76,6 +74,9 @@ def numerical_horizontal_multiple_app():
         optional_views.reset()
         run_btn.disabled = True
         run_btn.name = "Running Horizontal Scenarios..."
+        graphs_column.objects = []
+        comparison_pane.object = None
+        export_btn.visible = False
         try:
             df = pd.DataFrame(table.value)
             job_ids = [
@@ -130,101 +131,62 @@ def numerical_horizontal_multiple_app():
                         [(item["label"], f"{item['value']} {item['unit']}") for item in outputs],
                         title=f"{len(df)} Horizontal Scenario(s) Complete",
                     )
+                    new_graphs = []
+                    plot_images = []
+                    for idx, result in enumerate(results):
+                        row = df.iloc[idx]
+                        fig = plot_horizontal_plume_interactive(
+                            result.concentration,
+                            result.x_grid,
+                            result.y_grid,
+                            result.plume_length,
+                            float(row["Lx"]),
+                            float(row["source"]),
+                            float(row["Ly"]),
+                        )
+                        new_graphs.append(pn.pane.Markdown(
+                            f"**Scenario {idx + 1}** — Lmax {result.plume_length:.2f} m",
+                            sizing_mode="stretch_width",
+                        ))
+                        new_graphs.append(pn.pane.Bokeh(fig, sizing_mode="stretch_width", min_height=430))
+                        if result.plot_png:
+                            plot_images.append({
+                                "title": f"Horizontal Plume Concentration (Scenario {idx + 1})",
+                                "bytes": result.plot_png,
+                                "caption": f"Simulated contaminant plume — scenario {idx + 1}, plan view (horizontal model).",
+                            })
+                    graphs_column.objects = new_graphs
+                    logger.info("Horizontal multiple graphs_column populated with %d scenario(s)", len(results))
+                    first_result = results[0]
                     state.update({
                         "parameters": [{"symbol": "Rows", "name": "Scenario Count", "value": len(df), "unit": "-"}],
                         "outputs": outputs,
+                        "plot_data": {
+                            "labels": [f"Scenario {i + 1} Numerical" for i in range(len(results))],
+                            "values": [r.plume_length for r in results],
+                            "ylabel": "Plume Length (m)",
+                            "title": "Horizontal Numerical",
+                        },
+                        "plot_images": plot_images,
+                        "optional_view": {
+                            "concentration": first_result.concentration,
+                            "x_grid": first_result.x_grid,
+                            "cross_grid": first_result.y_grid,
+                            "cross_axis_label": "Horizontal Width [m]",
+                            "title": "Horizontal Numerical Model - Scenario 1",
+                        },
                     })
                     export_btn.visible = True
                     _stop_polling()
 
             poller["callback"] = pn.state.add_periodic_callback(_poll, 2000, start=True)
             _poll()
-            return
-
-            outputs = []
-            numerical_values = []
-            first_result = None
-            first_meta = None
-
-            for idx, row in df.iterrows():
-                lx = float(row["Lx"])
-                ly = float(row["Ly"])
-                source = float(row["source"])
-                result = run_numerical_model_horizontal(
-                    lx,
-                    ly,
-                    source,
-                    int(row["ncol"]),
-                    int(row["nrow"]),
-                    float(row["n"]),
-                    float(row["alpha_L"]),
-                    float(row["at"]),
-                    float(row["gamma"]),
-                    float(row["C_D"]),
-                    float(row["C_A"]),
-                    float(row["h1"]),
-                    float(row["h2"]),
-                    float(row["K [m/d]"]),
-                    perlen=float(row["perlen"]),
-                    plume_threshold=float(row["C0"]),
-                )
-                outputs.append({"label": f"Scenario {idx + 1} numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"})
-                numerical_values.append(result.plume_length)
-                if first_result is None:
-                    first_result = result
-                    first_meta = (lx, source, ly)
-            run_btn.name = "Run Horizontal Scenarios"
-
-            if first_result and first_meta:
-                lx, source, ly = first_meta
-                graph_pane.object = plot_horizontal_plume_interactive(
-                    first_result.concentration,
-                    first_result.x_grid,
-                    first_result.y_grid,
-                    first_result.plume_length,
-                    lx,
-                    source,
-                    ly,
-                )
-                logger.info("Horizontal multiple graph_pane.object assigned")
-            comparison_pane.object = None
-            result_pane.object = summary_card(
-                [(item["label"], f"{item['value']} {item['unit']}") for item in outputs[:6]],
-                title=f"{len(df)} Horizontal Scenario(s) Run",
-            )
-            plot_images = []
-            if first_result and first_result.plot_png:
-                plot_images.append({
-                    "title": "Horizontal Plume Concentration (Scenario 1)",
-                    "bytes": first_result.plot_png,
-                    "caption": "Simulated contaminant plume — first scenario, plan view (horizontal model).",
-                })
-            state.update({
-                "parameters": [{"symbol": "Rows", "name": "Scenario Count", "value": len(df), "unit": "-"}],
-                "outputs": outputs,
-                "plot_data": {
-                    "labels": [f"Scenario {i + 1} Numerical" for i in range(len(numerical_values))],
-                    "values": numerical_values,
-                    "ylabel": "Plume Length (m)",
-                    "title": "Horizontal Numerical",
-                },
-                "plot_images": plot_images,
-                "optional_view": {
-                    "concentration": first_result.concentration,
-                    "x_grid": first_result.x_grid,
-                    "cross_grid": first_result.y_grid,
-                    "cross_axis_label": "Horizontal Width [m]",
-                    "title": "Horizontal Numerical Model - Scenario 1",
-                } if first_result else None,
-            })
-            export_btn.visible = True
         except Exception as exc:
             logger.exception("Horizontal numerical scenario run failed")
             result_pane.object = error_card(exc)
-            graph_pane.object = None
+            graphs_column.objects = []
             comparison_pane.object = None
             export_btn.visible = False
-        finally:
             run_btn.disabled = False
             run_btn.name = "Run Horizontal Scenarios"
 
@@ -232,13 +194,13 @@ def numerical_horizontal_multiple_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(result_pane, graph_pane, comparison_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
+        return pn.Column(result_pane, graphs_column, comparison_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
     return pn.Column(
         "## Horizontal Numerical Model - Multiple",
         table,
         run_btn,
         result_pane,
-        graph_pane,
+        graphs_column,
         comparison_pane,
         optional_views.panel,
         export_btn,
