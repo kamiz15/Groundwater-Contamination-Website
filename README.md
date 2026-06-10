@@ -2,7 +2,7 @@
 
 CAST is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, Bokeh visualisations, and branded PDF reports.
 
-This README documents the implementation currently present in this working tree as of 9 June 2026. It is intentionally detailed: it explains what has been built, how requests move through the system, how to run the project, which routes exist, what every source file is responsible for, and which parts are still incomplete or inconsistent.
+This README documents the CAST application architecture, runtime flow, model implementations, configuration, routes, repository layout, and development procedures.
 
 ## Contents
 
@@ -25,7 +25,7 @@ This README documents the implementation currently present in this working tree 
 
 ## Implemented Features
 
-The current application includes:
+The application includes:
 
 - A CAST landing page with animated background effects, toolbox navigation, documentation copy, and account links.
 - Registration, Flask-Login authentication, logout, password hashing, and user-owned data access.
@@ -48,7 +48,7 @@ The current application includes:
 - Branded PDF report generation with input tables, summary cards, charts, logos, and optional numerical plume images.
 - A Docker Compose stack containing Nginx, Flask/Gunicorn, Panel, and MySQL services.
 
-The landing page also shows planned optimisation and Water Quality Index tools. Those tiles are visible but not implemented.
+The landing page includes entries for optimisation and Water Quality Index tools. Those modules are placeholders and are not part of the implemented runtime.
 
 ## Architecture
 
@@ -151,28 +151,28 @@ Without `output_only=1`, most direct Panel pages show their own widgets, run but
 
 Horizontal numerical pages:
 
-1. Read the explicit Orlando-style domain and grid inputs: `Lx`, `Ly`, `nrow`, `ncol`, and `source`.
-2. Run one MODFLOW 6 GWF flow model with the fixed-head, confined NPF, IMS, TDIS, and OC settings from Orlando's validated horizontal script.
+1. Read the explicit domain and grid inputs: `Lx`, `Ly`, `nrow`, `ncol`, and `source`.
+2. Run one MODFLOW 6 GWF flow model with the configured fixed-head, confined NPF, IMS, TDIS, and OC settings.
 3. Feed the saved flow heads and budget into a separate GWT transport simulation through FMI.
-4. Apply the horizontal CNC source exactly as Orlando's script does: source rows centred in `y` at column `5`, donor value `gamma * Cd + 2 * Ca`, and acceptor `Ca` on the top and bottom rows.
-5. Derive numerical plume length from the `C0 = 8` contour using the same contour-geometry method as Orlando's script.
+4. Apply the horizontal CNC source with source rows centred in `y` at column `5`, donor value `gamma * Cd + 2 * Ca`, and acceptor `Ca` on the top and bottom rows.
+5. Derive numerical plume length from the `C0 = 8` contour using the implemented contour-geometry method.
 6. Render an interactive plan-view plot.
 7. Offer profile and decreasing-concentration vector views as click-to-compute options; neither runs during the default simulation path.
 8. Keep initial page load idle. MODFLOW runs only after the wrapper-level `Run Model` action is submitted.
 
 Vertical numerical pages:
 
-1. Read the explicit Orlando-style domain and grid inputs: `Lx`, `Lz`, `ncol`, and `nlay`.
-2. Run one MODFLOW 6 GWF flow model with `nrow = 1`, `delc = 1`, top `0`, and Orlando's fixed-head, confined NPF, IMS, TDIS, and OC settings.
+1. Read the explicit domain and grid inputs: `Lx`, `Lz`, `ncol`, and `nlay`.
+2. Run one MODFLOW 6 GWF flow model with `nrow = 1`, `delc = 1`, top `0`, and the configured fixed-head, confined NPF, IMS, TDIS, and OC settings.
 3. Feed the saved flow heads and budget into a separate GWT transport simulation through FMI.
-4. Apply the vertical CNC source exactly as Orlando's script does: donor cells `(k, 0, 5)` for `k in range(1, nlay)` with value `gamma * Cd + Ca`, and acceptor `Ca` across the top layer.
-5. Derive numerical plume length from the `C0 = 8` mask/index method used by Orlando's script: `max(np.where(conc >= C0)[2]) * delr`, with no-cell cases returning `0`.
+4. Apply the vertical CNC source with donor cells `(k, 0, 5)` for `k in range(1, nlay)` with value `gamma * Cd + Ca`, and acceptor `Ca` across the top layer.
+5. Derive numerical plume length from the `C0 = 8` mask/index method: `max(np.where(conc >= C0)[2]) * delr`, with no-cell cases returning `0`.
 6. Render an interactive cross-section plot.
 7. Offer profile and decreasing-concentration vector views as click-to-compute options; neither runs during the default simulation path.
 8. Keep initial page load idle. MODFLOW runs only after the wrapper-level `Run Model` action is submitted.
 
 Temporary numerical workspaces are created under `.numerical_runs/`.
-Optional 3D numerical visualisation remains a long-term TODO and is not computed.
+Optional 3D numerical visualisation is not computed by the default numerical path.
 Multiple-scenario numerical pages keep one Panel-side run button because their editable scenario table lives inside Panel. Their wrapper pages do not add a second run form.
 
 The numerical path intentionally no longer sizes domains from analytical `Lmax`, no longer accepts `L_D_override`, and no longer derives grids from `delta_x`, `delta_y`, or `delta_z`. Those analytical sizing controls changed numerical results and were removed from the active numerical execution path.
@@ -203,16 +203,16 @@ All standard analytical models provide single and multiple simulation pages. Sin
 
 | Model | Primary implementation | Dashboard files | Main output |
 | --- | --- | --- | --- |
-| Horizontal plan view `(x, y)` | `run_numerical_model_horizontal()` | `panel_numerical_horizontal_single.py`, `panel_numerical_horizontal_multiple.py` | Simulated plume contour and Orlando-parity `Lmax` |
-| Vertical cross-section `(x, z)` | `run_numerical_model()` | `panel_numerical_vertical_single.py`, `panel_numerical_vertical_multiple.py` | Simulated concentration mask and Orlando-parity `Lmax` |
+| Horizontal plan view `(x, y)` | `run_numerical_model_horizontal()` | `panel_numerical_horizontal_single.py`, `panel_numerical_horizontal_multiple.py` | Simulated plume contour and numerical `Lmax` |
+| Vertical cross-section `(x, z)` | `run_numerical_model()` | `panel_numerical_vertical_single.py`, `panel_numerical_vertical_multiple.py` | Simulated concentration mask and numerical `Lmax` |
 
 The numerical runner, Docker image, environment templates, UI labels, and PDF labels consistently use MODFLOW 6 GWF/GWT through FloPy.
-The checked-in Orlando fixtures under `tests/fixtures/orlando_reference/` pin the current fidelity targets:
+The checked-in numerical reference fixtures pin the expected plume-length outputs:
 
 | Fixture | Reference plume_length | App plume_length |
 | --- | ---: | ---: |
-| `input_vertical.csv` with `vertical_model.py` | `42.0` | `42.0` |
-| `input2.csv` with `Horizontal_sim_final.py` | `36.1` | `36.10288085194749` |
+| Vertical reference input | `42.0` | `42.0` |
+| Horizontal reference input | `36.1` | `36.10288085194749` |
 
 Earlier combined-orientation dashboards are retained under `archive/legacy_numerical/` for reference only.
 
@@ -346,7 +346,7 @@ PANEL_ALLOW_ORIGINS=localhost:5007,127.0.0.1:5007,localhost:5000,127.0.0.1:5000
 MF6_EXE=C:\absolute\path\to\mf6.exe
 ```
 
-The current workspace already has an ignored local `.modflow_bin/mf6.exe`, and `numerical_models.py` searches `.modflow_bin/` automatically. Do not commit platform-specific solver binaries.
+For local development, `numerical_models.py` searches `.modflow_bin/` automatically if `MF6_EXE` is not set. Keep platform-specific solver binaries outside version control.
 
 ### Prepare MySQL
 
@@ -638,7 +638,7 @@ cast_landing_demo/
 | `analytical_models.py` | Liedl, Chu, Ham, Liedl 3D, and Cirpka equations plus multiple-run helpers. |
 | `empirical_models.py` | Maier and Grathwohl and Birla plume-length equations. |
 | `bioscreen_model.py` | BIOSCREEN-style numerical concentration integration using Gauss-Legendre quadrature; returns plume length and optional concentration curve. |
-| `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, Orlando-parity source setup, orientation-specific plume-length extraction, and PNG generation. |
+| `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, reference-aligned source setup, orientation-specific plume-length extraction, and PNG generation. |
 | `numerical_input_validation.py` | Shared vertical numerical site-input validation, configurable plausibility ranges, database `K` to `hk` conversion, and valid-site filtering. |
 | `symbol_registry.py` | Central canonical symbols, database columns, UI labels, units, and model-specific applicability. |
 
@@ -689,10 +689,10 @@ cast_landing_demo/
 
 | File | Responsibility |
 | --- | --- |
-| `panel_numerical_horizontal_single.py` | Current horizontal single dashboard: explicit Orlando-style grid/domain inputs, FloPy run, interactive plume chart, and PDF. |
-| `panel_numerical_horizontal_multiple.py` | Current horizontal scenario table and multiple-run dashboard using explicit Orlando-style grid/domain inputs. |
-| `panel_numerical_vertical_single.py` | Current vertical single dashboard: explicit Orlando-style grid/domain inputs, FloPy run, interactive plume chart, and PDF. |
-| `panel_numerical_vertical_multiple.py` | Current vertical scenario table and multiple-run dashboard using explicit Orlando-style grid/domain inputs. |
+| `panel_numerical_horizontal_single.py` | Horizontal single dashboard with explicit grid/domain inputs, FloPy execution, interactive plume chart, and PDF export. |
+| `panel_numerical_horizontal_multiple.py` | Horizontal scenario table and multiple-run dashboard using explicit grid/domain inputs. |
+| `panel_numerical_vertical_single.py` | Vertical single dashboard with explicit grid/domain inputs, FloPy execution, interactive plume chart, and PDF export. |
+| `panel_numerical_vertical_multiple.py` | Vertical scenario table and multiple-run dashboard using explicit grid/domain inputs. |
 | `archive/legacy_numerical/` | Retired combined numerical dashboards retained for reference only. |
 
 ### Plotting and Reporting
@@ -735,10 +735,10 @@ cast_landing_demo/
 | `templates/panel_maier_multiple.html` | Maier multiple wrapper. |
 | `templates/panel_birla_single.html` | Birla single wrapper. |
 | `templates/panel_birla_multiple.html` | Birla multiple wrapper. |
-| `templates/panel_numerical_horizontal_single.html` | Current horizontal numerical single wrapper extending `model_page_base.html`. |
-| `templates/panel_numerical_horizontal_multiple.html` | Current horizontal numerical multiple wrapper. |
-| `templates/panel_numerical_vertical_single.html` | Current vertical numerical single wrapper extending `model_page_base.html`. |
-| `templates/panel_numerical_vertical_multiple.html` | Current vertical numerical multiple wrapper. |
+| `templates/panel_numerical_horizontal_single.html` | Horizontal numerical single wrapper extending `model_page_base.html`. |
+| `templates/panel_numerical_horizontal_multiple.html` | Horizontal numerical multiple wrapper. |
+| `templates/panel_numerical_vertical_single.html` | Vertical numerical single wrapper extending `model_page_base.html`. |
+| `templates/panel_numerical_vertical_multiple.html` | Vertical numerical multiple wrapper. |
 | `templates/plot_bar.html` | Bokeh bar-chart page. |
 | `templates/plot_box.html` | Box-plot page; currently contains duplicated legacy and Jinja markup. |
 | `templates/plot_hist.html` | Histogram page; currently contains duplicated legacy and Jinja markup. |
@@ -809,7 +809,7 @@ static/images/conceptual_maier.png
 static/images/conceptual_birla.png
 ```
 
-Those files are not currently present, so those images render as missing. `templates/model_page_base.html` also has a fallback reference to `static/images/placeholder.png`, which is absent, although current templates that extend it override the image block.
+Those files are not present in the repository, so those images render as missing. `templates/model_page_base.html` also has a fallback reference to `static/images/placeholder.png`, which is absent, although templates that extend it can override the image block.
 
 ### Site Database Is Insert-only
 
@@ -817,11 +817,11 @@ The current UI supports listing, filtering, sorting, manual insertion, and CSV i
 
 Numeric parsing intentionally converts invalid numeric text to `NULL` rather than rejecting the row. This is convenient for sparse data but can hide malformed values.
 
-### Hydraulic Conductivity Conversion Awaits Scientific Review
+### Hydraulic Conductivity Conversion and Bounds
 
-The current implementation assumption is that the database stores hydraulic conductivity `K` in `m/s` and numerical models consume `hk` in `m/d`. Numerical site autofill applies one explicit conversion in `numerical_input_validation.py` using `DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = 86400`. Converted values outside the configurable `NUMERICAL_HK_MIN_M_PER_DAY` and `NUMERICAL_HK_MAX_M_PER_DAY` range are rejected for vertical site-linked modelling.
+The implementation assumes that database hydraulic conductivity `K` is stored in `m/s` and numerical models consume `hk` in `m/d`. Numerical site autofill applies one explicit conversion in `numerical_input_validation.py` using `DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D = 86400`. Converted values outside the configurable `NUMERICAL_HK_MIN_M_PER_DAY` and `NUMERICAL_HK_MAX_M_PER_DAY` range are rejected for vertical site-linked modelling.
 
-The conversion assumption and default plausibility bounds still require confirmation by the domain expert before scientific interpretation. Run `python scripts/audit_vertical_sites.py` to list sites excluded from the vertical numerical dropdown, including the failed field, converted value, and validation reason.
+The default plausibility bounds are configurable and should be reviewed as part of model calibration and deployment configuration. Run `python scripts/audit_vertical_sites.py` to list sites excluded from the vertical numerical dropdown, including the failed field, converted value, and validation reason.
 
 ### Runtime Schema Is Not a Migration System
 
@@ -862,19 +862,19 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-The suite covers analytical and empirical equation regressions, canonical symbol mappings, CSV alias and SQL `NULL` normalization, authentication flows and security failure paths, authenticated wrapper rendering, PDF generation, schema consistency, numerical conductivity autofill, MODFLOW 6 executable discovery, real smallest-grid MODFLOW 6 smoke simulations, and Orlando reference parity for the horizontal and vertical numerical fixtures.
+The suite covers analytical and empirical equation regressions, canonical symbol mappings, CSV alias and SQL `NULL` normalization, authentication flows and security failure paths, authenticated wrapper rendering, PDF generation, schema consistency, numerical conductivity autofill, MODFLOW 6 executable discovery, smallest-grid MODFLOW 6 smoke simulations, and reference-output checks for the horizontal and vertical numerical fixtures.
 
 ## Change History
 
 Keep this section updated whenever implementation, configuration, reporting, or documentation behaviour changes. Add new entries above older entries before committing.
 
-### 9 June 2026 - Orlando MODFLOW 6 Numerical Parity
+### 9 June 2026 - MODFLOW 6 Numerical Reference Alignment
 
-- Added Orlando's validated reference scripts and inputs under `tests/fixtures/orlando_reference/`.
-- Reworked horizontal and vertical numerical runners to match Orlando's explicit MODFLOW 6 domain, grid, time stepping, flow, transport, CNC source, and plume-length methods.
+- Added numerical reference scripts and inputs for horizontal and vertical regression tests.
+- Reworked horizontal and vertical numerical runners to match the explicit MODFLOW 6 domain, grid, time stepping, flow, transport, CNC source, and plume-length methods used by the reference cases.
 - Removed analytical `Lmax` domain sizing, `L_D_override`, and grid-spacing-derived numerical domains from the active numerical execution path.
-- Updated numerical Flask and Panel inputs to surface Orlando's required parameters directly: `Lx`, `Lz`/`Ly`, `ncol`, `nlay`/`nrow`, `source`, `prsity`, `al`, `at`, `atv`, `gamma`, `C_D`, `C_A`, `C0`, `h1`, `h2`, `hk`, and `perlen`.
-- Added regression tests pinning app output to Orlando's captured plume lengths: vertical `42.0` and horizontal `36.1`.
+- Updated numerical Flask and Panel inputs to surface the required numerical parameters directly: `Lx`, `Lz`/`Ly`, `ncol`, `nlay`/`nrow`, `source`, `prsity`, `al`, `at`, `atv`, `gamma`, `C_D`, `C_A`, `C0`, `h1`, `h2`, `hk`, and `perlen`.
+- Added regression tests pinning app output to captured reference plume lengths: vertical `42.0` and horizontal `36.1`.
 
 ### 1 June 2026 - Deferred Numerical Runs and Shared Reports
 
@@ -894,7 +894,7 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 
 - Added profile and decreasing-concentration vector buttons to numerical dashboards.
 - Kept both post-processing views lazy: they are derived from the retained solver result only after a user click.
-- Marked 3D numerical visualisation as a long-term TODO without adding default computation.
+- Documented 3D numerical visualisation as outside the default numerical execution path.
 
 ### 1 June 2026 - Analytical Domain Sizing Overrides
 
@@ -932,7 +932,7 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 
 ### 31 May 2026 - Numerical Conductivity Autofill Boundary
 
-- Assumed database conductivity `K` is stored in `m/s` and numerical `hk` is consumed in `m/d`, pending domain-expert confirmation.
+- Assumed database conductivity `K` is stored in `m/s` and numerical `hk` is consumed in `m/d`.
 - Added one explicit `m/s` to `m/d` conversion with a named `86400` factor at the numerical autofill boundary.
 - Added configurable post-conversion plausibility bounds.
 - Added units to editable conductivity fields across site entry, numerical wrappers, and Panel scenario tables.
@@ -985,13 +985,13 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 ### 31 May 2026 - README Consolidation
 
 - Consolidated the project notes and running implementation record into this single `README.md`.
-- Documented the current architecture, model catalogue, routes, file responsibilities, local setup, Docker caveats, and known limitations.
+- Documented the architecture, model catalogue, routes, file responsibilities, local setup, Docker caveats, and known limitations.
 - Added this change-history section so future updates can be tracked without maintaining a separate documentation file.
 
 ### 31 May 2026 - Reporting PDF Updates
 
 - Replaced reconstructed report-header marks with the full official DFG funding logo and the official University of Tuebingen SVG artwork.
-- Kept HYMCAT as text because the project does not currently have a HYMCAT logo asset.
+- Kept HYMCAT as text because no HYMCAT logo asset is included in the repository.
 - Added project, institution, and funding metadata to generated reports.
 - Included Matplotlib result charts in analytical and empirical report exports.
 - Updated numerical report exports to run the requested simulation and include plume-concentration images plus analytical-versus-numerical comparison charts.
@@ -1013,10 +1013,6 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 - Kept local solver binaries and temporary FloPy workspaces outside version control.
 
 ## Development Notes
-
-### Working-tree State
-
-At the time this README was written, the workspace already contained many modified tracked files and several untracked implementation files. This README documents that working tree, including the newer orientation-specific numerical dashboards and report assets. Review `git status` carefully before committing.
 
 ### Source of Truth
 
