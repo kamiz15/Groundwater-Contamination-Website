@@ -1,43 +1,102 @@
-import io
+import base64
+import html
+import json
 import logging
 
 import pandas as pd
 import panel as pn
 
 from numerical_jobs import fetch_result, job_status, submit_job
-from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
-from panel_numerical_optional_views import LazyNumericalViews
-from pdf_report import CASTReport
-from plot_functions import plot_vertical_plume_interactive
+from panel_analytical_common import error_card, info_card, query_float, query_int, query_str, summary_card
+from panel_theme import report_bridge_html
+from panel_numerical_animation import play_growth_once, stop_growth
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
 logger = logging.getLogger(__name__)
 
 
+def _result_extent(result, attr, grid):
+    value = getattr(result, attr, None)
+    if value is not None:
+        return float(value)
+    try:
+        return float(max(grid))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _post_result_jobs_html(job_ids, rows):
+    payload = {
+        "type": "numerical-multiple-result",
+        "orientation": "vertical",
+        "job_ids": list(job_ids),
+        "rows": rows,
+    }
+    encoded = html.escape(json.dumps(payload), quote=True)
+    return (
+        '<img src="data:," style="display:none" alt="" '
+        f'data-payload="{encoded}" '
+        "onerror='window.parent.postMessage(JSON.parse(this.dataset.payload), \"*\")'>"
+    )
+
+
+def _external_run_listener_html():
+    return """
+<img src="data:," style="display:none" alt="" onerror='
+if (!window.__castVerticalMultipleRunListener) {
+  window.__castVerticalMultipleRunListener = true;
+  window.addEventListener("message", function(event) {
+    var data = event.data;
+    if (!data || data.type !== "run-numerical-multiple" || data.orientation !== "vertical") return;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll("button"));
+    var button = buttons.find(function(node) {
+      return node.textContent && node.textContent.indexOf("Run Vertical Scenarios") !== -1;
+    });
+    if (button && !button.disabled) button.click();
+  });
+}
+'>
+"""
+
+
+def _rows_from_query():
+    raw = query_str("scenario_rows", "")
+    if not raw:
+        return []
+    try:
+        rows = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _job_ids_from_query():
+    raw = query_str("job_ids", "")
+    if not raw:
+        return []
+    try:
+        job_ids = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return [str(job_id) for job_id in job_ids] if isinstance(job_ids, list) else []
+
+
 def numerical_vertical_multiple_app():
+    input_only = bool(query_int("input_only", 0))
     table = pn.widgets.Tabulator(
         pd.DataFrame([
             {
-                "Lx": query_float("Lx", 200.0),
                 "Lz": query_float("Lz", query_float("M", 10.0)),
-                "ncol": query_int("ncol", 200),
-                "nlay": query_int("nlay", 20),
-                "alpha_L": query_float("al", 5.0),
-                "at": query_float("at", query_float("alpha_Th", 0.2)),
+                "grid_size": query_float("grid_size", 1.0),
+                "al": query_float("al", 1.0),
                 "atv": query_float("atv", query_float("alpha_Tv", 0.1)),
-                "K [m/d]": query_float("hk", 1.0),
-                "n": query_float("prsity", 0.3),
-                "h1": query_float("h1", 10.0),
-                "h2": query_float("h2", 9.0),
+                "gamma": query_float("gamma", 3.5),
                 "C_D": query_float("C_D", 5.0),
                 "C_A": query_float("C_A", 8.0),
-                "C0": query_float("C0", 8.0),
-                "gamma": query_float("gamma", 3.5),
-                "perlen": query_float("perlen", 100.0),
             }
         ]),
-        height=300,
+        height=95,
         sizing_mode="stretch_width",
         name="Vertical numerical scenarios",
     )
@@ -47,27 +106,16 @@ def numerical_vertical_multiple_app():
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=360)
     state = {}
     poller = {"callback": None}
-    optional_views = LazyNumericalViews(lambda: state.get("optional_view"))
+    anims = []  # list of one-shot growth holders for active scenario animations
 
-    def _pdf_callback():
-        if not state:
-            return io.BytesIO(b"")
-        report = CASTReport("Numerical Vertical Model - Multiple Simulation", "Numerical Vertical")
-        return io.BytesIO(report.generate(
-            state["parameters"],
-            state["outputs"],
-            plot_data=state.get("plot_data"),
-            plot_images=state.get("plot_images"),
-        ))
+    report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
+    job_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
+    run_listener = pn.pane.HTML(_external_run_listener_html(), height=0, margin=0, sizing_mode="fixed")
 
-    export_btn = pn.widgets.FileDownload(
-        callback=_pdf_callback,
-        filename="numerical_vertical_multiple_report.pdf",
-        label="Download PDF Report",
-        button_type="primary",
-        sizing_mode="stretch_width",
-        visible=False,
-    )
+    def _reset_anims():
+        for holder in anims:
+            stop_growth(holder)
+        anims.clear()
 
     def _stop_polling():
         run_btn.disabled = False
@@ -86,39 +134,53 @@ def numerical_vertical_multiple_app():
             title=f"{len(df)} Vertical Scenario(s) Complete",
         )
 
+        _reset_anims()
         new_graphs = []
         plot_images = []
+        scenario_rows = list(df.to_dict("records"))
         for idx, result in enumerate(results):
-            row = df.iloc[idx]
-            lx = float(row["Lx"])
-            lz = float(row["Lz"])
-            nlay = int(row["nlay"])
-            fig = plot_vertical_plume_interactive(
-                result.concentration,
-                result.x_grid,
-                result.z_grid,
-                result.plume_length,
-                lx,
-                max(lz - (lz / nlay), 0.0),
-                0.0,
-                0.0,
-                lz,
-            )
+            row = scenario_rows[idx]
             new_graphs.append(pn.pane.Markdown(
                 f"**Scenario {idx + 1}** - Lmax {result.plume_length:.2f} m",
                 sizing_mode="stretch_width",
             ))
-            new_graphs.append(pn.pane.Bokeh(fig, sizing_mode="stretch_width", min_height=430))
+            scenario_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
+            dom_len = _result_extent(result, "domain_length", result.x_grid)
+            # porosity / K / gradient are model defaults for the multiple run (not
+            # exposed in the scenario table), so the footer reflects those.
+            footer_meta = (
+                f"L_D = {dom_len:.2f} m  |  Δx=Δz = {float(row['grid_size']):.2f} m  |  "
+                f"porosity = 0.30  |  K = 8.64 m/d  |  gradient = 0.0125  |  "
+                f"Péclet = {getattr(result, 'peclet', 0.0):.2f}  |  Courant target = 5"
+            )
+            holder = play_growth_once(
+                scenario_pane,
+                dict(
+                    concentration=result.concentration,
+                    x_grid=result.x_grid,
+                    cross_grid=result.z_grid,
+                    ca=float(row["C_A"]),
+                    cd=float(row["C_D"]),
+                    gamma=float(row["gamma"]),
+                    plume_length=result.plume_length,
+                    domain_length=dom_len,
+                    cross_extent=_result_extent(result, "aquifer_thickness", result.z_grid),
+                    orientation="vertical",
+                    footer_meta=footer_meta,
+                ),
+            )
+            anims.append(holder)
+            new_graphs.append(scenario_pane)
             if result.plot_png:
                 plot_images.append({
                     "title": f"Vertical Plume Concentration (Scenario {idx + 1})",
                     "bytes": result.plot_png,
+                    "max_height_mm": 52,
                     "caption": f"Simulated contaminant plume - scenario {idx + 1}, vertical cross-section.",
                 })
         graphs_column.objects = new_graphs
         logger.info("Vertical multiple graphs_column populated with %d scenario(s)", len(results))
 
-        first_result = results[0]
         state.update({
             "parameters": [{"symbol": "Rows", "name": "Scenario Count", "value": len(df), "unit": "-"}],
             "outputs": outputs,
@@ -129,46 +191,55 @@ def numerical_vertical_multiple_app():
                 "title": "Vertical Numerical",
             },
             "plot_images": plot_images,
-            "optional_view": {
-                "concentration": first_result.concentration,
-                "x_grid": first_result.x_grid,
-                "cross_grid": first_result.z_grid,
-                "cross_axis_label": "Aquifer Thickness [m]",
-                "title": "Vertical Numerical Model - Scenario 1",
-            },
         })
-        export_btn.visible = True
+        report_bridge.object = report_bridge_html(
+            "Numerical Vertical Model - Multiple Simulation", "Numerical Vertical",
+            "numerical_vertical_multiple_report.pdf",
+            parameters=state["parameters"], outputs=state["outputs"],
+            plot_data=state.get("plot_data"),
+            plot_images_b64=[
+                {
+                    "title": img["title"],
+                    "caption": img.get("caption", ""),
+                    "b64": base64.b64encode(img["bytes"]).decode(),
+                    "max_height_mm": img.get("max_height_mm", 52),
+                }
+                for img in (state.get("plot_images") or [])
+            ],
+        )
 
     def _run(_=None):
-        state.pop("optional_view", None)
-        optional_views.reset()
+        _reset_anims()
         run_btn.disabled = True
         run_btn.name = "Running Vertical Scenarios..."
         graphs_column.objects = []
         comparison_pane.object = None
-        export_btn.visible = False
+        report_bridge.object = report_bridge_html(clear=True)
         try:
             df = pd.DataFrame(table.value)
+            scenario_rows = [
+                {
+                    "Lz": float(row["Lz"]),
+                    "grid_size": float(row["grid_size"]),
+                    "al": float(row["al"]),
+                    "atv": float(row["atv"]),
+                    "gamma": float(row["gamma"]),
+                    "C_D": float(row["C_D"]),
+                    "C_A": float(row["C_A"]),
+                }
+                for _idx, row in df.iterrows()
+            ]
             job_ids = [
                 submit_job("vertical_single", {
-                    "Lx": float(row["Lx"]),
-                    "Ly": float(row["Lz"]),
-                    "ncol": int(row["ncol"]),
-                    "nrow": int(row["nlay"]),
-                    "prsity": float(row["n"]),
-                    "al": float(row["alpha_L"]),
-                    "av": float(row["atv"]),
-                    "gamma": float(row["gamma"]),
-                    "cd": float(row["C_D"]),
-                    "ca": float(row["C_A"]),
-                    "h1": float(row["h1"]),
-                    "h2": float(row["h2"]),
-                    "hk": float(row["K [m/d]"]),
-                    "perlen": float(row["perlen"]),
-                    "plume_threshold": float(row["C0"]),
-                    "ath": float(row["at"]),
+                    "Lz": row["Lz"],
+                    "grid_size": row["grid_size"],
+                    "al": row["al"],
+                    "atv": row["atv"],
+                    "gamma": row["gamma"],
+                    "cd": row["C_D"],
+                    "ca": row["C_A"],
                 })
-                for _idx, row in df.iterrows()
+                for row in scenario_rows
             ]
 
             def _poll():
@@ -185,7 +256,14 @@ def numerical_vertical_multiple_app():
                     result_pane.object = error_card(failed.get("error") or "A numerical scenario failed.")
                     _stop_polling()
                 elif all(status["status"] == "done" for status in statuses):
-                    _render_completed_results(df, [fetch_result(job_id) for job_id in job_ids])
+                    if input_only:
+                        result_pane.object = summary_card(
+                            [("Completed scenarios", str(len(job_ids)))],
+                            title="Vertical Scenario Jobs Complete",
+                        )
+                        job_bridge.object = _post_result_jobs_html(job_ids, scenario_rows)
+                    else:
+                        _render_completed_results(df, [fetch_result(job_id) for job_id in job_ids])
                     _stop_polling()
 
             poller["callback"] = pn.state.add_periodic_callback(_poll, 2000, start=True)
@@ -195,23 +273,54 @@ def numerical_vertical_multiple_app():
             result_pane.object = error_card(exc)
             graphs_column.objects = []
             comparison_pane.object = None
-            export_btn.visible = False
+            report_bridge.object = report_bridge_html(clear=True)
             _stop_polling()
 
     run_btn.on_click(_run)
+    if input_only:
+        run_btn.height = 0
+        run_btn.margin = 0
+        run_btn.styles = {
+            "height": "0",
+            "min-height": "0",
+            "overflow": "hidden",
+            "opacity": "0",
+            "pointer-events": "none",
+            "position": "absolute",
+            "left": "-9999px",
+        }
+        return pn.Column(
+            "## Vertical Numerical Model - Multiple",
+            table,
+            run_btn,
+            job_bridge,
+            run_listener,
+            sizing_mode="stretch_width",
+            styles={"gap": "8px"},
+        )
+
     if query_int("output_only", 0):
-        if query_int("run", 0):
+        job_ids = _job_ids_from_query()
+        rows = _rows_from_query()
+        if job_ids:
+            try:
+                results = [fetch_result(job_id) for job_id in job_ids]
+                _render_completed_results(pd.DataFrame(rows), results)
+            except Exception as exc:
+                logger.exception("Vertical numerical scenario results could not be loaded")
+                result_pane.object = error_card(exc)
+        elif query_int("run", 0):
             _run()
-        return pn.Column(result_pane, graphs_column, comparison_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
+        else:
+            result_pane.object = info_card("Run vertical scenarios to display the generated graphs.")
+        return pn.Column(result_pane, graphs_column, report_bridge, sizing_mode="stretch_width", styles={"gap": "14px"})
     return pn.Column(
         "## Vertical Numerical Model - Multiple",
         table,
         run_btn,
         result_pane,
         graphs_column,
-        comparison_pane,
-        optional_views.panel,
-        export_btn,
+        report_bridge,
         sizing_mode="stretch_width",
         styles={"gap": "14px"},
     )

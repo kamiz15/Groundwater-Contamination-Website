@@ -12,6 +12,14 @@ def run_payload(kind: str, params: dict):
         return run_numerical_model_horizontal(**params)
     if kind == "vertical_single":
         return run_numerical_model(**params)
+    if kind == "aem_forward":
+        # Imported lazily so the heavy AEM/matplotlib stack only loads when an
+        # AEM job actually runs (keeps numerical worker startup light).
+        from aem_jobs import run_aem_forward
+        return run_aem_forward(params)
+    if kind == "aem_inverse":
+        from aem_jobs import run_aem_inverse
+        return run_aem_inverse(params)
     raise ValueError(f"Unsupported numerical job kind: {kind}")
 
 

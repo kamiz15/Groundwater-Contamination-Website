@@ -15,6 +15,7 @@ from numerical_models import (
     run_numerical_model,
     run_numerical_model_horizontal,
 )
+from analytical_models import cirpka_2005, cirpka_domain_length
 
 
 def test_solver_resolution_uses_configured_executable(monkeypatch, tmp_path):
@@ -82,122 +83,89 @@ def test_solver_timeout_terminates_external_process(monkeypatch, tmp_path):
         _checked_run_sim(FakeSimulation(), "MF6 test")
 
 
-def test_tiny_horizontal_modflow6_smoke_produces_plume_length_and_concentration():
-    solver = Path(_mf6_exe())
-    assert solver.exists(), f"Resolved MODFLOW 6 executable does not exist: {solver}"
+def _mf6_available():
+    import numerical_models as _nm
+    if _nm.flopy is None:
+        return False
+    try:
+        return Path(_mf6_exe()).exists()
+    except Exception:
+        return False
 
-    result = run_numerical_model_horizontal(
-        Lx=6.0,
-        A_W=4.0,
-        Sw=1.0,
-        ncol=6,
-        nrow=4,
-        prsity=0.3,
-        al=1.0,
-        alpha_Th=0.1,
-        gamma=3.5,
-        cd=0.2,
-        ca=8.0,
-        h1=10.0,
-        h2=9.0,
-        hk=1.0,
-        perlen=1.0,
-        plume_threshold=8.1,
-        source_col_index=1,
-    )
 
-    assert result.plume_length >= 0.0
-    assert result.concentration.shape == (4, 6)
-    assert np.isfinite(result.concentration).all()
+mf6_required = pytest.mark.skipif(not _mf6_available(), reason="MODFLOW 6 (mf6) not available")
 
 
 def test_balanced_source_buffers_fit_a_database_loaded_vertical_domain():
     assert balanced_source_buffers(3.5, 1.0) == pytest.approx((1.25, 1.25))
 
 
-def test_tiny_vertical_modflow6_smoke_produces_plume_length_and_concentration():
-    solver = Path(_mf6_exe())
-    assert solver.exists(), f"Resolved MODFLOW 6 executable does not exist: {solver}"
-
-    result = run_numerical_model(
-        Lx=6.0,
-        Ly=4.0,
-        ncol=6,
-        nrow=4,
-        prsity=0.3,
-        al=1.0,
-        av=0.1,
-        gamma=3.5,
-        cd=0.2,
-        ca=8.0,
-        h1=10.0,
-        h2=9.0,
-        hk=1.0,
-        vk=1.0,
-        source_thickness=1.0,
-        source_bottom_buffer=1.5,
-        perlen=1.0,
-        plume_threshold=8.1,
-    )
-
-    assert result.plume_length >= 0.0
-    assert result.concentration.shape == (4, 6)
-    assert np.isfinite(result.concentration).all()
+def test_cirpka_horizontal_analytical_domain_length_matches_orlando():
+    # Analytical only (no solver): Orlando's erfinv-based Cirpka L_D for the reference inputs.
+    lmax = cirpka_2005(Sw=5.0, Ath=0.2, Ca=8.0, Cd=5.0, Ga=3.5)
+    assert cirpka_domain_length(lmax) == pytest.approx(143.66, rel=0.01)
 
 
-def test_orlando_vertical_reference_fixture_matches_expected_plume_length():
-    row = pd.read_csv(
-        Path("tests/fixtures/orlando_reference/input_vertical.csv"),
-        delimiter=";",
-        decimal=".",
-    ).iloc[0]
-
-    result = run_numerical_model(
-        Lx=float(row["Lx"]),
-        Ly=float(row["Lz"]),
-        ncol=int(row["ncol"]),
-        nrow=int(row["nlay"]),
-        prsity=float(row["prsity"]),
-        al=float(row["al"]),
-        av=float(row["atv"]),
-        gamma=float(row["gamma"]),
-        cd=float(row["Cd"]),
-        ca=float(row["Ca"]),
-        h1=float(row["h1"]),
-        h2=float(row["h2"]),
-        hk=float(row["hk"]),
-        perlen=100.0,
-        plume_threshold=8.0,
-        ath=float(row["at"]),
-    )
-
-    assert result.plume_length == pytest.approx(42.0, rel=0.01)
-
-
-def test_orlando_horizontal_reference_fixture_matches_expected_plume_length():
-    row = pd.read_csv(
-        Path("tests/fixtures/orlando_reference/input2.csv"),
-        delimiter=";",
-        decimal=".",
-    ).iloc[0]
-
+@mf6_required
+def test_tiny_horizontal_modflow6_smoke_produces_plume_length_and_concentration():
     result = run_numerical_model_horizontal(
-        Lx=float(row["Lx"]),
-        A_W=float(row["Ly"]),
-        Sw=float(row["source"]),
-        ncol=int(row["ncol"]),
-        nrow=int(row["nrow"]),
-        prsity=float(row["prsity"]),
-        al=float(row["al"]),
-        alpha_Th=float(row["at"]),
-        gamma=float(row["gamma"]),
-        cd=float(row["Cd"]),
-        ca=float(row["Ca"]),
-        h1=float(row["h1"]),
-        h2=float(row["h2"]),
-        hk=float(row["hk"]),
-        perlen=100.0,
-        plume_threshold=8.0,
+        source_thickness=2.0, grid_size=1.0, al=1.0, at=0.5,
+        gamma=3.5, cd=5.0, ca=8.0,
     )
+    assert result.plume_length >= 0.0
+    assert result.concentration.ndim == 2
+    assert np.isfinite(result.concentration).all()
+    assert result.domain_length > 0.0
+    assert result.peclet > 0.0
 
-    assert result.plume_length == pytest.approx(36.1, rel=0.01)
+
+@mf6_required
+def test_tiny_vertical_modflow6_smoke_produces_plume_length_and_concentration():
+    result = run_numerical_model(
+        Lz=4.0, grid_size=1.0, al=1.0, atv=0.5,
+        gamma=3.5, cd=5.0, ca=8.0,
+    )
+    assert result.plume_length >= 0.0
+    assert result.concentration.ndim == 2
+    assert np.isfinite(result.concentration).all()
+    assert result.domain_length > 0.0
+    assert result.aquifer_thickness == pytest.approx(4.0)
+
+
+@mf6_required
+def test_orlando_horizontal_reference_runs_and_sizes_domain():
+    row = pd.read_csv(
+        Path("tests/fixtures/orlando_reference/input_horizontal_W.csv"),
+        delimiter=";", decimal=".",
+    ).iloc[0]
+    result = run_numerical_model_horizontal(
+        source_thickness=float(row["source_thickness"]),
+        grid_size=float(row["grid_size"]),
+        al=float(row["al"]), at=float(row["at"]),
+        gamma=float(row["gamma"]), cd=float(row["Cd"]), ca=float(row["Ca"]),
+    )
+    assert result.domain_length == pytest.approx(143.66, rel=0.02)
+    assert result.x_grid[0] == pytest.approx(0.5)
+    assert result.x_grid[-1] == pytest.approx(142.5)
+    assert result.y_grid[0] == pytest.approx(0.5)
+    assert result.y_grid[-1] == pytest.approx(49.5)
+    # Matches horizontal_W (2).py: contour over extent=[0, ncol*delr, 0, nrow*delc].
+    assert result.plume_length == pytest.approx(118.31, rel=0.03)  # real MODFLOW 6.7.0 run
+
+
+@mf6_required
+def test_orlando_vertical_reference_runs_and_sizes_domain():
+    row = pd.read_csv(
+        Path("tests/fixtures/orlando_reference/input_vertical_W.csv"),
+        delimiter=";", decimal=".",
+    ).iloc[0]
+    result = run_numerical_model(
+        Lz=float(row["Lz"]), grid_size=float(row["grid_size"]),
+        al=float(row["al"]), atv=float(row["atv"]),
+        gamma=float(row["gamma"]), cd=float(row["Cd"]), ca=float(row["Ca"]),
+    )
+    assert result.domain_length == pytest.approx(688.50, rel=0.02)
+    # Cell-centered grid coordinates (matching vertical_W.py's extent mapping):
+    # the plume length now agrees with the reference script (513.6 m) instead of
+    # the previously stretched 514.21 m.
+    assert result.plume_length == pytest.approx(513.6, rel=0.03)  # real MODFLOW 6.7.0 run

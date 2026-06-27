@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from typing import Iterable, List
 
-from scipy.special import erf, erfcinv
+from scipy.special import erf, erfinv
 
 
 # -------------------------
@@ -182,7 +182,8 @@ def cirpka_2005(Sw: float = 10, Ath: float = 0.1, Ca: float = 8, Cd: float = 5, 
         raise ValueError("Ga * Cd + Ca must be positive")
 
     cf = Ca / (Ga * Cd + Ca)
-    Lm = (Sw ** 2) / (16.0 * Ath * erfcinv(cf) ** 2)
+    # Orlando's numerical model uses erfinv (not erfcinv) -> matches horizontal_W.py
+    Lm = (Sw ** 2) / (16.0 * Ath * erfinv(cf) ** 2)
     return float(Lm)
 
 

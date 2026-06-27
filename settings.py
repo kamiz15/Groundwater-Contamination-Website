@@ -34,9 +34,20 @@ def _required_env(name: str) -> str:
 
 
 SECRET_KEY = _required_env('SECRET_KEY')
-FLASK_DEBUG = _env_bool('FLASK_DEBUG', True)
+# Default OFF: debug mode exposes the interactive Werkzeug debugger (remote code
+# execution) and verbose tracebacks. Must be explicitly opted into for local dev.
+FLASK_DEBUG = _env_bool('FLASK_DEBUG', False)
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
 FLASK_PORT = int(os.getenv('FLASK_PORT', '5000'))
+# Send the session cookie only over HTTPS. Default ON; set to false for plain-HTTP
+# local development so the login cookie is still accepted.
+SESSION_COOKIE_SECURE = _env_bool('SESSION_COOKIE_SECURE', True)
+# Trust the reverse proxy's X-Real-IP header for client identification (rate
+# limiting). The bundled nginx sets it to the real client and overwrites any
+# client-supplied value. Disable only if Flask is exposed without that proxy.
+TRUST_PROXY_HEADERS = _env_bool('TRUST_PROXY_HEADERS', True)
+DEMO_BYPASS_LOGIN = _env_bool('DEMO_BYPASS_LOGIN', False)
+DEMO_USER_EMAIL = os.getenv('DEMO_USER_EMAIL', 'demo@example.com')
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = int(os.getenv('DB_PORT', '3306'))
@@ -52,6 +63,18 @@ PANEL_ALLOW_ORIGINS = _env_csv(
     'PANEL_ALLOW_ORIGINS',
     'localhost:5007,127.0.0.1:5007,localhost:5000,127.0.0.1:5000',
 )
+# When the Panel service runs standalone (no reverse proxy injecting the trusted
+# X-Auth-Email header), allow it to fall back to the ?email= query parameter so
+# local development still shows field-comparison overlays. Default OFF so that a
+# proxied production deployment never trusts a client-controllable identity.
+PANEL_TRUST_QUERY_EMAIL = _env_bool('PANEL_TRUST_QUERY_EMAIL', False)
+
+# Cap the number of site rows accepted in a single CSV upload, to bound the
+# work and storage a single request can trigger.
+MAX_SITE_UPLOAD_ROWS = int(os.getenv('MAX_SITE_UPLOAD_ROWS', '10000'))
+# Hard cap on request body size (bytes). Matches the nginx client_max_body_size
+# so large uploads are rejected before exhausting memory.
+MAX_REQUEST_BYTES = int(os.getenv('MAX_REQUEST_BYTES', str(50 * 1024 * 1024)))
 
 MF6_EXE = os.getenv('MF6_EXE', '')
 NUMERICAL_MAX_CELLS = int(os.getenv('NUMERICAL_MAX_CELLS', os.getenv('MAX_GRID_CELLS', '40000')))

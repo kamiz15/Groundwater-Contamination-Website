@@ -1,12 +1,13 @@
 import panel as pn
 
+from panel_auth import authenticated_email
+
 from analytical_models import cirpka_domain_length, cirpka_lmax
 from panel_analytical_common import (
     comparison_plot,
     error_card,
     query_float,
     query_int,
-    query_str,
     summary_card,
 )
 
@@ -19,7 +20,7 @@ def cirpka_single_app():
     ca = query_float("C_A", 8.0)
     cd = query_float("C_D", 5.0)
     gamma = query_float("gamma", 3.5)
-    email = query_str("email", "")
+    email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
 
     result_pane = pn.pane.HTML(sizing_mode="stretch_width")

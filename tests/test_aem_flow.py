@@ -1,0 +1,309 @@
+from contextlib import ExitStack
+import json
+import re
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+
+import aem_routes
+import app as app_module
+from aem_jobs import build_config, load_aem_design, save_aem_design
+from aem_source_geometry import greedy_circle_pack
+from aem.at_simulation import ATSimulation
+
+
+VALID_CONFIG = {
+    "alpha_l": 2.0, "alpha_t": 0.2, "ca": 8.0, "gamma": 3.5,
+    "dom_xmin": 0.0, "dom_xmax": 300.0, "dom_ymin": -20.0,
+    "dom_ymax": 20.0, "dom_inc": 1.0, "num_cp": 40, "num_terms": 5,
+    "orientation": "vertical",
+    "elements": [{"kind": "circle", "x": 0.1, "y": 1.0, "c": 10.0, "r": 0.02}],
+}
+
+
+@pytest.fixture
+def aem_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
+    previous = app_module.app.config.get("LOGIN_DISABLED", False)
+    app_module.app.config.update(TESTING=True, LOGIN_DISABLED=True)
+    with patch.object(aem_routes, "_current_email", return_value="user@example.com"):
+        yield app_module.app.test_client()
+    app_module.app.config["LOGIN_DISABLED"] = previous
+
+
+def _csrf_token(client):
+    page = client.get("/aem").get_data(as_text=True)
+    return re.search(r'data-csrf="([^"]+)"', page).group(1)
+
+
+def _post(client, path, **kwargs):
+    headers = dict(kwargs.pop("headers", {}), **{"X-CSRF-Token": _csrf_token(client)})
+    return client.post(path, headers=headers, **kwargs)
+
+
+def test_aem_pages_are_native_and_navigation_has_one_entry(aem_client):
+    home = aem_client.get("/").get_data(as_text=True)
+    designer = aem_client.get("/aem").get_data(as_text=True)
+
+    assert home.count(">AEM Model<") == 1
+    assert "aem.js" in designer
+    assert "<canvas" in designer
+    assert "<iframe" not in designer
+    assert "panel_aem" not in designer
+
+
+def test_panel_server_keeps_non_aem_apps_and_has_no_aem_registration():
+    source = Path("panel_server.py").read_text(encoding="utf-8")
+
+    assert "panel_aem" not in source
+    assert '"panel_liedl_single"' in source
+    assert '"panel_numerical_horizontal_single"' in source
+
+
+def test_native_client_contract_covers_csrf_import_export_and_axis_rendering():
+    source = Path("static/aem.js").read_text(encoding="utf-8")
+
+    assert '"X-CSRF-Token": root.dataset.csrf' in source
+    assert 'id="aem-import"' in Path("templates/aem_designer.html").read_text(encoding="utf-8")
+    assert "JSON.parse(await importInput.files[0].text())" in source
+    assert 'link.download = "source_config.json"' in source
+    assert "Math.min(rect.width / xspan, rect.height / yspan)" in source
+    assert '"Full simulation domain"' in source
+    assert "result.xaxis[0]" in source and "result.yaxis[0]" in source
+    assert "(1 - py / (bufH - 1 || 1)) * (rows - 1)" in source   # bottom-up field flip
+    assert 'ctx.fillText("x (m)"' in source                       # matplotlib-style axis label
+    assert "DONOR_BANDS" in source                                # discrete contour bands
+    assert "drawing.push(snapDrawPoint(point))" in source
+    assert "selected = match ? {p: selected.p, c: match.index} : null" in source
+
+
+def _run_aem_js(expression):
+    script = (
+        "const h=require('./static/aem.js');"
+        f"console.log(JSON.stringify({expression}));"
+    )
+    result = subprocess.run(
+        ["node", "-e", script], cwd=Path.cwd(), check=True,
+        capture_output=True, text=True,
+    )
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize(("point", "expected"), [
+    ([0.124, 0.126], [0.1, 0.15]),
+    ([0.075, 0.175], [0.05, 0.15]),
+    ([0.125, 0.125], [0.1, 0.1]),
+    ([-0.04, -0.02], [0, 0]),
+    ([0.54, 0.01], [0.5, 0]),
+])
+def test_native_draw_snaps_and_clamps_like_reference(point, expected):
+    assert _run_aem_js(f"h.snapDrawPoint({json.dumps(point)})") == expected
+
+
+def test_native_exact_negative_halves_use_python_even_parity_before_clamp():
+    assert _run_aem_js("[h.roundHalfEven(-1.5),h.roundHalfEven(-2.5)]") == [-2, -2]
+
+
+def test_repack_reselects_changed_circle_after_earlier_neighbor_removed():
+    circles = [
+        {"x": 0.2, "y": 0.2, "r": 0.04, "c": 10},
+        {"x": 0.35, "y": 0.2, "r": 0.02, "c": 8},
+    ]
+    expression = (
+        "(()=>{const circles=" + json.dumps(circles) + ";"
+        "const selected=h.reselectCircle(circles,{x:0.35,y:0.2});"
+        "selected.circle.c+=2;return {index:selected.index,circles};})()"
+    )
+
+    result = _run_aem_js(expression)
+
+    assert result["index"] == 1
+    assert result["circles"][0]["c"] == 10
+    assert result["circles"][1]["c"] == 10
+
+
+def test_repack_clears_selection_when_changed_circle_is_missing():
+    assert _run_aem_js("h.reselectCircle([{x:0.1,y:0.1}],{x:0.2,y:0.2})") is None
+
+
+def test_reference_greedy_pack_output_is_stable():
+    circles = greedy_circle_pack(
+        [(0, 0), (0.03, 0), (0.03, 0.03), (0, 0.03)], 10, 3
+    )
+
+    assert [{key: float(value) for key, value in circle.items()} for circle in circles] == [
+        {"x": 0.009, "y": 0.009, "r": 0.0075, "c": 10.0},
+        {"x": 0.021, "y": 0.021, "r": 0.0075, "c": 10.0},
+        {"x": 0.009, "y": 0.021, "r": 0.0045, "c": 10.0},
+    ]
+
+
+def test_pack_endpoint_matches_reference_algorithm(aem_client):
+    vertices = [[0, 0], [0.03, 0], [0.03, 0.03], [0, 0.03]]
+    response = _post(aem_client,
+        "/aem/api/pack",
+        json={"vertices": vertices, "default_c": 10, "max_circles": 3},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["circles"] == [
+        {key: float(value) for key, value in circle.items()}
+        for circle in greedy_circle_pack(vertices, 10, 3)
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload, message",
+    [
+        ({"vertices": [[0, 0], [1, 1]]}, "3 to 128"),
+        ({"vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]}, "too large"),
+        ({"vertices": [[0, 0], [0.03, 0], [0, 0.03]], "max_circles": 81}, "at most 80"),
+    ],
+)
+def test_pack_endpoint_rejects_unbounded_work(aem_client, payload, message):
+    response = _post(aem_client, "/aem/api/pack", json=payload)
+
+    assert response.status_code == 400
+    assert message in response.get_json()["message"]
+
+
+def test_design_validation_and_owner_bound_token(aem_client):
+    response = _post(aem_client, "/aem/api/design", json={"config": VALID_CONFIG})
+    body = response.get_json()
+
+    assert response.status_code == 201
+    assert body["forward_url"].endswith(body["design"])
+    expected = {
+        "alpha_l": 2.0, "alpha_t": 0.2, "ca": 8.0, "gamma": 3.5,
+        "dom_xmin": -1.92, "dom_xmax": 150.1, "dom_ymin": -5.19,
+        "dom_ymax": 0.0, "dom_inc": 1.0, "num_cp": 40, "num_terms": 5,
+        "orientation": "vertical", "plot_aspect": "",
+        "elements": [{"kind": "circle", "x": 0.1, "y": -0.17,
+                      "c": 10.0, "r": 0.02, "id": "source_0"}],
+    }
+    assert load_aem_design(body["design"], "user@example.com") == expected
+    assert load_aem_design(body["design"], "other@example.com") is None
+
+
+def test_design_rejects_missing_elements_and_oversized_payload(aem_client):
+    invalid = _post(aem_client, "/aem/api/design", json={"config": VALID_CONFIG | {"elements": []}})
+    excessive_grid = _post(aem_client,
+        "/aem/api/design",
+        json={"config": VALID_CONFIG | {"dom_inc": 0.0001}},
+    )
+    oversized = _post(aem_client,
+        "/aem/api/design", data=b"x" * (aem_routes.MAX_JSON_BYTES + 1),
+        content_type="application/json",
+    )
+
+    assert invalid.status_code == 400
+    assert "grid exceeds" in excessive_grid.get_json()["message"]
+    assert oversized.status_code == 400
+
+
+@pytest.mark.parametrize("vertices", [
+    [[0, 0], [0.04, 0.04], [0, 0.04], [0.04, 0]],
+    [[0, 0], [0.02, 0.02], [0.04, 0.04]],
+])
+def test_pack_rejects_invalid_or_zero_area_polygon(aem_client, vertices):
+    response = _post(aem_client, "/aem/api/pack", json={"vertices": vertices})
+
+    assert response.status_code == 400
+    assert "Polygon must be valid" in response.get_json()["message"]
+
+
+def test_reference_config_round_trips_exact_schema(aem_client):
+    first = _post(aem_client, "/aem/api/design", json={"config": VALID_CONFIG}).get_json()
+    saved = load_aem_design(first["design"], "user@example.com")
+    second = _post(aem_client, "/aem/api/design", json={"config": saved}).get_json()
+
+    assert load_aem_design(second["design"], "user@example.com") == saved
+
+
+def test_default_vertical_config_satisfies_real_solver_geometry_guard():
+    validated = aem_routes._validated_config(VALID_CONFIG)
+    config = build_config({"config_json": validated})
+    simulation = ATSimulation(config)
+
+    assert simulation.config.orientation == "vertical"
+    assert simulation.config.dom_ymax == 0.0
+    assert all(element.y < -(element.r * __import__("math").sin(element.theta) + 0.1)
+               for element in simulation.config.elements)
+    for element in simulation.config.elements:
+        element.calc_d_q(config.alpha_t, config.alpha_l, config.beta)
+        element.set_outline(config.num_cp)
+        assert len(element.outline) == config.num_cp
+
+
+@pytest.mark.parametrize("path", [
+    "/aem/api/pack", "/aem/api/repack", "/aem/api/design",
+    "/aem/api/forward", "/aem/api/inverse", "/aem/jobs/job-1/cancel",
+])
+def test_aem_mutations_require_csrf(aem_client, path):
+    assert aem_client.post(path, json={}).status_code == 400
+
+
+def test_forward_submission_uses_owner_design_and_existing_queue(aem_client, monkeypatch):
+    token = save_aem_design("user@example.com", VALID_CONFIG)
+    saved = {}
+    monkeypatch.setattr(aem_routes, "submit_job", lambda kind, params: saved.update(kind=kind, params=params) or "job-1")
+    monkeypatch.setattr(aem_routes, "save_job_meta", lambda job_id, meta: saved.update(job_id=job_id, meta=meta))
+
+    response = _post(aem_client, "/aem/api/forward", json={"design": token})
+
+    assert response.status_code == 202
+    assert saved["kind"] == "aem_forward"
+    assert saved["params"] == {"config_json": VALID_CONFIG}
+    assert saved["meta"] == {"email": "user@example.com", "kind": "aem_forward"}
+
+
+def test_forward_hides_another_users_design(aem_client):
+    token = save_aem_design("other@example.com", VALID_CONFIG)
+
+    assert aem_client.get(f"/aem/forward?design={token}").status_code == 404
+    assert _post(aem_client, "/aem/api/forward", json={"design": token}).status_code == 404
+
+
+def test_inverse_submission_uses_existing_queue(aem_client, monkeypatch):
+    saved = {}
+    monkeypatch.setattr(aem_routes, "submit_job", lambda kind, params: saved.update(kind=kind, params=params) or "job-2")
+    monkeypatch.setattr(aem_routes, "save_job_meta", lambda job_id, meta: saved.update(meta=meta))
+    response = _post(aem_client, "/aem/api/inverse", json={
+        "estimate_param": "alpha_t", "orientation": "horizontal", "elem_kind": "Circle",
+        "target_Lmax": 100, "r": 1, "C0": 5, "ca": 8, "gamma": 3.5,
+        "tolerance": 10, "lower_bound": "", "upper_bound": "",
+    })
+
+    assert response.status_code == 202
+    assert saved["kind"] == "aem_inverse"
+    assert saved["meta"]["kind"] == "aem_inverse"
+
+
+def test_owned_job_status_cancel_and_result(aem_client, monkeypatch):
+    meta = {"email": "user@example.com", "kind": "aem_forward"}
+    result = SimpleNamespace(
+        result=[[0.0, float("nan")]], xaxis=[0, 1], yaxis=[0], L_max=12.0,
+        ca=8.0, gamma=3.5, orientation="horizontal", num_elements=1,
+        interface_length=None, validation_passed=True,
+    )
+    monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: meta)
+    monkeypatch.setattr(aem_routes, "job_status", lambda _job_id: {"status": "done", "plume_length": 12.0})
+    monkeypatch.setattr(aem_routes, "cancel_job", lambda _job_id: True)
+    monkeypatch.setattr(aem_routes, "fetch_result", lambda _job_id: result)
+
+    assert aem_client.get("/aem/jobs/job-1").status_code == 200
+    assert _post(aem_client, "/aem/jobs/job-1/cancel", json={}).get_json()["success"] is True
+    payload = aem_client.get("/aem/jobs/job-1/result").get_json()["result"]
+    assert payload["field"] == [[0.0, None]]
+    assert payload["L_max"] == 12.0
+
+
+def test_job_endpoints_enforce_owner(aem_client, monkeypatch):
+    monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: {"email": "other@example.com", "kind": "aem_forward"})
+
+    assert aem_client.get("/aem/jobs/job-1").status_code == 404
+    assert aem_client.get("/aem/jobs/job-1/result").status_code == 404
+    assert _post(aem_client, "/aem/jobs/job-1/cancel", json={}).status_code == 404

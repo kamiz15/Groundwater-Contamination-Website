@@ -1,0 +1,29 @@
+=== CONFIGURATION PARAMETERS ===
+Number of elements: 1
+Number of terms: 5
+Domain increment: 1.0
+Alpha_t: 0.2
+Alpha_l: 2.0
+Beta: 0.25
+Gamma: 3.5
+Ca: 8.0
+Number of control points: 40
+Orientation: vertical
+Domain: x[-1.92, 150.1], y[-5.19, 0]
+
+=== ELEMENTS ===
+Element 1: kind=ATElementType.Circle, x=0.1, y=-0.17, r=0.02, c=10.0, id=source_0
+Element 2: kind=ATElementType.Circle, x=0.1, y=0.17, r=0.02, c=-10.0, id=image_source_0
+Element 3: kind=ATElementType.Line, x=0.1, y=0.0, r=0.02, theta=0.0, c=0.0, id=zero_source_0
+
+=== COMPUTATION INFO ===
+CPU Time [hh:mm:ss]: 0:00:31
+
+L_max: 2
+InterfaceLength: 2.093470 m
+
+=== ELEMENT BOUNDARY STATISTICS (4-point exact) ===
+Min1 = 9.999999336 mg/l
+Max1 = 9.999999872 mg/l
+Mean1 = 9.999999689 mg/l
+Std1 = 2.16e-07 mg/l

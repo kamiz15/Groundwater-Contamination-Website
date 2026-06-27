@@ -5,10 +5,6 @@
 
 {% block content %}
 
-<div class="home-bg-layer" aria-hidden="true">
-  <canvas class="home-bg-canvas"></canvas>
-</div>
-
 <!-- INTRO / HERO -->
 <section id="intro" class="hero">
   <div class="hero-text">
@@ -24,8 +20,8 @@
       data-blur-on-complete="onLandingTitleAnimationComplete"
     >Groundwater Contamination Assessment</h1>
     <p class="lead">
-      This interface presents toolboxes and documentation to assess groundwater quality, set up models,
-      and communicate results. Design is demo-only; content mirrors the previous site.
+      A research platform providing toolboxes and documentation to assess groundwater quality,
+      set up contaminant transport models, and communicate results.
     </p>
 
     <div class="hero-actions">
@@ -41,10 +37,20 @@
   </div>
 </section>
 
+<!-- AT A GLANCE -->
+<section class="stats-band" aria-label="Platform at a glance">
+  <div class="stat"><strong>6</strong><span>Assessment toolboxes</span></div>
+  <div class="stat"><strong>10+</strong><span>Transport models</span></div>
+  <div class="stat"><strong>3</strong><span>Modeling approaches</span></div>
+
+</section>
+
 <!-- GROUNDWATER ASSESSMENT TOOLBOXES -->
 <section id="gw-toolboxes" class="section-spaced">
   <header class="section-head">
-    <h2>Groundwater Assessment Toolboxes :</h2>
+    <span class="kicker">Toolboxes</span>
+    <h2>Groundwater Assessment Toolboxes</h2>
+    <p class="section-sub">A complete workflow — from site data to analytical, empirical and numerical contaminant transport models.</p>
   </header>
 
   <div class="tile-grid">
@@ -52,37 +58,44 @@
        class="tile"
        href="{{ url_for('site_bp.site_database') if current_user.is_authenticated else url_for('login_page') }}">
       <div class="tile-image tile-img-1"></div>
-      <div class="tile-label">SITE DATABASE<br>AND<br>MODEL INPUT</div>
+      <div class="tile-label">Site Database &amp; Model Input</div>
+      <p class="tile-desc">Manage site measurements and prepare validated input datasets for every model.</p>
+      <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
     <a id="model-analytical"
        class="tile"
        href="{{ url_for('analytical_bp.analytical_landing') }}">
       <div class="tile-image tile-img-2"></div>
-      <div class="tile-label">ANALYTICAL<br>MODELS</div>
+      <div class="tile-label">Analytical Models</div>
+      <p class="tile-desc">Closed-form plume solutions — Liedl 2D/3D, Chu, Ham, Cirpka, BIOSCREEN-AT.</p>
+      <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
     <a id="model-empirical"
       class="tile"
       href="{{ url_for('empirical_bp.empirical_landing') }}">
       <div class="tile-image tile-img-3"></div>
-      <div class="tile-label">EMPIRICAL<br>MODELS</div>
+      <div class="tile-label">Empirical Models</div>
+      <p class="tile-desc">Field-data correlations for plume length — Maier &amp; Grathwohl, Birla et al.</p>
+      <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
     <a id="model-numerical" class="tile" href="{{ url_for('numerical_bp.numerical_landing') }}">
       <div class="tile-image tile-img-4"></div>
-      <div class="tile-label">NUMERICAL<br>MODELS</div>
+      <div class="tile-label">Numerical Models</div>
+      <p class="tile-desc">MODFLOW-based flow &amp; transport simulations, horizontal and vertical setups.</p>
+      <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
-    <a id="model-optimization" class="tile" href="#" aria-disabled="true">
+    <a id="model-optimization" class="tile" href="{{ url_for('aem_bp.aem_landing') }}">
       <div class="tile-image tile-img-5"></div>
-      <div class="tile-label">OPTIMIZATION<br>TOOL</div>
+      <div class="tile-label">AEM Source Designer</div>
+      <p class="tile-desc">Parameter estimation and optimization workflows.</p>
+      <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
-    <a id="model-wqi" class="tile" href="#" aria-disabled="true">
-      <div class="tile-image tile-img-6"></div>
-      <div class="tile-label">WATER<br>QUALITY<br>INDEX</div>
-    </a>
+    
   </div>
 </section>
 
@@ -93,6 +106,7 @@
          alt="Contaminated stream" class="other-image">
 
     <div class="other-copy">
+      <span class="kicker">Partner Tools</span>
       <h2>Other water quality toolboxes</h2>
       <p>
         The links provide tools that can be used for computing different aspects related with the quality of water.
@@ -110,9 +124,10 @@
 
 <!-- DOCUMENTATION -->
 <section id="docs" class="docs section-spaced">
+  <span class="kicker">Documentation</span>
   <h2>User's guide & Documentation</h2>
   <p>The links below provide complete details required to use and develop the tools provided in this site. The suggested work-flow for using the tools is as follows:</p>
-  <ol>
+  <ol class="workflow-steps">
     <li>Start with the Database Toolbox</li>
     <li>Follow then to Analytical model Toolbox or Empirical model toolbox, and then</li>
     <li>Numerical model toolbox</li>

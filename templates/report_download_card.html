@@ -1,7 +1,17 @@
 {% if export_href %}
+{% if export_async %}
+<div class="card-like report-download-card" id="reportExportCard" data-csrf="{{ csrf_token() }}" hidden>
+  <div>
+    <h3>Report Export</h3>
+    <p class="small">Download the branded CAST PDF report for the latest simulation run.</p>
+  </div>
+  <button type="button" class="primary-btn" id="reportExportBtn">Download PDF Report</button>
+</div>
+{% else %}
 <div class="card-like report-download-card">
   <h3>Report Export</h3>
   <p class="small">Download the branded CAST PDF report for the current model results and input values.</p>
   <a class="primary-btn" href="{{ export_href }}">Download PDF Report</a>
 </div>
+{% endif %}
 {% endif %}

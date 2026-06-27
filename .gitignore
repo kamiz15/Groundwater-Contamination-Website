@@ -38,6 +38,10 @@ panel-temp/
 .numerical_jobs/
 tmpclaude-*/
 .modflow_bin/
+# Linux MODFLOW solver binaries (re-fetch with:
+# python -m flopy.utils.get_modflow --subset mf6 solvers/)
+solvers/*
+!solvers/.gitkeep
 
 tmpclaude-06ad-cwd
 

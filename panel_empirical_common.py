@@ -73,21 +73,21 @@ def load_field_points(email: str):
 
 def info_card(message: str) -> str:
     return f"""
-    <div style="background:#ffffff;border:1px solid #dce9f9;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(17,24,39,0.06);">
-      <div style="font-size:0.85rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#5b7a9a;margin-bottom:6px;">Result</div>
-      <div style="font-size:1rem;color:#1f2937;">{message}</div>
+    <div style="background:#eef1f5;border:1px solid #e3e8ef;border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,40,0.07);">
+      <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#5b6b7f;margin-bottom:6px;">Result</div>
+      <div style="font-size:1rem;color:#16212e;">{message}</div>
     </div>
     """
 
 
 def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simulation Result") -> str:
-    unit_html = f'<span style="font-size:1rem;font-weight:700;color:#3d82b6;">{unit}</span>' if unit else ''
+    unit_html = f'<span style="font-size:1rem;font-weight:700;color:#1f72cd;">{unit}</span>' if unit else ''
     return f"""
-    <div style="background:linear-gradient(135deg,#ffffff 0%,#f4f9ff 100%);border:1px solid #c4ddf5;border-radius:16px;padding:18px 20px;box-shadow:0 12px 28px rgba(17,24,39,0.08);">
-      <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#2f5f8f;margin-bottom:8px;">{title}</div>
+    <div style="background:#eef1f5;border:1px solid #e3e8ef;border-left:3px solid #1f72cd;border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,0.07);">
+      <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#5b6b7f;margin-bottom:8px;">{title}</div>
       <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-        <span style="font-size:1rem;font-weight:700;color:#24476b;">{label}</span>
-        <span style="font-size:1.9rem;font-weight:800;color:#163c66;line-height:1;">{value_text}</span>
+        <span style="font-size:1rem;font-weight:600;color:#5b6b7f;">{label}</span>
+        <span style="font-size:1.9rem;font-weight:800;color:#0b2c4f;line-height:1;">{value_text}</span>
         {unit_html}
       </div>
     </div>
@@ -96,12 +96,12 @@ def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simu
 
 def summary_card(items: list[tuple[str, str]], title: str = "Simulation Summary") -> str:
     blocks = "".join(
-        f'<div><span style="font-size:0.92rem;color:#5b7a9a;">{label}</span><div style="font-size:1.8rem;font-weight:800;color:#163c66;">{value}</div></div>'
+        f'<div><span style="font-size:0.85rem;color:#5b6b7f;">{label}</span><div style="font-size:1.7rem;font-weight:800;color:#0b2c4f;">{value}</div></div>'
         for label, value in items
     )
     return f"""
-    <div style="background:linear-gradient(135deg,#ffffff 0%,#f4f9ff 100%);border:1px solid #c4ddf5;border-radius:16px;padding:18px 20px;box-shadow:0 12px 28px rgba(17,24,39,0.08);">
-      <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#2f5f8f;margin-bottom:8px;">{title}</div>
+    <div style="background:#eef1f5;border:1px solid #e3e8ef;border-left:3px solid #1f72cd;border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,0.07);">
+      <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#5b6b7f;margin-bottom:8px;">{title}</div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;">{blocks}</div>
     </div>
     """
@@ -110,9 +110,9 @@ def summary_card(items: list[tuple[str, str]], title: str = "Simulation Summary"
 def error_card(message) -> str:
     message = user_safe_error(message)
     return f"""
-    <div style="background:#fff4f4;border:1px solid #f1b7b7;border-radius:14px;padding:16px 18px;box-shadow:0 8px 24px rgba(17,24,39,0.05);">
-      <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#9f2d2d;margin-bottom:6px;">Error</div>
-      <div style="font-size:0.98rem;color:#5f1d1d;">{message}</div>
+    <div style="background:#fef3f2;border:1px solid #f7c5c0;border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,40,0.05);">
+      <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#b42318;margin-bottom:6px;">Error</div>
+      <div style="font-size:0.98rem;color:#7a271a;">{message}</div>
     </div>
     """
 
@@ -128,7 +128,7 @@ def comparison_plot(title: str, manual_label: str, manual_x, manual_y, selected_
     if selected_site_id > 0:
         field_x, field_y = load_field_points(email)
         if field_x and field_y:
-            p.scatter(field_x, field_y, size=12, marker="circle", color="#7fb6e6", legend_label="Database plume length")
-    p.scatter(manual_x, manual_y, size=14 if len(manual_y) == 1 else 12, marker="circle", color="#163c66", legend_label=manual_label)
+            p.scatter(field_x, field_y, size=12, marker="circle", color="#5598e3", legend_label="Database plume length")
+    p.scatter(manual_x, manual_y, size=14 if len(manual_y) == 1 else 12, marker="circle", color="#0e3a69", legend_label=manual_label)
     p.legend.location = "top_right"
     return p

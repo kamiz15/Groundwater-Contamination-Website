@@ -16,8 +16,15 @@
   <div class="card-like">
     <h3>Upload Site Data (CSV)</h3>
     <p class="small">
-      Upload multiple sites at once. CSV must include headers:<br>
-      <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity, electron_donor, electron_acceptor_o2, electron_acceptor_no3</code>
+      Upload multiple sites at once. Any CSV works &mdash; column headers are read on upload and
+      matched to known model parameters, so each model&rsquo;s inputs are picked up automatically.
+      The table below forms its columns from whatever your file provides; recognized parameters get
+      their own typed column and autofill the model pages, while any unrecognized columns are kept
+      under their original names in &ldquo;Additional fields&rdquo;. Recognized headers (any
+      reasonable spelling/units, e.g. <code>Plume width[m]</code>):<br>
+      <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity,
+      electron_donor, electron_acceptor_o2, electron_acceptor_no3, alpha_Tv, alpha_Th, alpha_T,
+      gamma, epsilon, Cthres, R, Q, K_v, source_thickness</code>
     </p>
     <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -119,6 +126,10 @@
               {% for field, label in table_field_defs %}
                 <th>{{ label }}</th>
               {% endfor %}
+              {% for key in extra_field_keys %}
+                <th title="Extra column from your file (not a recognized model parameter)">{{ key }}</th>
+              {% endfor %}
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -127,6 +138,17 @@
                 {% for field, label in table_field_defs %}
                   <td>{{ s[field] }}</td>
                 {% endfor %}
+                {% for key in extra_field_keys %}
+                  {% set ev = (s.extra_data or {}).get(key) %}
+                  <td>{% if ev is not none and ev != '' %}{{ ev }}{% else %}<span class="small">&mdash;</span>{% endif %}</td>
+                {% endfor %}
+                <td>
+                  <form method="POST" action="{{ url_for('site_bp.delete_site_row', site_id=s.id) }}"
+                        onsubmit="return confirm('Delete site #{{ s.id }} ({{ s.site_unit }})?');">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="ghost-btn" title="Delete this row">Delete</button>
+                  </form>
+                </td>
               </tr>
             {% endfor %}
           </tbody>

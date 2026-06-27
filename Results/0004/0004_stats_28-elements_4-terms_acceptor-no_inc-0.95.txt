@@ -1,0 +1,162 @@
+=== CONFIGURATION PARAMETERS ===
+Number of elements: 28
+Number of terms: 4
+Domain increment: 0.95
+Alpha_t: 0.1901
+Alpha_l: 1.9001
+Beta: 0.2631440450502605
+Gamma: 3.4001
+Ca: 7.9001
+Number of control points: 39
+Orientation: horizontal
+Domain: x[-1.885, 150.3], y[-4.734, 5.479]
+
+=== ELEMENTS ===
+Element 1: kind=ATElementType.Circle, x=0.189, y=0.339, r=0.0375, c=9.901, id=src_0
+Element 2: kind=ATElementType.Circle, x=0.195, y=0.405, r=0.02828, c=9.901, id=src_1
+Element 3: kind=ATElementType.Circle, x=0.249, y=0.327, r=0.02369, c=9.901, id=src_2
+Element 4: kind=ATElementType.Circle, x=0.231, y=0.375, r=0.01581, c=9.901, id=src_3
+Element 5: kind=ATElementType.Circle, x=0.165, y=0.381, r=0.01013, c=9.901, id=src_4
+Element 6: kind=ATElementType.Circle, x=0.279, y=0.309, r=0.009, c=9.901, id=src_5
+Element 7: kind=ATElementType.Circle, x=0.159, y=0.399, r=0.00707, c=9.901, id=src_6
+Element 8: kind=ATElementType.Circle, x=0.225, y=0.309, r=0.00631, c=9.901, id=src_7
+Element 9: kind=ATElementType.Circle, x=0.249, y=0.357, r=0.00631, c=9.901, id=src_8
+Element 10: kind=ATElementType.Circle, x=0.231, y=0.351, r=0.00618, c=9.901, id=src_9
+Element 11: kind=ATElementType.Circle, x=0.159, y=0.309, r=0.00493, c=9.901, id=src_10
+Element 12: kind=ATElementType.Circle, x=0.201, y=0.441, r=0.00416, c=9.901, id=src_11
+Element 13: kind=ATElementType.Circle, x=0.159, y=0.369, r=0.00328, c=9.901, id=src_12
+Element 14: kind=ATElementType.Circle, x=0.225, y=0.393, r=0.00316, c=9.901, id=src_13
+Element 15: kind=ATElementType.Circle, x=0.249, y=0.369, r=0.00316, c=9.901, id=src_14
+Element 16: kind=ATElementType.Circle, x=0.261, y=0.351, r=0.00314, c=9.901, id=src_15
+Element 17: kind=ATElementType.Circle, x=0.165, y=0.303, r=0.003, c=9.901, id=src_16
+Element 18: kind=ATElementType.Circle, x=0.213, y=0.303, r=0.003, c=9.901, id=src_17
+Element 19: kind=ATElementType.Circle, x=0.237, y=0.303, r=0.003, c=9.901, id=src_18
+Element 20: kind=ATElementType.Circle, x=0.261, y=0.303, r=0.003, c=9.901, id=src_19
+Element 21: kind=ATElementType.Circle, x=0.267, y=0.303, r=0.003, c=9.901, id=src_20
+Element 22: kind=ATElementType.Circle, x=0.279, y=0.321, r=0.003, c=9.901, id=src_21
+Element 23: kind=ATElementType.Circle, x=0.291, y=0.303, r=0.003, c=9.901, id=src_22
+Element 24: kind=ATElementType.Circle, x=0.153, y=0.303, r=0.003, c=9.901, id=src_23
+Element 25: kind=ATElementType.Circle, x=0.153, y=0.315, r=0.003, c=9.901, id=src_24
+Element 26: kind=ATElementType.Circle, x=0.153, y=0.363, r=0.003, c=9.901, id=src_25
+Element 27: kind=ATElementType.Circle, x=0.153, y=0.375, r=0.003, c=9.901, id=src_26
+Element 28: kind=ATElementType.Circle, x=0.153, y=0.387, r=0.003, c=9.901, id=src_27
+
+=== COMPUTATION INFO ===
+CPU Time [hh:mm:ss]: 0:00:33
+
+L_max: 15
+InterfaceLength: 30.160899 m
+
+=== ELEMENT BOUNDARY STATISTICS (4-point exact) ===
+Min1 = 9.867934704 mg/l
+Max1 = 9.894186061 mg/l
+Mean1 = 9.88594172 mg/l
+Std1 = 0.010619327 mg/l
+Min2 = 9.896347686 mg/l
+Max2 = 9.923124754 mg/l
+Mean2 = 9.912184783 mg/l
+Std2 = 0.010093035 mg/l
+Min3 = 9.897232288 mg/l
+Max3 = 9.900284335 mg/l
+Mean3 = 9.898872903 mg/l
+Std3 = 0.001401144 mg/l
+Min4 = 9.900441377 mg/l
+Max4 = 9.904585041 mg/l
+Mean4 = 9.90264326 mg/l
+Std4 = 0.001885886 mg/l
+Min5 = 9.894791162 mg/l
+Max5 = 9.905997795 mg/l
+Mean5 = 9.899409654 mg/l
+Std5 = 0.004135862 mg/l
+Min6 = 9.891004466 mg/l
+Max6 = 9.900922354 mg/l
+Mean6 = 9.894728739 mg/l
+Std6 = 0.003841032 mg/l
+Min7 = 9.899640537 mg/l
+Max7 = 9.901567688 mg/l
+Mean7 = 9.900725127 mg/l
+Std7 = 0.000765387 mg/l
+Min8 = 9.898601543 mg/l
+Max8 = 9.900966971 mg/l
+Mean8 = 9.899761435 mg/l
+Std8 = 0.000905837 mg/l
+Min9 = 9.899135344 mg/l
+Max9 = 9.900299916 mg/l
+Mean9 = 9.899907119 mg/l
+Std9 = 0.000472277 mg/l
+Min10 = 9.900122114 mg/l
+Max10 = 9.901815642 mg/l
+Mean10 = 9.901038688 mg/l
+Std10 = 0.000603795 mg/l
+Min11 = 9.895808748 mg/l
+Max11 = 9.899345859 mg/l
+Mean11 = 9.896973924 mg/l
+Std11 = 0.001424065 mg/l
+Min12 = 9.900634256 mg/l
+Max12 = 9.90117409 mg/l
+Mean12 = 9.901013997 mg/l
+Std12 = 0.000220709 mg/l
+Min13 = 9.899490241 mg/l
+Max13 = 9.900280353 mg/l
+Mean13 = 9.899931284 mg/l
+Std13 = 0.000308773 mg/l
+Min14 = 9.900025638 mg/l
+Max14 = 9.90065229 mg/l
+Mean14 = 9.900421789 mg/l
+Std14 = 0.000256898 mg/l
+Min15 = 9.900584167 mg/l
+Max15 = 9.90118344 mg/l
+Mean15 = 9.900914285 mg/l
+Std15 = 0.000220921 mg/l
+Min16 = 9.900095533 mg/l
+Max16 = 9.900955503 mg/l
+Mean16 = 9.900657984 mg/l
+Std16 = 0.000332614 mg/l
+Min17 = 9.899241663 mg/l
+Max17 = 9.900971694 mg/l
+Mean17 = 9.899893812 mg/l
+Std17 = 0.000653644 mg/l
+Min18 = 9.900085712 mg/l
+Max18 = 9.901470899 mg/l
+Mean18 = 9.9008037 mg/l
+Std18 = 0.000599603 mg/l
+Min19 = 9.900895721 mg/l
+Max19 = 9.901302412 mg/l
+Mean19 = 9.901085421 mg/l
+Std19 = 0.000184203 mg/l
+Min20 = 9.899473853 mg/l
+Max20 = 9.900702614 mg/l
+Mean20 = 9.899974728 mg/l
+Std20 = 0.000493616 mg/l
+Min21 = 9.898092717 mg/l
+Max21 = 9.900699084 mg/l
+Mean21 = 9.899610529 mg/l
+Std21 = 0.000963039 mg/l
+Min22 = 9.898936046 mg/l
+Max22 = 9.900922262 mg/l
+Mean22 = 9.900308982 mg/l
+Std22 = 0.000802021 mg/l
+Min23 = 9.89774922 mg/l
+Max23 = 9.90148036 mg/l
+Mean23 = 9.900423711 mg/l
+Std23 = 0.001547471 mg/l
+Min24 = 9.899113753 mg/l
+Max24 = 9.901150564 mg/l
+Mean24 = 9.900464563 mg/l
+Std24 = 0.000813401 mg/l
+Min25 = 9.898903383 mg/l
+Max25 = 9.901709553 mg/l
+Mean25 = 9.900312509 mg/l
+Std25 = 0.001023806 mg/l
+Min26 = 9.898995804 mg/l
+Max26 = 9.90149974 mg/l
+Mean26 = 9.900324258 mg/l
+Std26 = 0.001044824 mg/l
+Min27 = 9.900106222 mg/l
+Max27 = 9.901127046 mg/l
+Mean27 = 9.900858764 mg/l
+Std27 = 0.000434618 mg/l
+Min28 = 9.899866384 mg/l
+Max28 = 9.901174653 mg/l
+Mean28 = 9.900820985 mg/l
+Std28 = 0.000552181 mg/l

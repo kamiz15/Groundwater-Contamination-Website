@@ -11,20 +11,43 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from bokeh.plotting import figure
 from bokeh.embed import components
-from bokeh.palettes import Category10, RdYlGn11
-from bokeh.models import ColorBar, ColumnDataSource, HoverTool, LinearColorMapper, Span
+from bokeh.palettes import Blues256, Category10, RdYlGn11, Reds256
+from bokeh.models import ColorBar, ColumnDataSource, CustomJSTickFormatter, HoverTool, LinearColorMapper, Title
 from scipy.stats import norm, lognorm, expon
+
+try:
+    from scipy.ndimage import zoom as _nd_zoom
+except Exception:  # pragma: no cover
+    _nd_zoom = None
+
+
+def _upsample_field(arr, ny: int = 240, nx: int = 480):
+    """Bilinearly upsample a coarse 2-D field for a smooth render (DISPLAY ONLY).
+
+    Mirrors numerical_models._display_field: it does not affect plume length,
+    the C0 contour, or hover values (those use the raw grid). Falls back to the
+    raw array when scipy is unavailable or the grid is already fine.
+    """
+    a = np.asarray(arr, dtype=float)
+    if _nd_zoom is None or a.ndim != 2:
+        return a
+    fy = max(1, int(round(ny / max(a.shape[0], 1))))
+    fx = max(1, int(round(nx / max(a.shape[1], 1))))
+    if fy == 1 and fx == 1:
+        return a
+    return _nd_zoom(a, (fy, fx), order=1)
 
 # -------------------------------------------------
 # Lazy, robust loader for the reference CSV
 # -------------------------------------------------
 _REF_DF: Optional[pd.DataFrame] = None
+_REF_DF_RESOLVED = False  # caches the *miss* too, so a missing CSV is not re-scanned per request
 
 
 def _load_reference_df() -> Optional[pd.DataFrame]:
     """Try to load the original reference CSV. Returns None if not found."""
-    global _REF_DF
-    if _REF_DF is not None:
+    global _REF_DF, _REF_DF_RESOLVED
+    if _REF_DF_RESOLVED:
         return _REF_DF
 
     candidates = [
@@ -38,12 +61,14 @@ def _load_reference_df() -> Optional[pd.DataFrame]:
             try:
                 df = pd.read_csv(p)
                 _REF_DF = df
+                _REF_DF_RESOLVED = True
                 print(f"[plot_functions] Loaded reference CSV from: {p}")
                 return _REF_DF
             except Exception as e:
                 print(f"[plot_functions] Failed to read {p}: {e}")
     print("[plot_functions] WARNING: reference CSV not found. Plots will use only user data.")
     _REF_DF = None
+    _REF_DF_RESOLVED = True
     return None
 
 
@@ -130,8 +155,6 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb
     ax.text(L_D / 2.0, A_T * 0.02, "Confined aquifer bottom",
             rotation=0, ha="center", va="bottom", color="grey", fontsize=8)
 
-    ax.axvline(x=L_max_n, color="navy", linestyle="--", linewidth=1.5, label=f"L_max^n = {L_max_n:.1f} m")
-    ax.axvline(x=L_D, color="grey", linestyle=":", linewidth=1.2, label=f"LD = {L_D:.1f} m")
     ax.set_xlim(0, L_D)
     ax.set_ylim(0, A_T)
     ax.set_xlabel("Distance Lx [m]")
@@ -142,7 +165,7 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb
     return fig
 
 
-def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb, A_T):
+def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb, A_T, c0=None):
     """Create an interactive Bokeh version of the vertical numerical plume contour plot."""
     C = np.asarray(C, dtype=float)
     x_grid = np.asarray(x_grid, dtype=float)
@@ -199,10 +222,12 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
             if xs:
                 p.multi_line(xs, ys, color="black", line_width=0.8, alpha=0.55)
 
-            x_idx = int(np.argmin(np.abs(x_grid - L_max_n)))
-            source_mid_z = R_Tb + (S_T / 2.0)
-            z_idx = int(np.argmin(np.abs(z_grid - source_mid_z)))
-            threshold_level = float(C[z_idx, x_idx])
+            if c0 is not None:
+                threshold_level = float(c0)
+            else:
+                x_idx = int(np.argmin(np.abs(x_grid - L_max_n)))
+                z_idx = int(np.argmin(np.abs(z_grid - (R_Tb + S_T / 2.0))))
+                threshold_level = float(C[z_idx, x_idx])
             if np.isfinite(threshold_level) and c_min < threshold_level < c_max:
                 threshold_obj = contour_ax.contour(x_grid, z_grid, C, levels=[threshold_level])
                 txs, tys = [], []
@@ -212,7 +237,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
                             txs.append(segment[:, 0].tolist())
                             tys.append(segment[:, 1].tolist())
                 if txs:
-                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="L_max^n boundary")
+                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="Plume boundary (C0)")
         finally:
             plt.close(contour_fig)
 
@@ -248,19 +273,13 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
         line_color="#6b7280",
     )
 
-    lmax_span = Span(location=L_max_n, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
-    ld_span = Span(location=L_D, dimension="height", line_color="grey", line_dash="dotted", line_width=2)
-    p.add_layout(lmax_span)
-    p.add_layout(ld_span)
-    p.line([L_max_n, L_max_n], [0, A_T], color="navy", line_dash="dashed", line_width=2, legend_label=f"L_max^n = {L_max_n:.1f} m")
-    p.line([L_D, L_D], [0, A_T], color="grey", line_dash="dotted", line_width=2, legend_label=f"LD = {L_D:.1f} m")
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
     return p
 
 
-def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W):
+def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W, c0=None):
     """Interactive Bokeh plan-view (horizontal) plume contour plot."""
     C = np.asarray(C, dtype=float)
     x_grid = np.asarray(x_grid, dtype=float)
@@ -314,6 +333,22 @@ def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W):
         finally:
             plt.close(cfig)
 
+    if c0 is not None and finite.size and c_min < float(c0) < c_max:
+        bfig, bax = plt.subplots()
+        try:
+            bobj = bax.contour(x_grid, y_grid, C, levels=[float(c0)])
+            bxs, bys = [], []
+            for segs in bobj.allsegs:
+                for seg in segs:
+                    if len(seg) >= 2:
+                        bxs.append(seg[:, 0].tolist())
+                        bys.append(seg[:, 1].tolist())
+            if bxs:
+                p.multi_line(bxs, bys, color="purple", line_width=3.0, alpha=0.95,
+                             legend_label="Plume boundary (C0)")
+        finally:
+            plt.close(bfig)
+
     # Source strip centred in y
     source_y0 = (A_W - Sw) / 2.0
     source_y1 = (A_W + Sw) / 2.0
@@ -329,18 +364,316 @@ def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W):
         p.quad(left=0, right=src_w, bottom=source_y1, top=A_W,
                color="#d1d5db", alpha=0.45, line_color="#6b7280")
 
-    lmax_span = Span(location=L_max_h, dimension="height", line_color="navy", line_dash="dashed", line_width=2)
-    ld_span = Span(location=L_D, dimension="height", line_color="grey", line_dash="dotted", line_width=2)
-    p.add_layout(lmax_span)
-    p.add_layout(ld_span)
-    p.line([L_max_h, L_max_h], [0, A_W], color="navy", line_dash="dashed", line_width=2,
-           legend_label=f"L_max^h = {L_max_h:.1f} m")
-    p.line([L_D, L_D], [0, A_W], color="grey", line_dash="dotted", line_width=2,
-           legend_label=f"L_D = {L_D:.1f} m")
 
     p.legend.location = "top_right"
     p.legend.click_policy = "hide"
     return p
+
+
+def _reactive_ca_cd_fields(concentration, ca, cd, gamma):
+    """Return display-only Ca/Cd fields from the raw numerical concentration."""
+    c0 = float(ca)
+    gamma = float(gamma)
+    concentration = np.asarray(concentration, dtype=float)
+    ca_field = np.where(concentration < c0, c0 - concentration, np.nan)
+    cd_field = np.where(concentration > c0, (concentration - c0) / gamma, np.nan)
+    ca_field = np.clip(ca_field, 0.0, float(ca))
+    cd_field = np.clip(cd_field, 0.0, float(cd))
+    return ca_field, cd_field
+
+
+def _contour_segments(x_grid, cross_grid, concentration, level):
+    finite = concentration[np.isfinite(concentration)]
+    if not finite.size or not (float(np.nanmin(finite)) < float(level) < float(np.nanmax(finite))):
+        return [], []
+    fig, ax = plt.subplots()
+    try:
+        contour = ax.contour(x_grid, cross_grid, concentration, levels=[float(level)])
+        xs, ys = [], []
+        for level_segments in contour.allsegs:
+            for segment in level_segments:
+                if len(segment) >= 2:
+                    xs.append(segment[:, 0].tolist())
+                    ys.append(segment[:, 1].tolist())
+        return xs, ys
+    finally:
+        plt.close(fig)
+
+
+def _contour_segments_from_extent(concentration, level, extent):
+    finite = concentration[np.isfinite(concentration)]
+    if not finite.size or not (float(np.nanmin(finite)) < float(level) < float(np.nanmax(finite))):
+        return [], []
+    fig, ax = plt.subplots()
+    try:
+        contour = ax.contour(concentration, levels=[float(level)], extent=extent)
+        xs, ys = [], []
+        for level_segments in contour.allsegs:
+            for segment in level_segments:
+                if len(segment) >= 2:
+                    xs.append(segment[:, 0].tolist())
+                    ys.append(segment[:, 1].tolist())
+        return xs, ys
+    finally:
+        plt.close(fig)
+
+
+def _cell_edge_extent(grid, fallback_extent):
+    grid = np.asarray(grid, dtype=float)
+    if len(grid) > 1:
+        if np.isclose(float(grid[0]), 0.0):
+            return 0.0, float(fallback_extent)
+        step = float(np.median(np.diff(grid)))
+        return float(grid[0] - step / 2.0), float(grid[-1] + step / 2.0)
+    if len(grid) == 1:
+        center = float(grid[0])
+        return center - 0.5, center + 0.5
+    return 0.0, float(fallback_extent)
+
+
+def _hover_grid_source(x_grid, cross_grid, ca_field, cd_field, concentration):
+    xx, yy = np.meshgrid(x_grid, cross_grid)
+    return ColumnDataSource(data={
+        "x": xx.ravel(),
+        "y": yy.ravel(),
+        "ca": np.nan_to_num(ca_field, nan=0.0).ravel(),
+        "cd": np.nan_to_num(cd_field, nan=0.0).ravel(),
+        "conc": np.asarray(concentration, dtype=float).ravel(),
+    })
+
+
+def plot_reactive_plume_interactive(
+    concentration,
+    x_grid,
+    cross_grid,
+    *,
+    ca,
+    cd,
+    gamma,
+    plume_length,
+    domain_length,
+    cross_extent,
+    orientation,
+    source_extent=None,
+    footer_meta=None,
+):
+    """Interactive Ca/Cd numerical plume view matching the static report transform."""
+    concentration = np.asarray(concentration, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    cross_grid = np.asarray(cross_grid, dtype=float)
+    if concentration.shape != (len(cross_grid), len(x_grid)):
+        raise ValueError("Concentration grid dimensions do not match the numerical axes.")
+
+    is_vertical = orientation == "vertical"
+    cross_label = "Depth [m]" if is_vertical else "Horizontal Width [m]"
+    title = None if is_vertical else "Contaminant Plume \u2014 Horizontal Model (Plan View)"
+    plot_x0, plot_x1 = (0.0, float(domain_length)) if is_vertical else _cell_edge_extent(x_grid, domain_length)
+    plot_y0, plot_y1 = (0.0, float(cross_extent)) if is_vertical else _cell_edge_extent(cross_grid, cross_extent)
+    plot_width = plot_x1 - plot_x0
+    plot_height = plot_y1 - plot_y0
+    y_range = (float(cross_extent), 0.0) if is_vertical else (plot_y0, plot_y1)
+    ca_field, cd_field = _reactive_ca_cd_fields(concentration, ca, cd, gamma)
+
+    p = figure(
+        title=title,
+        x_axis_label="Distance [m]" if is_vertical else "Distance Lx [m]",
+        y_axis_label=cross_label,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=350 if is_vertical else 430,
+        x_range=(plot_x0, plot_x1),
+        y_range=y_range,
+    )
+    if is_vertical:
+        p.background_fill_color = "#eef1f5"
+        p.border_fill_color = "#eef1f5"
+        p.outline_line_color = "#cbd5e1"
+        p.outline_line_width = 1
+        p.min_border_left = 70
+        p.min_border_right = 20
+        p.min_border_bottom = 55
+        p.axis.axis_label_text_color = "#334155"
+        p.axis.axis_label_text_font_style = "bold"
+        p.axis.major_label_text_color = "#475569"
+
+    ca_palette = list(reversed(Blues256))
+    cd_palette = list(reversed(Reds256))
+    ca_mapper = LinearColorMapper(palette=ca_palette, low=0.0, high=float(ca), nan_color="rgba(255,255,255,0)")
+    cd_mapper = LinearColorMapper(palette=cd_palette, low=0.0, high=float(cd), nan_color="rgba(255,255,255,0)")
+    # Vertical orientation: the inverted y_range (cross_extent -> 0) already places
+    # depth 0 (the shallow acceptor/source band) at the TOP. The field rows are stored
+    # with row 0 = cross_grid[0] (shallowest), which Bokeh draws at data y=0, so it lands
+    # at the top under the inverted axis. Do NOT also np.flipud here or the depth is
+    # flipped twice and the source band would wrongly sink to the bottom.
+    #
+    # Render the raw per-cell field (no upsampling) so the layer bands stay distinct
+    # and the colours do not blend, matching the reference script (vertical_W.py).
+    ca_image, cd_image = ca_field, cd_field
+    image_alpha = 0.92 if is_vertical else 1.0
+    donor_alpha = 0.88 if is_vertical else 1.0
+    p.image(image=[ca_image], x=plot_x0, y=plot_y0, dw=plot_width, dh=plot_height,
+            color_mapper=ca_mapper, alpha=image_alpha)
+    p.image(image=[cd_image], x=plot_x0, y=plot_y0, dw=plot_width, dh=plot_height,
+            color_mapper=cd_mapper, alpha=donor_alpha)
+    p.add_layout(ColorBar(color_mapper=ca_mapper, label_standoff=8,
+                          title="Ca [mg/L]" if is_vertical else "C_a [mg/L]"), "right")
+    p.add_layout(ColorBar(color_mapper=cd_mapper, label_standoff=8,
+                          title="Cd [mg/L]" if is_vertical else "C_d [mg/L]"), "right")
+
+    if is_vertical:
+        cxs, cys = _contour_segments(x_grid, cross_grid, concentration, float(ca))
+    else:
+        cxs, cys = _contour_segments_from_extent(
+            concentration,
+            float(ca),
+            [plot_x0, plot_x1, plot_y0, plot_y1],
+        )
+    if cxs:
+        p.multi_line(cxs, cys, color="black", line_width=2.0, alpha=0.95)
+
+    if float(plume_length) > 0:
+        plume_label = f"Plume length = {plume_length:.1f} m"
+        p.line([plume_length, plume_length], [plot_y0, plot_y1], color="black",
+               line_dash="dashed", line_width=1.5, legend_label=plume_label)
+        # Rotated in-plot label (both orientations), matching the static PDF.
+        p.text(
+            x=[max(float(plume_length) - plot_width * 0.012, plot_x0)],
+            y=[plot_y0 + plot_height * 0.5],
+            text=[f"L^n max = {plume_length:.2f} m"],
+            angle=np.pi / 2.0,
+            text_align="center",
+            text_baseline="middle",
+            text_color="black",
+            text_font_size="8pt",
+        )
+
+    if is_vertical:
+        # Source band on the left inflow face, spanning the full thickness except
+        # the top cell (kept clean, as in the reference vertical_W.py / static PDF).
+        top_offset = float(cross_extent) / max(len(cross_grid), 1)
+        p.line([0.0, 0.0], [top_offset, float(cross_extent)], color="#7a0a0a",
+               line_width=7, legend_label="CD source")
+        p.text(x=[float(domain_length) * 0.012], y=[(top_offset + float(cross_extent)) / 2.0],
+               text=["CD (ST)"], text_color="#7a0a0a", text_font_size="8pt",
+               text_align="left", text_baseline="middle")
+        # Acceptor label near the top (shallow) band.
+        p.text(x=[float(domain_length) * 0.5], y=[float(cross_extent) * 0.06],
+               text=["CA"], text_color="navy", text_font_size="10pt",
+               text_align="center", text_baseline="top")
+    else:
+        width = float(source_extent) if source_extent is not None else float(cross_extent)
+        source_y0 = max((float(cross_extent) - width) / 2.0, 0.0)
+        source_y1 = min((float(cross_extent) + width) / 2.0, float(cross_extent))
+        p.line([0.0, 0.0], [source_y0, source_y1], color="#7a0a0a",
+               line_width=7)
+        p.text(x=[plot_x0 + plot_width * 0.012], y=[(source_y0 + source_y1) / 2.0],
+               text=["CD (Sw)"], text_color="#7a0a0a", text_font_size="8pt",
+               text_align="left", text_baseline="middle")
+        p.text(x=[plot_x0 + plot_width * 0.5], y=[plot_y0 + plot_height * 0.95],
+               text=["CA"], text_color="navy", text_font_size="10pt",
+               text_align="center", text_baseline="top")
+
+    hover_source = _hover_grid_source(x_grid, cross_grid, ca_field, cd_field, concentration)
+    dx = plot_width / max(concentration.shape[1], 1)
+    dy = plot_height / max(concentration.shape[0], 1)
+    hover_renderer = p.rect(
+        "x", "y", width=dx, height=dy, source=hover_source,
+        fill_alpha=0.001, line_alpha=0.0,
+    )
+    p.add_tools(HoverTool(
+        renderers=[hover_renderer],
+        tooltips=[
+            ("Distance", "@x{0.00} m"),
+            ("Depth" if is_vertical else "Width", "@y{0.00} m"),
+            ("Raw concentration", "@conc{0.000} mg/L"),
+            ("CA", "@ca{0.000} mg/L"),
+            ("CD", "@cd{0.000} mg/L"),
+        ],
+    ))
+    p.grid.grid_line_alpha = 0.0 if is_vertical else 0.25
+    if p.legend:
+        p.legend.location = "top_right"
+        p.legend.click_policy = "hide"
+        if is_vertical:
+            p.legend.background_fill_color = "#eef1f5"
+            p.legend.background_fill_alpha = 0.9
+            p.legend.border_line_color = "#cbd5e1"
+            p.legend.label_text_color = "#334155"
+    # Metadata footer (L_D, grid, porosity, K, gradient, Peclet, Courant) below the
+    # plot, mirroring the static PDF caption.
+    if footer_meta:
+        p.add_layout(Title(text=str(footer_meta), text_font_size="8pt",
+                           text_font_style="normal", text_color="#6b7280"), "below")
+    return p
+
+
+def _mask_concentration_to_fraction(concentration, x_grid, c0, fraction, plume_length, domain_length):
+    """Return a copy of the concentration field with everything downstream of
+    ``fraction * plume_length`` blanked to ``c0`` (background). Blanking to the
+    background concentration c0 keeps both reactive fields (Ca where C<c0, Cd
+    where C>c0) empty there, so the plume visibly "grows" from x=0 outward as
+    the fraction increases without re-running the simulation."""
+    concentration = np.asarray(concentration, dtype=float)
+    x_grid = np.asarray(x_grid, dtype=float)
+    frac = float(np.clip(fraction, 0.0, 1.0))
+    # When a plume length is available, sweep along it; otherwise sweep the
+    # whole domain so the field still builds up for degenerate (zero-length) runs.
+    sweep_len = float(plume_length) if float(plume_length) > 0 else float(domain_length)
+    cutoff = frac * sweep_len
+    masked = concentration.copy()
+    downstream = x_grid > cutoff
+    if downstream.any():
+        masked[:, downstream] = float(c0)
+    return masked
+
+
+def plot_reactive_plume_growth_frame(
+    concentration,
+    x_grid,
+    cross_grid,
+    *,
+    ca,
+    cd,
+    gamma,
+    plume_length,
+    domain_length,
+    cross_extent,
+    orientation,
+    fraction,
+    source_extent=None,
+    footer_meta=None,
+):
+    """Build one frame of the plume-growth animation.
+
+    Reuses :func:`plot_reactive_plume_interactive` (same orientation handling,
+    colour mappers and overlays) on an already-computed concentration field that
+    has been masked to the requested ``fraction`` of the plume length. The
+    dashed plume-length line / contour sweep along too because the masked field
+    no longer exceeds ``c0`` downstream of the cutoff. Nothing is re-simulated.
+    """
+    frac = float(np.clip(fraction, 0.0, 1.0))
+    c0 = float(ca)
+    masked = _mask_concentration_to_fraction(
+        concentration, x_grid, c0, frac, plume_length, domain_length
+    )
+    swept_length = frac * float(plume_length)
+    return plot_reactive_plume_interactive(
+        masked,
+        x_grid,
+        cross_grid,
+        ca=ca,
+        cd=cd,
+        gamma=gamma,
+        plume_length=swept_length,
+        domain_length=domain_length,
+        cross_extent=cross_extent,
+        orientation=orientation,
+        source_extent=source_extent,
+        footer_meta=footer_meta,
+    )
 
 
 def _numerical_view_arrays(C, x_grid, cross_grid):
@@ -850,3 +1183,151 @@ def create_liedl_multiple_plot(rows, selected_ids):
     script, div = components(p)
     print("DEBUG multiple plot: script len =", len(script or ""), "div len =", len(div or ""))
     return script, div
+
+
+def plot_aem_field_interactive(
+    result_array,
+    xaxis,
+    yaxis,
+    l_max=None,
+    *,
+    ca=8.0,
+    gamma=3.5,
+    orientation="horizontal",
+):
+    """Interactive Bokeh view of an AEM transport concentration field.
+
+    Renders ``result_array`` (2D field of shape (len(yaxis), len(xaxis))) as a
+    Bokeh image with a diverging-style colour mapping: acceptor depletion is
+    negative (blue), donor plume is positive (red). A dashed vertical line marks
+    the plume length L_max, and a HoverTool exposes the underlying concentration.
+
+    Styled to match :func:`plot_reactive_plume_interactive` (stretch width,
+    light fills, ColorBar). Returns a Bokeh ``figure``.
+    """
+    result_array = np.asarray(result_array, dtype=float)
+    xaxis = np.asarray(xaxis, dtype=float)
+    yaxis = np.asarray(yaxis, dtype=float)
+    if result_array.ndim != 2:
+        raise ValueError("AEM result array must be 2D.")
+
+    x0 = float(xaxis[0]) if xaxis.size else 0.0
+    x1 = float(xaxis[-1]) if xaxis.size else float(result_array.shape[1])
+    y0 = float(yaxis[0]) if yaxis.size else 0.0
+    y1 = float(yaxis[-1]) if yaxis.size else float(result_array.shape[0])
+    dw = max(x1 - x0, 1e-9)
+    dh = max(y1 - y0, 1e-9)
+
+    is_vertical = orientation == "vertical"
+    cross_label = "Depth [m]" if is_vertical else "Cross-distance y [m]"
+
+    p = figure(
+        title="AEM Transport — Concentration Field",
+        x_axis_label="Distance x [m]",
+        y_axis_label=cross_label,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+        toolbar_location="above",
+        active_drag="pan",
+        active_scroll="wheel_zoom",
+        sizing_mode="stretch_width",
+        height=430,
+        x_range=(x0, x1),
+        y_range=(y0, y1),
+    )
+    p.background_fill_color = "#eef1f5"
+    p.border_fill_color = "#eef1f5"
+    p.outline_line_color = "#cbd5e1"
+    p.outline_line_width = 1
+    p.min_border_left = 70
+    p.min_border_right = 20
+    p.axis.axis_label_text_color = "#334155"
+    p.axis.axis_label_text_font_style = "bold"
+    p.axis.major_label_text_color = "#475569"
+
+    finite = result_array[np.isfinite(result_array)]
+    max_val = float(np.max(finite)) if finite.size else 0.0
+    min_val = float(np.min(finite)) if finite.size else 0.0
+    abs_min = abs(min_val)
+
+    # Coordinate vectors for the contour grid (z has shape (ny, nx)).
+    cny, cnx = result_array.shape
+    cx = xaxis if xaxis.size == cnx else np.linspace(x0, x1, cnx)
+    cy = yaxis if yaxis.size == cny else np.linspace(y0, y1, cny)
+
+    # Independent donor / acceptor colour scaling, matching the matplotlib
+    # reference (ATSimulation.plot_result):
+    #   donor    C > 0  -> 'Reds'    over [0, max_val]   (11 levels, 10 bands)
+    #   acceptor C < 0  -> 'Blues_r' over [-abs_min, 0]  (9 levels,  8 bands)
+    # Reds256/Blues256 run light->dark; reversing Blues256 reproduces 'Blues_r'
+    # so the most negative value is darkest and the zero edge is lightest. Each
+    # side is normalised to its own extreme, exactly as the two contourf calls.
+    def _sample(palette, n):
+        idx = np.linspace(0, len(palette) - 1, n).round().astype(int)
+        return [palette[int(i)] for i in idx]
+
+    if max_val > 0:
+        donor_levels = list(np.linspace(0, max_val, 11))
+        donor_r = p.contour(
+            cx, cy, result_array, donor_levels,
+            fill_color=_sample(list(Reds256), len(donor_levels) - 1))
+        p.add_layout(
+            donor_r.construct_color_bar(
+                title="Electron donor concentration [mg/L]", label_standoff=8),
+            "right")
+
+    if abs_min > 0:
+        acceptor_levels = list(np.linspace(-abs_min, 0, 9))
+        acceptor_r = p.contour(
+            cx, cy, result_array, acceptor_levels,
+            fill_color=_sample(list(reversed(Blues256)), len(acceptor_levels) - 1))
+        p.add_layout(
+            acceptor_r.construct_color_bar(
+                title="Electron acceptor concentration [mg/L]", label_standoff=8,
+                formatter=CustomJSTickFormatter(
+                    code="return Math.abs(tick).toFixed(0)")),
+            "right")
+
+    # Zero-concentration contour = donor/acceptor interface (plume envelope),
+    # drawn as a solid black line just as in the matplotlib reference.
+    if max_val > 0 and abs_min > 0:
+        p.contour(cx, cy, result_array, [0.0], line_color="black", line_width=2)
+
+    if l_max is not None and float(l_max) > x0:
+        plume_label = f"L_max = {float(l_max):.1f} m"
+        p.line([float(l_max), float(l_max)], [y0, y1], color="black",
+               line_dash="dashed", line_width=1.8, legend_label=plume_label)
+
+    # Hover layer over the field.
+    nx = result_array.shape[1]
+    ny = result_array.shape[0]
+    gx = np.linspace(x0, x1, nx) if nx > 1 else np.array([x0])
+    gy = np.linspace(y0, y1, ny) if ny > 1 else np.array([y0])
+    mesh_x, mesh_y = np.meshgrid(gx, gy)
+    hover_source = ColumnDataSource(data={
+        "x": mesh_x.ravel(),
+        "y": mesh_y.ravel(),
+        "conc": result_array.ravel(),
+    })
+    cell_w = dw / max(nx, 1)
+    cell_h = dh / max(ny, 1)
+    hover_renderer = p.rect(
+        "x", "y", width=cell_w, height=cell_h, source=hover_source,
+        fill_alpha=0.001, line_alpha=0.0,
+    )
+    p.add_tools(HoverTool(
+        renderers=[hover_renderer],
+        tooltips=[
+            ("Distance x", "@x{0.00} m"),
+            ("Depth" if is_vertical else "y", "@y{0.00} m"),
+            ("Concentration", "@conc{0.000} mg/L"),
+        ],
+    ))
+    p.grid.grid_line_alpha = 0.15
+    if l_max is not None and float(l_max) > x0:
+        p.legend.location = "top_right"
+        p.legend.click_policy = "hide"
+        p.legend.background_fill_color = "#eef1f5"
+        p.legend.background_fill_alpha = 0.9
+        p.legend.border_line_color = "#cbd5e1"
+        p.legend.label_text_color = "#334155"
+    return p

@@ -1,30 +1,49 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="section-spaced model-page">
+<section class="section-spaced model-page {% block model_page_class %}{% endblock %}">
   <h2>{% block model_title %}Model Title{% endblock %}</h2>
   <p class="small">Inputs are edited on this page. The output panel below updates from these values and contains only the result visualisation.</p>
 
-  <div class="card-like conceptual-figure">
-    <h3>Conceptual Model</h3>
-    <img
-      src="{% block conceptual_image %}{{ url_for('static', filename='images/placeholder.png') }}{% endblock %}"
-      alt="{% block conceptual_alt %}Conceptual model diagram{% endblock %}"
-      class="conceptual-img"
-      loading="eager"
-    />
-  </div>
+  {% set numerical_layout = numerical_layout | default(false) %}
+  <div class="{% if numerical_layout %}model-inputs-grid{% endif %}">
+    <div class="model-inputs-grid-main">
+      {# Numerical pages: the site loader moves to the right column (next to the
+         conceptual model) so the input form and the right column align at the
+         top. Other pages keep it above the form. #}
+      {% if not numerical_layout %}{% block site_loader %}{% endblock %}{% endif %}
+      {% include "model_input_form.html" %}
+    </div>
 
-  {% block site_loader %}{% endblock %}
-  {% include "model_input_form.html" %}
+    <div class="model-inputs-grid-side">
+      {% if numerical_layout %}{{ self.site_loader() }}{% endif %}
+      <div class="card-like conceptual-figure">
+        <h3>Conceptual Model</h3>
+        <img
+          src="{% block conceptual_image %}{{ url_for('static', filename='images/placeholder.png') }}{% endblock %}"
+          alt="{% block conceptual_alt %}Conceptual model diagram{% endblock %}"
+          class="conceptual-img"
+          loading="eager"
+        />
+        {% block conceptual_note %}{% endblock %}
+      </div>
+      {% if run_button_under_conceptual | default(false) %}
+      <div class="model-input-actions model-input-actions--side">
+        <button type="submit" form="model-input-form" class="primary-btn">Run Model</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 
   <div class="card-like model-output-card">
     <h3>Output Visualisation</h3>
     <div class="panel-shell output-panel-shell">
-      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
     </div>
   </div>
 
+  {% block report_export %}
   {% include "report_download_card.html" %}
+  {% endblock %}
 </section>
 {% endblock %}

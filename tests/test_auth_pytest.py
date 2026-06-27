@@ -111,7 +111,9 @@ def test_register_login_logout_happy_path(monkeypatch):
     stored_user = database.users_by_email["test.user@example.com"]
     login = _login(client)
     authenticated = client.get("/auth/check")
-    logout = client.get("/logout")
+    logout = client.post(
+        "/logout", headers={"X-CSRF-Token": _csrf_token(client, "/")}
+    )
     invalidated = client.get("/auth/check")
 
     assert registration.status_code == 200
@@ -134,7 +136,7 @@ def test_login_rejects_wrong_password(monkeypatch):
 
     response = _login(client, password="wrong-password")
 
-    assert response.status_code == 200
+    assert response.status_code == 401
     assert response.get_json() == {"success": False, "message": "Invalid email or password."}
 
 
@@ -147,7 +149,7 @@ def test_registration_rejects_password_mismatch(monkeypatch):
 
     response = _register(client, confirmPassword="different-password")
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert response.get_json() == {"success": False, "message": "Passwords do not match."}
     assert database.users_by_email == {}
 
@@ -160,6 +162,5 @@ def test_registration_rejects_missing_json_field(monkeypatch):
     client = app_module.app.test_client()
 
     response = _register(client, email="")
-
     assert response.status_code == 400
     assert database.users_by_email == {}

@@ -5,9 +5,12 @@ from flask import Blueprint, Response, render_template, request
 from flask_login import current_user, login_required
 
 from data_queries import get_user_sites_rows
+from model_site_validation import filter_valid_sites_for_model
+from route_guards import guard_model_errors, request_finite_float
 from empirical_models import birla_lmax, maier_lmax
 from pdf_report import CASTReport
 from settings import PANEL_PUBLIC_BASE
+from symbol_registry import db_to_model
 
 empirical_bp = Blueprint("empirical_bp", __name__)
 
@@ -69,18 +72,27 @@ def _to_float(value):
         return None
 
 
-def _request_float(name, default):
-    try:
-        raw = request.args.get(name)
-        if raw in (None, ""):
-            return default
-        return float(raw)
-    except (TypeError, ValueError):
-        return default
+_request_float = request_finite_float
+
+
+def _model_from_path(path):
+    return "maier" if "maier" in path else "birla"
+
+
+# Canonical symbol -> empirical panel input name. db_to_model only returns the
+# symbols each model consumes, so unrelated symbols are simply absent.
+_EMPIRICAL_SYMBOL_TO_PARAM = {
+    "M": "M",
+    "alpha_Tv": "tv",
+    "gamma": "g",
+    "C_A": "Ca",
+    "C_D": "Cd",
+    "R": "R",
+}
 
 
 def _input_fields(path, site):
-    db_query = _build_panel_query(site)
+    db_query = _build_panel_query(site, _model_from_path(path))
     fields = []
     for name, label, default, step, minimum in EMPIRICAL_INPUT_SPECS.get(path, []):
         fields.append({
@@ -99,27 +111,27 @@ def _export_href(input_fields):
     return f"{request.path}/export?{urlencode(query)}"
 
 
-def _build_panel_query(site):
+def _build_panel_query(site, model_name):
     if not site:
         return {}
     query = {}
-    m = _to_float(site.get("aquifer_thickness"))
-    ca = _to_float(site.get("electron_acceptor_o2"))
-    cd = _to_float(site.get("electron_donor"))
-    if m is not None:
-        query["M"] = m
-    if ca is not None:
-        query["Ca"] = ca
-    if cd is not None:
-        query["Cd"] = cd
+    for symbol, value in db_to_model(site, model_name).items():
+        param = _EMPIRICAL_SYMBOL_TO_PARAM.get(symbol)
+        if param is None:
+            continue
+        number = _to_float(value)
+        if number is not None:
+            query[param] = number
     if site.get("id") is not None:
         query["site_id"] = int(site.get("id"))
     query["email"] = _current_email()
     return query
 
 
-def _selected_site():
+def _selected_site(model_name):
+    """Sites usable by this model (others are hidden from its drop-down)."""
     sites = get_user_sites_rows(_current_email())
+    sites, _invalid = filter_valid_sites_for_model(sites, model_name)
     if not sites:
         return sites, None
     selected_id = request.args.get("site_id", type=int)
@@ -133,7 +145,7 @@ def _selected_site():
 
 def _panel_src(path, site, auto_run=False, output_only=True):
     query = _default_query(path)
-    query.update(_build_panel_query(site))
+    query.update(_build_panel_query(site, _model_from_path(path)))
     for key, value in request.args.items():
         if key not in {"site_id", "output_only"} and value != "":
             query[key] = value
@@ -153,7 +165,7 @@ def empirical_landing():
 @empirical_bp.route("/empirical/maier/single")
 @login_required
 def maier_single():
-    sites, selected_site = _selected_site()
+    sites, selected_site = _selected_site("maier")
     input_fields = _input_fields("panel_maier_single", selected_site)
     return render_template(
         "panel_maier_single.html",
@@ -167,6 +179,7 @@ def maier_single():
 
 @empirical_bp.route("/empirical/maier/single/export")
 @login_required
+@guard_model_errors
 def maier_single_export():
     m = _request_float("M", 5.0)
     tv = _request_float("tv", 0.01)
@@ -196,7 +209,7 @@ def maier_single_export():
 @empirical_bp.route("/empirical/maier/multiple")
 @login_required
 def maier_multiple():
-    sites, selected_site = _selected_site()
+    sites, selected_site = _selected_site("maier")
     return render_template(
         "panel_maier_multiple.html",
         panel_src=_panel_src("panel_maier_multiple", selected_site, output_only=False),
@@ -209,7 +222,7 @@ def maier_multiple():
 @empirical_bp.route("/empirical/birla/single")
 @login_required
 def birla_single():
-    sites, selected_site = _selected_site()
+    sites, selected_site = _selected_site("birla")
     input_fields = _input_fields("panel_birla_single", selected_site)
     return render_template(
         "panel_birla_single.html",
@@ -223,6 +236,7 @@ def birla_single():
 
 @empirical_bp.route("/empirical/birla/single/export")
 @login_required
+@guard_model_errors
 def birla_single_export():
     m = _request_float("M", 2.0)
     tv = _request_float("tv", 0.001)
@@ -254,7 +268,7 @@ def birla_single_export():
 @empirical_bp.route("/empirical/birla/multiple")
 @login_required
 def birla_multiple():
-    sites, selected_site = _selected_site()
+    sites, selected_site = _selected_site("birla")
     return render_template(
         "panel_birla_multiple.html",
         panel_src=_panel_src("panel_birla_multiple", selected_site, output_only=False),

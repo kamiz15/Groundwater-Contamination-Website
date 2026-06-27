@@ -31,16 +31,19 @@ if (themeBtn) {
 
 const toggles = document.querySelectorAll('.dd-toggle');
 function closeAllDropdowns(){
-  document.querySelectorAll('.dropdown').forEach(d => d.style.display = 'none');
+  document.querySelectorAll('.menu-item.dropdown-open').forEach(item => item.classList.remove('dropdown-open'));
   toggles.forEach(t => t.setAttribute('aria-expanded','false'));
 }
 toggles.forEach(btn => {
   btn.addEventListener('click', (e)=>{
     e.stopPropagation();
-    const dd = btn.parentElement.querySelector('.dropdown');
-    const open = dd && dd.style.display === 'block';
+    const item = btn.closest('.menu-item');
+    const open = item?.classList.contains('dropdown-open');
     closeAllDropdowns();
-    if (dd && !open){ dd.style.display = 'block'; btn.setAttribute('aria-expanded','true'); }
+    if (item && !open){
+      item.classList.add('dropdown-open');
+      btn.setAttribute('aria-expanded','true');
+    }
   });
 });
 document.addEventListener('click', (e)=>{ if(!e.target.closest('.menu-item')) closeAllDropdowns(); });
@@ -254,7 +257,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!doc || !doc.body || !doc.documentElement) return;
       const bodyH = doc.body.scrollHeight || 0;
       const docH = doc.documentElement.scrollHeight || 0;
-      const target = Math.max(bodyH, docH, 680);
+      const minHeight = Number(frame.dataset.minHeight || 680);
+      const target = Math.max(bodyH, docH, minHeight);
       frame.style.height = `${target + 8}px`;
     } catch (_err) {
       // Keep default min-height if frame is not ready yet.
@@ -327,9 +331,9 @@ document.addEventListener("DOMContentLoaded", () => {
       spans.forEach((span, i) => {
         const anim = span.animate(
           [
-            { filter: "blur(10px)", opacity: 0, transform: `translateY(${fromY}px)`, color: "rgba(26,79,136,0.20)" },
-            { filter: "blur(5px)", opacity: 0.58, transform: `translateY(${midY}px)`, color: "rgba(26,79,136,0.65)" },
-            { filter: "blur(0px)", opacity: 1, transform: "translateY(0px)", color: "#1a4f88" }
+            { filter: "blur(10px)", opacity: 0, transform: `translateY(${fromY}px)`, color: "rgba(255,255,255,0.20)" },
+            { filter: "blur(5px)", opacity: 0.58, transform: `translateY(${midY}px)`, color: "rgba(255,255,255,0.65)" },
+            { filter: "blur(0px)", opacity: 1, transform: "translateY(0px)", color: "#ffffff" }
           ],
           {
             duration: totalDuration,
@@ -504,3 +508,134 @@ document.addEventListener("DOMContentLoaded", () => {
     window.removeEventListener("touchmove", onTouch);
   });
 });
+
+// ---------------------------------------------------------------------------
+// CAST report bridge: Panel iframes post their latest run results here so the
+// page-level "Report Export" card (outside the iframe) can build the PDF via
+// POST /report/export.
+// ---------------------------------------------------------------------------
+(function () {
+  let reportPayload = null;
+
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || data.type !== "cast-report") return;
+    const card = document.getElementById("reportExportCard");
+    if (!card) return;
+    if (data.clear || !data.state) {
+      reportPayload = null;
+      card.hidden = true;
+      return;
+    }
+    reportPayload = data;
+    card.hidden = false;
+  });
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest && e.target.closest("#reportExportBtn");
+    if (!btn || !reportPayload) return;
+    e.preventDefault();
+    const card = document.getElementById("reportExportCard");
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Preparing PDF…";
+    try {
+      const res = await fetch("/report/export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": card ? card.dataset.csrf : "",
+        },
+        body: JSON.stringify({
+          title: reportPayload.title,
+          subtitle: reportPayload.subtitle,
+          filename: reportPayload.filename,
+          parameters: (reportPayload.state && reportPayload.state.parameters) || [],
+          outputs: (reportPayload.state && reportPayload.state.outputs) || [],
+          plot_data: (reportPayload.state && reportPayload.state.plot_data) || null,
+          plot_images: (reportPayload.state && reportPayload.state.plot_images) || [],
+        }),
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = reportPayload.filename || "cast_report.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      btn.textContent = original;
+    } catch (err) {
+      btn.textContent = "Export failed — try again";
+      setTimeout(() => { btn.textContent = original; }, 2500);
+    }
+    btn.disabled = false;
+  });
+})();
+
+// ---------------------------------------------------------------------------
+// Async numerical report export: the export endpoint queues a background
+// simulation (202 + job_id). Poll the job status, then download the PDF
+// from report_url once the run is done.
+// ---------------------------------------------------------------------------
+(function () {
+  const POLL_MS = 2000;
+  const MAX_POLLS = 600; // ~20 minutes
+
+  document.addEventListener("click", async (e) => {
+    const link = e.target.closest && e.target.closest("a[data-async-export]");
+    if (!link) return;
+    e.preventDefault();
+    if (link.dataset.exportRunning === "1") return;
+    link.dataset.exportRunning = "1";
+
+    const original = link.textContent;
+    const statusBox = link.parentElement.querySelector(".report-export-status");
+    const show = (msg) => {
+      if (statusBox) {
+        statusBox.hidden = false;
+        statusBox.textContent = msg;
+      }
+    };
+    const fail = (msg) => {
+      link.textContent = original;
+      link.dataset.exportRunning = "";
+      show(msg);
+    };
+
+    link.textContent = "Submitting simulation…";
+    try {
+      const res = await fetch(link.getAttribute("href"), {
+        headers: { "Accept": "application/json" },
+      });
+      if (res.status !== 202) throw new Error("submit failed");
+      const job = await res.json();
+
+      for (let i = 0; i < MAX_POLLS; i++) {
+        const statusRes = await fetch(job.status_url);
+        if (!statusRes.ok) throw new Error("status failed");
+        const status = await statusRes.json();
+        if (status.status === "done") {
+          show("Simulation finished — downloading report.");
+          link.textContent = original;
+          link.dataset.exportRunning = "";
+          window.location.href = status.report_url || job.report_url;
+          return;
+        }
+        if (status.status === "failed" || status.status === "cancelled") {
+          fail(status.error || "Simulation " + status.status + ".");
+          return;
+        }
+        link.textContent = status.queue_position
+          ? "Queued (position " + status.queue_position + ")…"
+          : "Running simulation…";
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      }
+      fail("Simulation timed out. Please try again.");
+    } catch (err) {
+      fail("Could not generate the report. Please try again later.");
+    }
+  });
+})();

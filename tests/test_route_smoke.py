@@ -1,5 +1,6 @@
 from contextlib import ExitStack
 import html
+import re
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
@@ -35,8 +36,6 @@ WRAPPER_ROUTES = [
     "/numerical/horizontal/multiple",
     "/numerical/vertical/single",
     "/numerical/vertical/multiple",
-    "/source/geometry",
-    "/source/inversion",
 ]
 
 
@@ -60,15 +59,14 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
     assert b"<html" in response.data.lower()
 
 
-def test_headbar_contains_source_geometry_routes(authenticated_wrapper_client):
+def test_headbar_contains_aem_model_dropdown(authenticated_wrapper_client):
     response = authenticated_wrapper_client.get("/")
     page = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert 'href="/source/geometry"' in page
-    assert 'href="/source/inversion"' in page
-    assert ">Source Geometry</a>" in page
-    assert ">Source Inversion</a>" in page
+    assert "AEM Model" in page
+    assert "Source Geometry" not in page
+    assert "Source Inversion" not in page
 
 
 @pytest.mark.parametrize(
@@ -109,7 +107,8 @@ def test_single_run_pdf_export_returns_non_empty_pdf(path, authenticated_wrapper
         ),
     ],
 )
-def test_numerical_export_submits_background_job(path, authenticated_wrapper_client, monkeypatch):
+def test_numerical_export_submits_background_job(path, authenticated_wrapper_client, monkeypatch, tmp_path):
+    monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
     monkeypatch.setattr(numerical_routes, "submit_job", lambda _kind, _params: "job-123")
 
     response = authenticated_wrapper_client.get(path)
@@ -118,23 +117,62 @@ def test_numerical_export_submits_background_job(path, authenticated_wrapper_cli
     body = response.get_json()
     assert body["job_id"]
     assert body["status_url"].startswith("/numerical/jobs/")
+    assert body["report_url"].startswith("/numerical/jobs/")
+    # The export job is bound to the submitting user for later ownership checks.
+    meta = numerical_routes.load_job_meta("job-123")
+    assert meta["email"] == "user@example.com"
+    assert meta["parameters"]
+
+
+def test_numerical_job_endpoints_hide_other_users_jobs(authenticated_wrapper_client, monkeypatch, tmp_path):
+    monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
+    from numerical_jobs import save_job_meta
+
+    save_job_meta("foreign-job", {"email": "someone.else@example.com"})
+
+    status = authenticated_wrapper_client.get("/numerical/jobs/foreign-job")
+    report = authenticated_wrapper_client.get("/numerical/jobs/foreign-job/report")
+
+    assert status.status_code == 404
+    assert report.status_code == 404
+
+
+def test_numerical_job_report_rejected_until_done(authenticated_wrapper_client, monkeypatch, tmp_path):
+    monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
+    from numerical_jobs import save_job_meta
+
+    save_job_meta("queued-job", {"email": "user@example.com"})
+    monkeypatch.setattr(
+        numerical_routes, "job_status", lambda _job_id: {"status": "queued", "queue_position": 1}
+    )
+
+    response = authenticated_wrapper_client.get("/numerical/jobs/queued-job/report")
+
+    assert response.status_code == 409
+    assert response.get_json()["status"] == "queued"
 
 
 @pytest.mark.parametrize(
-    "path",
-    ["/numerical/horizontal/single", "/numerical/vertical/single"],
+    "path, expected_fields",
+    [
+        ("/numerical/horizontal/single", ["source_thickness", "grid_size", "al", "at", "gamma", "C_D", "C_A"]),
+        ("/numerical/vertical/single", ["Lz", "grid_size", "al", "atv", "gamma", "C_D", "C_A"]),
+    ],
 )
-def test_numerical_orlando_grid_fields_are_rendered_and_forwarded(path, authenticated_wrapper_client):
+def test_numerical_orlando_grid_fields_are_rendered_and_forwarded(
+    path, expected_fields, authenticated_wrapper_client
+):
     response = authenticated_wrapper_client.get(path)
     page = response.get_data(as_text=True)
     iframe_src = html.unescape(page.split('iframe src="', 1)[1].split('"', 1)[0])
     iframe_query = parse_qs(urlparse(iframe_src).query)
 
     assert response.status_code == 200
-    assert 'name="Lx"' in page
-    assert 'name="ncol"' in page
-    assert "Lx" in iframe_query
-    assert "ncol" in iframe_query
+    for field in expected_fields:
+        assert f'name="{field}"' in page
+        assert field in iframe_query
+    assert 'name="ncol"' not in page
+    assert "ncol" not in iframe_query
 
 
 @pytest.mark.parametrize(
@@ -167,6 +205,40 @@ def test_numerical_multiple_wrapper_has_only_panel_run_action(path, authenticate
     assert "Run Model" not in page
 
 
+@pytest.mark.parametrize(
+    ("path", "result_frame_id"),
+    [
+        ("/numerical/vertical/multiple", "verticalMultipleResultFrame"),
+        ("/numerical/horizontal/multiple", "horizontalMultipleResultFrame"),
+    ],
+)
+def test_numerical_multiple_wrapper_places_panel_under_site_loader(
+    path,
+    result_frame_id,
+    authenticated_wrapper_client,
+    monkeypatch,
+):
+    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [{"id": 7}])
+
+    page = authenticated_wrapper_client.get(path).get_data(as_text=True)
+    iframe_srcs = [
+        html.unescape(match)
+        for match in re.findall(r'<iframe\b[^>]*\bsrc="([^"]+)"', page)
+    ]
+    input_query = parse_qs(urlparse(iframe_srcs[0]).query)
+    result_query = parse_qs(urlparse(iframe_srcs[1]).query)
+
+    assert "model-input-form" not in page
+    assert page.index("Load Uploaded Site") < page.index("Simulation Panel")
+    assert page.index("Simulation Panel") < page.index('class="model-inputs-grid-side"')
+    assert page.index('class="model-inputs-grid-side"') < page.index('class="conceptual-img"')
+    assert page.index(f'id="{result_frame_id}"') > page.index('class="conceptual-img"')
+    assert len(iframe_srcs) == 2
+    assert input_query["input_only"] == ["1"]
+    assert "output_only" not in input_query
+    assert result_query["output_only"] == ["1"]
+
+
 def test_vertical_database_defaults_map_aquifer_thickness_to_lz(authenticated_wrapper_client, monkeypatch):
     site = {"id": 7, "aquifer_thickness": 3.5}
     monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
@@ -175,6 +247,47 @@ def test_vertical_database_defaults_map_aquifer_thickness_to_lz(authenticated_wr
 
     assert 'name="Lz"' in page
     assert 'value="3.5"' in page
+
+
+def _field_markup(page, field):
+    return page.split(f'name="{field}"', 1)[0].rsplit("<label>", 1)[-1]
+
+
+def test_vertical_solver_extra_data_fields_show_db_badges(authenticated_wrapper_client, monkeypatch):
+    site = {
+        "id": 7,
+        "extra_data": {"Lz": "12", "grid_size": "0.5", "al": "2.0"},
+    }
+    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
+
+    page = authenticated_wrapper_client.get("/numerical/vertical/single?site_id=7").get_data(as_text=True)
+
+    for field, value in (("Lz", "12"), ("grid_size", "0.5"), ("al", "2")):
+        assert f'name="{field}"' in page
+        assert f'value="{value}"' in page
+        assert 'input-source-badge--db">DB</em>' in _field_markup(page, field)
+
+
+def test_horizontal_solver_extra_data_fields_show_db_badges(authenticated_wrapper_client, monkeypatch):
+    site = {
+        "id": 7,
+        "extra_data": {"grid_size": "0.75", "al": "2.5", "at": "0.25"},
+    }
+    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
+
+    page = authenticated_wrapper_client.get("/numerical/horizontal/single?site_id=7").get_data(as_text=True)
+
+    for field, value in (("grid_size", "0.75"), ("al", "2.5"), ("at", "0.25")):
+        assert f'name="{field}"' in page
+        assert f'value="{value}"' in page
+        assert 'input-source-badge--db">DB</em>' in _field_markup(page, field)
+
+
+def test_vertical_single_run_button_sits_under_conceptual_model(authenticated_wrapper_client):
+    page = authenticated_wrapper_client.get("/numerical/vertical/single").get_data(as_text=True)
+
+    assert page.count(">Run Model<") == 1
+    assert page.index('class="conceptual-img"') < page.index('form="model-input-form"')
 
 
 @pytest.mark.parametrize(
@@ -205,9 +318,9 @@ def test_vertical_pages_filter_invalid_high_hk_sites_and_still_load(path, authen
     page = authenticated_wrapper_client.get(f"{path}?site_id=8").get_data(as_text=True)
     unescaped_page = html.unescape(page)
 
-    assert "This site can't be modelled: hk 2246.4 m/d exceeds max" in unescaped_page
+    assert "This site can't be modelled" not in unescaped_page
     assert "#7 - Valid Site" in page
-    assert "#8 - Coarse Gravel" not in page
+    assert "#8 - Coarse Gravel" in page
 
 
 @pytest.mark.parametrize(

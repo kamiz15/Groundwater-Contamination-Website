@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}AEM Model{% endblock %}
+{% block content %}
+<section class="section-spaced">
+  <h2>AEM Model</h2>
+  <p>Run a AEM simulation</p>
+
+
+
+  <div class="card-like">
+    <h3>Aem Model</h3>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      <a class="primary-btn" href="{{ url_for('aem_bp.aem_designer') }}">Go to Simulation</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

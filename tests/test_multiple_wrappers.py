@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 import unittest
 from contextlib import ExitStack
 from urllib.parse import parse_qs, urlparse
@@ -34,7 +35,7 @@ SINGLE_WRAPPERS = [
 
 def _iframe_src(response) -> str:
     page = response.get_data(as_text=True)
-    return html.unescape(page.split('iframe src="', 1)[1].split('"', 1)[0])
+    return html.unescape(re.search(r'<iframe\b[^>]*\bsrc="([^"]+)"', page).group(1))
 
 
 class MultipleWrapperTests(unittest.TestCase):

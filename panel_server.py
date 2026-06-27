@@ -28,11 +28,11 @@ from panel_numerical_vertical_single import numerical_vertical_single_app
 from panel_numerical_vertical_multiple import numerical_vertical_multiple_app
 from panel_cirpka_single import cirpka_single_app
 from panel_cirpka_multiple import cirpka_multiple_app
-from panel_source_geometry import source_geometry_app
-from panel_source_inversion import source_inversion_app
 
+from panel_theme import apply_theme
 
 pn.extension("tabulator")
+apply_theme()
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s | %(message)s",
@@ -69,8 +69,6 @@ apps = {
     "panel_cirpka_single": cirpka_single_app,
     "panel_cirpka_single_output": cirpka_single_app,
     "panel_cirpka_multiple": cirpka_multiple_app,
-    "panel_source_geometry": source_geometry_app,
-    "panel_source_inversion": source_inversion_app,
 }
 
 if __name__ == "__main__":

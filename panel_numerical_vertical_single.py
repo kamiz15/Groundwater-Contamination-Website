@@ -1,3 +1,4 @@
+import base64
 import io
 import logging
 
@@ -5,32 +6,55 @@ import panel as pn
 
 from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
-from panel_numerical_optional_views import LazyNumericalViews
-from pdf_report import CASTReport
-from plot_functions import plot_vertical_plume_interactive
+from panel_theme import report_bridge_html
+from panel_numerical_animation import play_growth_once, stop_growth
 
-pn.extension(sizing_mode="stretch_width")
+pn.extension(sizing_mode="stretch_width", raw_css=["""
+@keyframes numericalStatusPulse {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.72; transform: translateY(-1px); }
+}
+.numerical-loading-card {
+  animation: numericalStatusPulse 1.6s ease-in-out infinite;
+}
+"""])
 
 logger = logging.getLogger(__name__)
 
 
+def _input_row(*widgets):
+    """A wrapping input row: keeps each widget at a usable minimum width on
+    narrow screens instead of squeezing them until labels overlap (pn.Row
+    does not wrap). The stylesheet lets long labels wrap inside the widget's
+    shadow DOM instead of bleeding into the neighbouring column."""
+    for widget in widgets:
+        widget.styles = {"flex": "1 1 160px", "min-width": "150px"}
+        widget.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
+    return pn.FlexBox(*widgets, flex_wrap="wrap", sizing_mode="stretch_width", styles={"gap": "10px"})
+
+
+def _loading_status_card(items, title):
+    return f'<div class="numerical-loading-card">{summary_card(items, title=title)}</div>'
+
+
 def numerical_vertical_single_app():
-    lx = pn.widgets.FloatInput(name="Domain Length Lx [m]", value=query_float("Lx", 200.0), step=1.0)
-    lz = pn.widgets.FloatInput(name="Domain Thickness Lz [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
-    ncol = pn.widgets.IntInput(name="Columns ncol [-]", value=query_int("ncol", 200), step=1)
-    nlay = pn.widgets.IntInput(name="Layers nlay [-]", value=query_int("nlay", 20), step=1)
-    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity alpha L [m]", value=query_float("al", 5.0), step=0.1)
-    at = pn.widgets.FloatInput(name="Transverse Dispersivity at [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
-    atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity atv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
-    prsity = pn.widgets.FloatInput(name="Porosity n [-]", value=query_float("prsity", 0.3), step=0.01)
-    hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 1.0), step=0.1)
-    h1 = pn.widgets.FloatInput(name="Head at Left Domain H_L [m]", value=query_float("h1", 10.0), step=0.1)
-    h2 = pn.widgets.FloatInput(name="Head at Right Domain H_R [m]", value=query_float("h2", 9.0), step=0.1)
-    cd = pn.widgets.FloatInput(name="Electron Donor CD [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
-    ca = pn.widgets.FloatInput(name="Electron Acceptor CA [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
-    c0 = pn.widgets.FloatInput(name="Plume Contour Threshold C0 [mg/L]", value=query_float("C0", 8.0), step=0.1)
+    # Input (user / database)
+    lz = pn.widgets.FloatInput(name="Aquifer Thickness Lz [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
+    grid_size = pn.widgets.FloatInput(name="Grid Size dx=dz [m]", value=query_float("grid_size", 1.0), step=0.1)
+    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity aL [m]", value=query_float("al", 1.0), step=0.1)
+    atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity aTv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
     gamma = pn.widgets.FloatInput(name="Stoichiometric Ratio gamma [-]", value=query_float("gamma", 3.5), step=0.1)
-    perlen = pn.widgets.FloatInput(name="Simulation Time [day]", value=query_float("perlen", 100.0), step=1.0)
+    cd = pn.widgets.FloatInput(name="Electron Donor Cd [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
+    ca = pn.widgets.FloatInput(name="Electron Acceptor Ca [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
+    # Standard (modifiable defaults; analytical L_D / thickness derived in the model)
+    prsity = pn.widgets.FloatInput(name="Porosity n [-]", value=query_float("prsity", 0.3), step=0.01)
+    hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 8.64), step=0.1)
+    gradient = pn.widgets.FloatInput(name="Hydraulic Gradient i [-]", value=query_float("gradient", 0.0125), step=0.001)
+    # Analytical column (computed, read-only; filled after a run)
+    ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
+    at_out = pn.widgets.StaticText(name="Aquifer Thickness Lz [m]", value="\u2014")
+    for _w in (lz, grid_size, alpha_l, atv, gamma, cd, ca, prsity, hk, gradient, ld_out, at_out):
+        _w.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
 
     run_btn = pn.widgets.Button(name="Run Vertical Simulation", button_type="primary", sizing_mode="stretch_width")
     cancel_btn = pn.widgets.Button(name="Cancel Job", button_type="danger", sizing_mode="stretch_width", visible=False)
@@ -38,27 +62,19 @@ def numerical_vertical_single_app():
     graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=340)
     state = {}
+    anim = {"holder": None}
     poller = {"callback": None}
-    optional_views = LazyNumericalViews(lambda: state.get("optional_view"))
+    report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
-    def _pdf_callback():
-        if not state:
-            return io.BytesIO(b"")
-        report = CASTReport("Numerical Vertical Model - Single Simulation", "Numerical Vertical")
-        return io.BytesIO(report.generate(
-            state["parameters"],
-            state["outputs"],
-            plot_data=state.get("plot_data"),
-            plot_images=state.get("plot_images"),
-        ))
-
-    export_btn = pn.widgets.FileDownload(
-        callback=_pdf_callback,
-        filename="numerical_vertical_single_report.pdf",
-        label="Download PDF Report",
-        button_type="primary",
-        sizing_mode="stretch_width",
-        visible=False,
+    head_dl_btn = pn.widgets.FileDownload(
+        callback=lambda: io.BytesIO(state.get("head_file") or b""),
+        filename="head.hds", label="Download head (.hds)",
+        button_type="default", sizing_mode="stretch_width", visible=False,
+    )
+    conc_dl_btn = pn.widgets.FileDownload(
+        callback=lambda: io.BytesIO(state.get("concentration_file") or b""),
+        filename="concentration.ucn", label="Download concentration (.ucn)",
+        button_type="default", sizing_mode="stretch_width", visible=False,
     )
 
     def _stop_polling():
@@ -70,45 +86,61 @@ def numerical_vertical_single_app():
             poller["callback"] = None
 
     def _render_completed_result(result):
-        graph_pane.object = plot_vertical_plume_interactive(
-            result.concentration,
-            result.x_grid,
-            result.z_grid,
-            result.plume_length,
-            lx.value,
-            max(lz.value - (lz.value / nlay.value), 0.0),
-            0.0,
-            0.0,
-            lz.value,
+        stop_growth(anim.get("holder"))
+        footer_meta = (
+            f"L_D = {result.domain_length:.2f} m  |  Δx=Δz = {grid_size.value:.2f} m  |  "
+            f"porosity = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
+            f"gradient = {gradient.value:.4f}  |  Péclet = {getattr(result, 'peclet', 0.0):.2f}  |  "
+            "Courant target = 5"
         )
+        plot_kwargs = dict(
+            concentration=result.concentration,
+            x_grid=result.x_grid,
+            cross_grid=result.z_grid,
+            ca=ca.value,
+            cd=cd.value,
+            gamma=gamma.value,
+            plume_length=result.plume_length,
+            domain_length=result.domain_length,
+            cross_extent=result.aquifer_thickness,
+            orientation="vertical",
+            footer_meta=footer_meta,
+        )
+        # One-shot growth sweep for visual effect, then the full static plume.
+        anim["holder"] = play_growth_once(graph_pane, plot_kwargs)
         logger.info("Vertical single graph_pane.object assigned")
         comparison_pane.object = None
-        result_pane.object = summary_card(
-            [
-                ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-                ("Domain Length Lx", f"{lx.value:.2f} m"),
-            ],
-            title="Vertical Simulation Results",
-        )
+        _rows = [
+            ("Numerical Lmax", f"{result.plume_length:.2f} m"),
+            ("Domain Length LD", f"{result.domain_length:.2f} m"),
+            ("Aquifer Thickness", f"{result.aquifer_thickness:.2f} m"),
+            ("Peclet", f"{result.peclet:.2f}"),
+        ]
+        if getattr(result, "k_warning", ""):
+            _rows.append(("\u26a0 K warning", result.k_warning))
+        result_pane.object = summary_card(_rows, title="Vertical Simulation Results")
         state.update({
             "parameters": [
-                {"symbol": "Lx", "name": "Domain Length", "value": lx.value, "unit": "m"},
-                {"symbol": "Lz", "name": "Domain Thickness", "value": lz.value, "unit": "m"},
-                {"symbol": "ncol", "name": "Columns", "value": ncol.value, "unit": "-"},
-                {"symbol": "nlay", "name": "Layers", "value": nlay.value, "unit": "-"},
-                {"symbol": "alpha L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                {"symbol": "at", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
-                {"symbol": "atv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
-                {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
-                {"symbol": "C0", "name": "Plume Contour Threshold", "value": c0.value, "unit": "mg/L"},
-                {"symbol": "perlen", "name": "Simulation Time", "value": perlen.value, "unit": "day"},
-                {"symbol": "CD", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
-                {"symbol": "CA", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "Lz", "name": "Aquifer Thickness", "value": lz.value, "unit": "m"},
+                {"symbol": "dx", "name": "Grid Size", "value": grid_size.value, "unit": "m"},
+                {"symbol": "aL", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
+                {"symbol": "aTv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
                 {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
+                {"symbol": "Cd", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
+                {"symbol": "Ca", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "n", "name": "Porosity", "value": prsity.value, "unit": "-"},
+                {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
+                {"symbol": "i", "name": "Hydraulic Gradient", "value": gradient.value, "unit": "-"},
+                {"symbol": "LD", "name": "Domain Length (analytical)", "value": result.domain_length, "unit": "m"},
+                {"symbol": "Lz", "name": "Aquifer Thickness (analytical)", "value": result.aquifer_thickness, "unit": "m"},
+                {"symbol": "Pe", "name": "Peclet Number", "value": result.peclet, "unit": "-"},
             ],
             "outputs": [
                 {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                {"label": "Domain Length Lx", "value": f"{lx.value:.2f}", "unit": "m"},
+                {"label": "Domain Length LD", "value": f"{result.domain_length:.2f}", "unit": "m"},
+                {"label": "Aquifer Thickness", "value": f"{result.aquifer_thickness:.2f}", "unit": "m"},
+                {"label": "Peclet", "value": f"{result.peclet:.2f}", "unit": "-"},
+                {"label": "Courant Target", "value": f"{result.courant:.2f}", "unit": "-"},
             ],
             "plot_data": {
                 "labels": ["Vertical numerical"],
@@ -121,17 +153,31 @@ def numerical_vertical_single_app():
                     "title": "Vertical Plume Concentration",
                     "bytes": result.plot_png,
                     "caption": "Simulated contaminant plume - vertical cross-section.",
+                    "max_height_mm": 52,
                 }
             ] if result.plot_png else [],
-            "optional_view": {
-                "concentration": result.concentration,
-                "x_grid": result.x_grid,
-                "cross_grid": result.z_grid,
-                "cross_axis_label": "Aquifer Thickness [m]",
-                "title": "Vertical Numerical Model",
-            },
         })
-        export_btn.visible = True
+        state["head_file"] = getattr(result, "head_file", b"")
+        state["concentration_file"] = getattr(result, "concentration_file", b"")
+        head_dl_btn.visible = bool(state["head_file"])
+        conc_dl_btn.visible = bool(state["concentration_file"])
+        ld_out.value = f"{result.domain_length:.2f}"
+        at_out.value = f"{result.aquifer_thickness:.2f}"
+        report_bridge.object = report_bridge_html(
+            "Numerical Vertical Model - Single Simulation", "Numerical Vertical",
+            "numerical_vertical_single_report.pdf",
+            parameters=state["parameters"], outputs=state["outputs"],
+            plot_data=state.get("plot_data"),
+            plot_images_b64=[
+                {
+                    "title": img["title"],
+                    "caption": img.get("caption", ""),
+                    "b64": base64.b64encode(img["bytes"]).decode(),
+                    "max_height_mm": img.get("max_height_mm", 52),
+                }
+                for img in (state.get("plot_images") or [])
+            ],
+        )
 
     def _poll(job_id):
         status = job_status(job_id)
@@ -139,10 +185,13 @@ def numerical_vertical_single_app():
             result_pane.object = error_card(f"Unknown numerical job {job_id}")
             _stop_polling()
             return
-        fields = [("Job", job_id), ("Status", status["status"])]
+        fields = [("Job", job_id[:8]), ("Status", status["status"])]
         if status["status"] == "queued":
             fields.append(("Queue position", status.get("queue_position", "?")))
-        result_pane.object = summary_card(fields, title="Vertical Simulation Status")
+        if status["status"] in {"queued", "running"}:
+            result_pane.object = _loading_status_card(fields, title="Vertical Simulation Status")
+        else:
+            result_pane.object = summary_card(fields, title="Vertical Simulation Status")
         if status["status"] == "done":
             _render_completed_result(fetch_result(job_id))
             _stop_polling()
@@ -150,39 +199,31 @@ def numerical_vertical_single_app():
             result_pane.object = error_card(status.get("error") or "Numerical job failed.")
             _stop_polling()
         elif status["status"] == "cancelled":
-            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
+            result_pane.object = summary_card([("Job", job_id[:8]), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
             _stop_polling()
 
     def _run(_=None):
-        state.pop("optional_view", None)
-        optional_views.reset()
-        export_btn.visible = False
+        stop_growth(anim.get("holder"))
+        report_bridge.object = report_bridge_html(clear=True)
         run_btn.disabled = True
         run_btn.name = "Submitting Vertical Simulation..."
+        ld_out.value = "\u2014"
+        at_out.value = "\u2014"
         try:
-            if min(lx.value, lz.value, prsity.value, alpha_l.value, at.value, atv.value, hk.value, c0.value, perlen.value) <= 0:
-                raise ValueError("Lx, Lz, porosity, dispersivity, K, C0, and simulation time must be positive.")
-            if ncol.value < 6 or nlay.value < 2:
-                raise ValueError("ncol must be at least 6 and nlay must be at least 2 for Orlando's source column.")
-            if h1.value <= h2.value:
-                raise ValueError("Head H_L must be greater than H_R.")
+            if min(lz.value, grid_size.value, alpha_l.value, atv.value, gamma.value,
+                   cd.value, ca.value, prsity.value, hk.value) <= 0:
+                raise ValueError("All vertical inputs must be positive.")
             params = {
-                "Lx": lx.value,
-                "Ly": lz.value,
-                "ncol": ncol.value,
-                "nrow": nlay.value,
-                "prsity": prsity.value,
+                "Lz": lz.value,
+                "grid_size": grid_size.value,
                 "al": alpha_l.value,
-                "av": atv.value,
+                "atv": atv.value,
                 "gamma": gamma.value,
                 "cd": cd.value,
                 "ca": ca.value,
-                "h1": h1.value,
-                "h2": h2.value,
+                "prsity": prsity.value,
                 "hk": hk.value,
-                "perlen": perlen.value,
-                "plume_threshold": c0.value,
-                "ath": at.value,
+                "gradient": gradient.value,
             }
             job_id = submit_job("vertical_single", params)
             state["job_id"] = job_id
@@ -190,7 +231,7 @@ def numerical_vertical_single_app():
             graph_pane.object = None
             comparison_pane.object = None
             run_btn.name = "Run Vertical Simulation"
-            result_pane.object = summary_card([("Job", job_id), ("Status", "queued")], title="Vertical Simulation Submitted")
+            result_pane.object = _loading_status_card([("Job", job_id[:8]), ("Status", "queued")], title="Vertical Simulation Submitted")
             poller["callback"] = pn.state.add_periodic_callback(lambda: _poll(job_id), 2000, start=True)
             _poll(job_id)
         except Exception as exc:
@@ -198,6 +239,7 @@ def numerical_vertical_single_app():
             result_pane.object = error_card(exc)
             graph_pane.object = None
             comparison_pane.object = None
+            report_bridge.object = report_bridge_html(clear=True)
             cancel_btn.visible = False
             run_btn.disabled = False
             run_btn.name = "Run Vertical Simulation"
@@ -205,7 +247,7 @@ def numerical_vertical_single_app():
     def _cancel(_=None):
         job_id = state.get("job_id")
         if job_id and cancel_job(job_id):
-            result_pane.object = summary_card([("Job", job_id), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
+            result_pane.object = summary_card([("Job", job_id[:8]), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
             _stop_polling()
 
     run_btn.on_click(_run)
@@ -217,23 +259,24 @@ def numerical_vertical_single_app():
             _run()
         output_objects = [result_pane]
         if should_run:
-            output_objects.extend([graph_pane, comparison_pane, optional_views.panel, cancel_btn])
+            output_objects.extend([graph_pane, cancel_btn])
+        output_objects.append(report_bridge)
         return pn.Column(*output_objects, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     return pn.Column(
         "## Vertical Numerical Model",
-        pn.Row(lx, lz, ncol, nlay, sizing_mode="stretch_width"),
-        pn.Row(alpha_l, at, atv, prsity, sizing_mode="stretch_width"),
-        pn.Row(hk, sizing_mode="stretch_width"),
-        pn.Row(h1, h2, gamma, sizing_mode="stretch_width"),
-        pn.Row(cd, ca, c0, perlen, sizing_mode="stretch_width"),
+        pn.FlexBox(
+            pn.Column("#### Input", lz, grid_size, alpha_l, atv, gamma, cd, ca, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
+            pn.Column("#### Analytical", ld_out, at_out, "#### Standard (editable)", prsity, hk, gradient, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
+            flex_wrap="wrap", sizing_mode="stretch_width", styles={"gap": "18px"}),
         run_btn,
         cancel_btn,
         result_pane,
         graph_pane,
         comparison_pane,
-        optional_views.panel,
-        export_btn,
+        head_dl_btn,
+        conc_dl_btn,
+        report_bridge,
         sizing_mode="stretch_width",
         styles={"gap": "14px"},
     )

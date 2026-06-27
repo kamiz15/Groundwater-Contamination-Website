@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}AEM Inverse Model{% endblock %}
+{% block content %}
+<section class="section-spaced model-page aem-native" data-aem-page="inverse" data-csrf="{{ csrf_token() }}">
+  <h2>AEM Inverse Model</h2>
+  <form id="aem-inverse-form" class="card-like aem-input-card">
+    <div class="aem-field-grid">
+      <label>Parameter to recover<select name="estimate_param">{% for name in inverse_params %}<option value="{{ name }}">{{ name }}</option>{% endfor %}</select></label>
+      <label>Orientation<select name="orientation"><option>horizontal</option><option>vertical</option></select></label>
+      <label>Source element<select name="elem_kind"><option>Circle</option><option>Line</option></select></label>
+      <label>Observed L_max [m]<input name="target_Lmax" type="number" min="0.0001" value="100"></label>
+      <label>Source radius [m]<input name="r" type="number" min="0.0001" value="1"></label>
+      <label>Source concentration [mg/L]<input name="C0" type="number" min="0.0001" value="5"></label>
+      <label>Electron acceptor [mg/L]<input name="ca" type="number" min="0.0001" value="8"></label>
+      <label>Stoichiometric ratio<input name="gamma" type="number" min="0.0001" value="3.5"></label>
+      <label>Lower bound<input name="lower_bound" type="number"></label>
+      <label>Upper bound<input name="upper_bound" type="number"></label>
+      <label>L_max tolerance [m]<input name="tolerance" type="number" min="0.0001" value="10"></label>
+    </div>
+    <div class="model-input-actions"><button type="submit" class="primary-btn">Run Inverse Model</button><button id="aem-cancel" type="button" class="secondary-btn" hidden>Cancel job</button></div>
+  </form>
+  <div id="aem-message" class="aem-message" role="status" aria-live="polite"></div>
+  <div class="card-like aem-result-card"><dl id="aem-summary" class="aem-summary"></dl><canvas id="aem-result-canvas" width="1000" height="560"></canvas></div>
+</section>
+<script src="{{ url_for('static', filename='aem.js') }}"></script>
+{% endblock %}

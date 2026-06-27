@@ -61,7 +61,10 @@ def max_concurrency() -> int:
 def submit_job(kind: str, params: dict[str, Any]) -> str:
     job_id = uuid.uuid4().hex
     now = time.time()
+    # Enqueue only. Do NOT cancel other jobs -- they queue and run when a slot frees
+    # (max_concurrency). Manual cancellation goes through cancel_job().
     with _connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """
             INSERT INTO numerical_jobs (id, kind, params_json, status, created_at, updated_at)
@@ -71,6 +74,24 @@ def submit_job(kind: str, params: dict[str, Any]) -> str:
         )
     pump_queue()
     return job_id
+
+
+def _meta_path(job_id: str) -> Path:
+    return _job_root() / "results" / f"{job_id}.meta.json"
+
+
+def save_job_meta(job_id: str, meta: dict[str, Any]) -> None:
+    """Persist route-level job metadata (owner, report context) next to results."""
+    with open(_meta_path(job_id), "w", encoding="utf-8") as handle:
+        json.dump(meta, handle)
+
+
+def load_job_meta(job_id: str) -> dict[str, Any] | None:
+    try:
+        with open(_meta_path(job_id), "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return None
 
 
 def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -224,7 +245,12 @@ def _start_worker(job_id: str) -> None:
         mark_failed(job_id, f"Unable to start numerical worker: {exc}")
         return
     with _connect() as conn:
-        conn.execute("UPDATE numerical_jobs SET pid = ?, updated_at = ? WHERE id = ?", (proc.pid, time.time(), job_id))
+        updated = conn.execute(
+            "UPDATE numerical_jobs SET pid = ?, updated_at = ? WHERE id = ? AND status = 'running'",
+            (proc.pid, time.time(), job_id),
+        ).rowcount
+    if not updated:
+        _terminate_pid(proc.pid)
 
 
 def _terminate_pid(pid: int) -> None:

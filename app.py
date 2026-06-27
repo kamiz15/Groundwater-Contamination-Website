@@ -1,7 +1,9 @@
 import logging
+import secrets
 
 from bokeh.resources import CDN
-from flask import Flask, render_template, jsonify, redirect, url_for
+from flask import Flask, render_template, jsonify, redirect, request, url_for
+from werkzeug.exceptions import HTTPException
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -10,31 +12,55 @@ from flask_login import (
     login_user as flask_login_user,
     logout_user,
 )
-from mysql.connector import Error
+from mysql.connector import Error, IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from aem_routes import aem_bp
 from analytical_routes import analytical_bp
 from data_queries import get_db_connection
 from empirical_routes import empirical_bp
 from numerical_routes import numerical_bp
-from source_geometry_routes import source_geometry_bp
-from source_inversion_routes import source_inversion_bp
 from security import (
     GENERIC_DATABASE_ERROR_MESSAGE,
+    MAX_PASSWORD_LENGTH,
+    MAX_USERNAME_LENGTH,
     csrf_protect,
     csrf_token,
+    is_valid_email,
     json_object_or_400,
+    password_policy_error,
     rate_limit,
     required_text_fields,
 )
-from settings import FLASK_DEBUG, FLASK_HOST, FLASK_PORT, SECRET_KEY
+from settings import (
+    DEMO_BYPASS_LOGIN,
+    DEMO_USER_EMAIL,
+    FLASK_DEBUG,
+    FLASK_HOST,
+    FLASK_PORT,
+    MAX_REQUEST_BYTES,
+    SECRET_KEY,
+    SESSION_COOKIE_SECURE,
+)
 from site_routes import site_bp
 
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+# Cookie hardening for the login session and "remember me" cookie.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,      # not readable by JavaScript (mitigates XSS theft)
+    SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE,  # HTTPS-only (configurable for dev)
+    SESSION_COOKIE_SAMESITE="Lax",     # blocks cross-site cookie sending (CSRF defense in depth)
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SECURE=SESSION_COOKIE_SECURE,
+    REMEMBER_COOKIE_SAMESITE="Lax",
+    MAX_CONTENT_LENGTH=MAX_REQUEST_BYTES,  # reject oversized request bodies
+)
 app.jinja_env.globals["csrf_token"] = csrf_token
+app.jinja_env.globals["demo_bypass_login"] = DEMO_BYPASS_LOGIN
 app.jinja_env.globals["bokeh_js_files"] = [
     f"/{js_file}" if js_file.startswith("static/extensions/panel/") else js_file
     for js_file in CDN.js_files
@@ -43,12 +69,27 @@ app.jinja_env.globals["bokeh_js_files"] = [
 login_manager = LoginManager(app)
 login_manager.login_view = "login_page"
 
+# Precomputed hash of a random password, used to equalize login response timing
+# for non-existent accounts (prevents user-enumeration via timing).
+_DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_urlsafe(32))
+
 
 class User(UserMixin):
     def __init__(self, id, username, email):
         self.id = id
         self.username = username
         self.email = email
+
+
+_DEMO_USER = User(0, "Demo User", DEMO_USER_EMAIL)
+
+
+@app.before_request
+def demo_login_bypass():
+    if not DEMO_BYPASS_LOGIN or app.config.get("TESTING"):
+        return
+    if not current_user.is_authenticated:
+        flask_login_user(_DEMO_USER)
 
 
 @login_manager.user_loader
@@ -71,8 +112,16 @@ app.register_blueprint(site_bp)
 app.register_blueprint(analytical_bp)
 app.register_blueprint(empirical_bp)
 app.register_blueprint(numerical_bp)
-app.register_blueprint(source_geometry_bp)
-app.register_blueprint(source_inversion_bp)
+app.register_blueprint(aem_bp)
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(error):
+    # JSON clients (login/register/report fetches) should get a JSON error
+    # body they can parse, not Werkzeug's HTML error page.
+    if request.is_json:
+        return jsonify({"success": False, "message": error.description}), error.code
+    return error
 
 
 @app.errorhandler(Error)
@@ -101,6 +150,11 @@ def authenticate():
     data = json_object_or_400()
     email, password = required_text_fields(data, "username", "password")
 
+    # No stored password exceeds the registration cap, so reject oversized
+    # input before hashing (a multi-MB password is a cheap CPU DoS otherwise).
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return jsonify({"success": False, "message": "Invalid email or password."}), 401
+
     conn = None
     cursor = None
     try:
@@ -122,13 +176,21 @@ def authenticate():
         if conn is not None:
             conn.close()
 
-    if user and check_password_hash(user["password_hash"], password):
+    if user:
+        password_ok = check_password_hash(user["password_hash"], password)
+    else:
+        # Run a hash comparison even when the account does not exist so the
+        # response time does not reveal whether an email is registered.
+        check_password_hash(_DUMMY_PASSWORD_HASH, password)
+        password_ok = False
+
+    if user and password_ok:
         authenticated_user = load_user(user["id"])
         if authenticated_user is None:
-            return jsonify({"success": False, "message": "Invalid email or password."})
+            return jsonify({"success": False, "message": "Invalid email or password."}), 401
         flask_login_user(authenticated_user)
         return jsonify({"success": True, "redirect": url_for("home")})
-    return jsonify({"success": False, "message": "Invalid email or password."})
+    return jsonify({"success": False, "message": "Invalid email or password."}), 401
 
 
 @app.route("/register", methods=["GET"])
@@ -138,7 +200,11 @@ def register_page():
 
 @app.route("/auth/check")
 def auth_check():
-    return ("", 204) if current_user.is_authenticated else ("", 401)
+    if not current_user.is_authenticated:
+        return ("", 401)
+    # The reverse proxy copies this header into the upstream Panel request as the
+    # trusted X-Auth-Email, so Panel never has to trust a client-supplied identity.
+    return ("", 204, {"X-User-Email": current_user.email})
 
 
 @app.route("/register", methods=["POST"])
@@ -155,7 +221,19 @@ def register_user():
     )
 
     if password != confirm_password:
-        return jsonify({"success": False, "message": "Passwords do not match."})
+        return jsonify({"success": False, "message": "Passwords do not match."}), 400
+
+    if not is_valid_email(email):
+        return jsonify({"success": False, "message": "Please enter a valid email address."}), 400
+
+    if len(username) > MAX_USERNAME_LENGTH:
+        return jsonify(
+            {"success": False, "message": f"Username must be at most {MAX_USERNAME_LENGTH} characters."}
+        ), 400
+
+    policy_error = password_policy_error(password)
+    if policy_error:
+        return jsonify({"success": False, "message": policy_error}), 400
 
     conn = None
     cursor = None
@@ -171,6 +249,15 @@ def register_user():
             (username, email, hashed_pw, None, None),
         )
         conn.commit()
+    except IntegrityError:
+        # Unique constraint on users.email: surface a clear conflict instead
+        # of a generic server error.
+        return jsonify(
+            {
+                "success": False,
+                "message": "An account with this email already exists.",
+            }
+        ), 409
     except Error:
         logger.exception("Database error while registering account")
         return jsonify(
@@ -188,8 +275,9 @@ def register_user():
     return jsonify({"success": True, "redirect": url_for("login_page")})
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
+@csrf_protect
 def logout():
     logout_user()
     return redirect(url_for("home"))

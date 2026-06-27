@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Site Database & Model Input{% endblock %}
+
+{% block content %}
+<section class="section-spaced">
+  <h2>Site Database & Model Input</h2>
+
+  {% if message %}
+    <p class="flash flash-success">{{ message }}</p>
+  {% endif %}
+  {% if error %}
+    <p class="flash flash-error">{{ error }}</p>
+  {% endif %}
+
+  <div class="card-like">
+    <h3>Upload Site Data (CSV)</h3>
+    <p class="small">
+      Upload multiple sites at once. Any CSV works &mdash; recognized headers map to the standard
+      site fields, and any extra columns are kept under their original names and shown in
+      &ldquo;Additional fields&rdquo; below. Matching columns automatically autofill model inputs
+      on the model pages. Commonly recognized headers:<br>
+      <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity, electron_donor, electron_acceptor_o2, electron_acceptor_no3</code>
+    </p>
+    <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="upload_csv">
+      <label class="file-label">
+        <span id="csvFileLabel">Choose CSV file…</span>
+        <input id="csvFileInput" type="file" name="csv_file" accept=".csv">
+      </label>
+      <button type="submit" class="primary-btn">Upload CSV</button>
+    </form>
+  </div>
+
+  <div class="card-like">
+    <h3>Add Single Site Manually</h3>
+    <form method="POST" class="site-form">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="manual">
+
+      <input type="text" name="site_unit" placeholder="Site Unit" required>
+      <input type="text" name="compound" placeholder="Compound" required>
+
+      <div class="site-form-grid">
+        <input type="number" step="any" name="aquifer_thickness" placeholder="Aquifer Thickness (m)">
+        <input type="number" step="any" name="plume_length" placeholder="Plume Length (m)">
+        <input type="number" step="any" name="plume_width" placeholder="Plume Width (m)">
+        <input type="number" step="any" name="hydraulic_conductivity" placeholder="Hydraulic Conductivity K [m/s]">
+        <input type="number" step="any" name="electron_donor" placeholder="Electron Donor (mg/l)">
+        <input type="number" step="any" name="electron_acceptor_o2" placeholder="O₂ (mg/l)">
+        <input type="number" step="any" name="electron_acceptor_no3" placeholder="NO₃ (mg/l)">
+      </div>
+
+      <button type="submit" class="primary-btn">Add Site</button>
+    </form>
+  </div>
+
+  <div class="card-like">
+    <div class="table-header-row">
+      <div>
+        <h3>Your Site Entries</h3>
+        <p class="small table-subtitle">Review uploaded site data, narrow it by any column, and sort by any parameter.</p>
+      </div>
+      {% if sites or total_site_count %}
+        <div class="table-count-badge">{{ sites|length }} of {{ total_site_count }} row(s)</div>
+      {% endif %}
+    </div>
+
+    {% if sites %}
+      <form method="GET" class="site-form table-tools">
+        <div class="table-tools-card">
+          <div class="table-tools-heading">Filter Columns</div>
+          <div class="site-form-grid table-filter-grid">
+            {% for field, label in table_field_defs %}
+              <label class="table-tool-field">
+                <span>{{ label }}</span>
+                <input
+                  type="text"
+                  name="{{ field }}"
+                  value="{{ active_filters.get(field, '') }}"
+                  placeholder="Type to filter"
+                >
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="table-sort-row">
+          <div class="table-tools-card table-sort-card">
+            <div class="table-tools-heading">Sort Rows</div>
+            <div class="table-sort-controls">
+              <label class="table-tool-field">
+                <span>Parameter</span>
+                <select name="sort_by">
+                  <option value="" {% if not sort_field %}selected{% endif %}>No sorting</option>
+                  {% for field, label in table_field_defs %}
+                    <option value="{{ field }}" {% if sort_field == field %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="table-tool-field">
+                <span>Direction</span>
+                <select name="sort_dir">
+                  <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>Ascending</option>
+                  <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>Descending</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="csv-form table-actions-row">
+          <button type="submit" class="primary-btn">Apply Filters</button>
+          <a href="{{ url_for('site_bp.site_database') }}" class="ghost-btn">Clear Filters</a>
+          <span class="small table-meta">{{ sites|length }} of {{ total_site_count }} row(s) shown</span>
+        </div>
+      </form>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              {% for field, label in table_field_defs %}
+                <th>{{ label }}</th>
+              {% endfor %}
+              <th>Additional fields</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sites %}
+              <tr>
+                {% for field, label in table_field_defs %}
+                  <td>{{ s[field] }}</td>
+                {% endfor %}
+                <td>
+                  {% set extra = s.extra_data or {} %}
+                  {% if extra %}
+                    {% for k, v in extra.items() %}<span class="extra-field">{{ k }}={{ v }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+                  {% else %}
+                    <span class="small">&mdash;</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="POST" action="{{ url_for('site_bp.delete_site_row', site_id=s.id) }}"
+                        onsubmit="return confirm('Delete site #{{ s.id }} ({{ s.site_unit }})?');">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="ghost-btn" title="Delete this row">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {% if total_site_count %}
+        <p>No rows match the current filters. Clear the filters to see all uploaded data.</p>
+      {% else %}
+        <p>No site entries yet. Upload a CSV or add one above to begin.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

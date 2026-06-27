@@ -28,13 +28,12 @@
   </div>
   {% endif %}
 
-  {% include "model_input_form.html" %}
-
   <div class="card-like model-output-card">
     <h3>Simulation Panel</h3>
     <div class="panel-shell output-panel-shell">
       <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
     </div>
   </div>
+  {% include "report_bridge_card.html" %}
 </section>
 {% endblock %}

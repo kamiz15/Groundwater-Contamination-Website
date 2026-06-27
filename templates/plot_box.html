@@ -1,4 +1,11 @@
 {% extends "base.html" %}
+
+{% block bokeh_js %}
+  {% for bokeh_js_file in bokeh_js_files %}
+  <script src="{{ bokeh_js_file }}"></script>
+  {% endfor %}
+{% endblock %}
+
 {% block title %}Box Plot{% endblock %}
 
 {% block content %}

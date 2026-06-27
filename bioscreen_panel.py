@@ -3,8 +3,11 @@ import io
 import pandas as pd
 import panel as pn
 
+from panel_auth import authenticated_email
+
 from bioscreen_model import bio
-from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, query_str, summary_card
+from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, summary_card
+from panel_theme import report_bridge_html
 from pdf_report import CASTReport
 from security import user_safe_error
 
@@ -37,7 +40,7 @@ def bioscreen_single_app():
     run_btn = pn.widgets.Button(name="Run BIOSCREEN simulation", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the BIOSCREEN model to compute plume length."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "")
+    email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
@@ -115,22 +118,12 @@ def bioscreen_multiple_app():
     result_pane = pn.pane.HTML(info_card("Run the BIOSCREEN sweep to compare plume lengths over time."), sizing_mode="stretch_width")
     table = pn.widgets.Tabulator(pd.DataFrame(columns=["time_years", "lmax_m"]), height=240, sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "")
+    email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
 
-    def _pdf_callback():
-        if not _state:
-            return io.BytesIO(b"")
-        report = CASTReport("BIOSCREEN-AT \u2014 Multiple Simulation", "BIOSCREEN Analytical")
-        return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
-
-    export_btn = pn.widgets.FileDownload(
-        callback=_pdf_callback, filename="bioscreen_multiple_report.pdf",
-        label="\u2193 Download PDF Report", button_type="primary",
-        sizing_mode="stretch_width", visible=False,
-    )
+    report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
     def _run(_=None):
         try:
@@ -168,13 +161,18 @@ def bioscreen_multiple_app():
                 ],
                 "plot_data": {"labels": [f"t={r['time_years']:.0f}yr" for r in rows], "values": [r["lmax_m"] for r in rows], "ylabel": "Plume Length (m)", "title": "Plume Length Over Time — BIOSCREEN-AT"},
             })
-            export_btn.visible = True
+            report_bridge.object = report_bridge_html(
+                "BIOSCREEN-AT — Multiple Simulation", "BIOSCREEN Analytical",
+                "bioscreen_multiple_report.pdf",
+                parameters=_state["parameters"], outputs=_state["outputs"],
+                plot_data=_state.get("plot_data"),
+            )
         except Exception as exc:
             safe_error = user_safe_error(exc)
             table.value = pd.DataFrame([{"error": safe_error}])
             result_pane.object = error_card(safe_error)
             plot_pane.object = None
-            export_btn.visible = False
+            report_bridge.object = report_bridge_html(clear=True)
 
     run_btn.on_click(_run)
     if query_int("output_only", 0):
@@ -191,4 +189,4 @@ def bioscreen_multiple_app():
     )
     outputs = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
     body = pn.FlexBox(controls, outputs, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
-    return pn.Column(run_btn, result_pane, body, export_btn, sizing_mode="stretch_both", styles={"gap": "14px"})
+    return pn.Column(run_btn, result_pane, body, report_bridge, sizing_mode="stretch_both", styles={"gap": "14px"})

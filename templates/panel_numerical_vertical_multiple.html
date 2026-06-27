@@ -1,48 +1,101 @@
 {% extends "base.html" %}
 {% block title %}Numerical Vertical Model - Multiple Simulation{% endblock %}
 {% block content %}
-<section class="section-spaced model-page">
+<section class="section-spaced model-page numerical-vertical-multiple-page">
   <h2>Numerical Vertical Model - Multiple Simulation</h2>
-  <p class="small">Enter scenarios in the table inside the panel below and click Run to compare multiple simulations.</p>
+  <p class="small">Load site data, then edit scenarios in the table below and click Run to compare multiple simulations.</p>
 
-  <div class="card-like conceptual-figure">
-    <h3>Conceptual Model</h3>
-    <img
-      src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}"
-      alt="Vertical numerical model cross-section showing x-z spreading, aquifer thickness, source thickness, and vertical transverse dispersivity alpha Tv"
-      class="conceptual-img"
-      loading="eager"
-    />
-  </div>
+  <div class="model-inputs-grid">
+    <div class="model-inputs-grid-main">
+      {% if sites %}
+      <div class="card-like external-site-loader">
+        <h3>Load Uploaded Site</h3>
+        <form method="GET" class="site-form csv-form">
+          <select id="site_id" name="site_id">
+            <option value="" {% if not selected_site_id %}selected{% endif %}>Manual input only</option>
+            {% for s in sites %}
+            <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="primary-btn">Load Uploaded Site</button>
+        </form>
+      </div>
+      {% endif %}
+      {% if invalid_site_message %}
+      <div class="card-like">
+        <p class="model-input-empty">{{ invalid_site_message }}</p>
+      </div>
+      {% endif %}
+      <div class="card-like model-output-card">
+        <h3>Simulation Panel</h3>
+        <div class="panel-shell output-panel-shell vertical-multiple-input-shell">
+          <iframe
+            src="{{ input_panel_src }}"
+            class="panel-frame output-panel-frame vertical-multiple-input-frame"
+            data-min-height="220"
+            loading="eager"
+          ></iframe>
+        </div>
+      </div>
+    </div>
 
-  <p class="small">Vertical configuration: cross-section (x, z) with aquifer thickness M, source thickness ST, and vertical transverse dispersivity alpha Tv.</p>
-  {% if invalid_site_message %}
-  <div class="card-like">
-    <p class="model-input-empty">{{ invalid_site_message }}</p>
-  </div>
-  {% endif %}
-
-  {% if sites %}
-  <div class="card-like">
-    <form method="GET" class="site-form csv-form">
-      <label for="site_id"><strong>Optional: load uploaded site data</strong></label>
-      <select id="site_id" name="site_id">
-        <option value="" {% if not selected_site_id %}selected{% endif %}>Manual input only</option>
-        {% for s in sites %}
-        <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="primary-btn">Load Uploaded Site</button>
-      {% if selected_site_id %}<a href="{{ request.path }}" class="ghost-btn">Use Manual Input</a>{% endif %}
-    </form>
-  </div>
-  {% endif %}
-
-  <div class="card-like model-output-card">
-    <h3>Simulation Panel</h3>
-    <div class="panel-shell output-panel-shell">
-      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
+    <div class="model-inputs-grid-side">
+      <div class="card-like conceptual-figure vertical-multiple-conceptual">
+        <h3>Conceptual Model</h3>
+        <img
+          src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}"
+          alt="Vertical numerical model cross-section showing x-z spreading, aquifer thickness, source thickness, and vertical transverse dispersivity alpha Tv"
+          class="conceptual-img"
+          loading="eager"
+        />
+      </div>
+      <button type="button" id="verticalMultipleRunButton" class="primary-btn vertical-multiple-run-button">
+        Run Vertical Scenarios
+      </button>
     </div>
   </div>
+
+  <div class="card-like model-output-card vertical-multiple-result-card">
+    <h3>Output Visualisation</h3>
+    <div class="panel-shell output-panel-shell vertical-multiple-result-shell">
+      <iframe
+        id="verticalMultipleResultFrame"
+        src="{{ result_panel_src }}"
+        data-base-src="{{ result_panel_src }}"
+        class="panel-frame output-panel-frame vertical-multiple-result-frame"
+        loading="eager"
+      ></iframe>
+    </div>
+  </div>
+  <script>
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "numerical-multiple-result" || data.orientation !== "vertical") return;
+      const runButton = document.getElementById("verticalMultipleRunButton");
+      if (runButton) {
+        runButton.disabled = false;
+        runButton.textContent = "Run Vertical Scenarios";
+      }
+      const frame = document.getElementById("verticalMultipleResultFrame");
+      if (!frame) return;
+      const base = frame.dataset.baseSrc || frame.src;
+      const separator = base.includes("?") ? "&" : "?";
+      const query = new URLSearchParams({
+        job_ids: JSON.stringify(data.job_ids || []),
+        scenario_rows: JSON.stringify(data.rows || []),
+      });
+      frame.src = `${base}${separator}${query.toString()}`;
+    });
+
+    document.getElementById("verticalMultipleRunButton")?.addEventListener("click", (event) => {
+      const button = event.currentTarget;
+      const frame = document.querySelector(".vertical-multiple-input-frame");
+      if (!frame || !frame.contentWindow) return;
+      button.disabled = true;
+      button.textContent = "Running Vertical Scenarios...";
+      frame.contentWindow.postMessage({ type: "run-numerical-multiple", orientation: "vertical" }, "*");
+    });
+  </script>
+  {% include "report_bridge_card.html" %}
 </section>
 {% endblock %}

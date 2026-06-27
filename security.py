@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -11,6 +12,8 @@ from threading import Lock
 from flask import abort, jsonify, request, session
 from mysql.connector import Error as DatabaseError
 
+from settings import TRUST_PROXY_HEADERS
+
 
 _CSRF_SESSION_KEY = "_csrf_token"
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -19,6 +22,32 @@ _rate_limit_lock = Lock()
 logger = logging.getLogger(__name__)
 
 GENERIC_DATABASE_ERROR_MESSAGE = "Unable to access data. Please try again later."
+
+# Credential policy. The max password length caps the work the password hasher
+# does per request (a very long password is a cheap DoS against pbkdf2).
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 256
+MAX_EMAIL_LENGTH = 150        # matches users.email column
+MAX_USERNAME_LENGTH = 100     # matches users.username column
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def is_valid_email(email: str) -> bool:
+    return bool(email) and len(email) <= MAX_EMAIL_LENGTH and _EMAIL_RE.match(email) is not None
+
+
+def password_policy_error(password: str) -> str | None:
+    """Return a human-readable reason the password is unacceptable, or None.
+
+    Follows NIST SP 800-63B guidance: enforce a minimum length and an upper
+    bound (to cap hashing cost), but do NOT impose character-composition rules,
+    which push users toward weaker, predictable passwords.
+    """
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
+    return None
 
 
 def csrf_token() -> str:
@@ -87,9 +116,15 @@ def user_safe_error(error, context: str = "Database operation failed") -> str:
 
 
 def _client_address() -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
+    # Only trust a proxy-supplied client IP when explicitly configured. The
+    # bundled nginx sets X-Real-IP to the real connecting address and overwrites
+    # any value the client tried to send, so it cannot be spoofed to evade rate
+    # limiting. We deliberately do NOT trust the leftmost X-Forwarded-For entry,
+    # which is fully client-controllable.
+    if TRUST_PROXY_HEADERS:
+        real_ip = request.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            return real_ip
     return request.remote_addr or "unknown"
 
 
@@ -100,8 +135,16 @@ def rate_limit(limit: int, window_seconds: int):
             key = (request.endpoint or view.__name__, _client_address())
             now = time.monotonic()
             with _rate_limit_lock:
-                bucket = _rate_limit_buckets[key]
+                # Evict fully-expired buckets so the map does not grow without
+                # bound across distinct client IPs (one entry per endpoint+IP).
                 cutoff = now - window_seconds
+                for stale_key in [
+                    k for k, b in _rate_limit_buckets.items()
+                    if not b or b[-1] <= cutoff
+                ]:
+                    if stale_key != key:
+                        del _rate_limit_buckets[stale_key]
+                bucket = _rate_limit_buckets[key]
                 while bucket and bucket[0] <= cutoff:
                     bucket.popleft()
                 if len(bucket) >= limit:

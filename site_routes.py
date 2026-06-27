@@ -3,18 +3,34 @@
 import csv
 import io
 import logging
+import re
 
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, Response, abort, redirect, render_template, request, jsonify, url_for
 from flask_login import current_user, login_required
 
-from data_queries import get_user_sites, get_user_sites_rows, insert_site, insert_sites_bulk, SITE_FIELDS
+from data_queries import (
+    delete_site,
+    get_user_sites,
+    get_user_sites_rows,
+    insert_site,
+    insert_sites_bulk,
+    NUMERIC_SITE_FIELDS,
+    SITE_FIELDS,
+    TEXT_SITE_FIELDS,
+)
+from pdf_report import CASTReport
 from plot_functions import create_bargraph, create_histogram, create_boxplot
 from security import csrf_protect, form_data_or_400, json_object_or_400
+from symbol_registry import SITE_COLUMN_DEFS, TEXT_COLUMN_DEFS, header_match, header_to_site_column
 
 site_bp = Blueprint("site_bp", __name__)
 logger = logging.getLogger(__name__)
 
-# ---- column config ----   
+# ---- column config ----
+# COLUMN_DEFS maps the legacy 9-column plot labels to their index in the
+# list-of-lists returned by get_user_sites (used by the standalone plot pages,
+# which keep the original fixed layout). The input table itself is rendered
+# dynamically from the catalog (ALL_FIELD_DEFS / visible columns).
 COLUMN_DEFS = [
     ("ID", 0),
     ("Site unit", 1),
@@ -28,22 +44,33 @@ COLUMN_DEFS = [
     ("Electron acceptor NO₃ [mg/L]", 9),
 ]
 
-TABLE_FIELD_DEFS = [
-    ("id", "ID"),
-    ("site_unit", "Site unit"),
-    ("compound", "Compound"),
-    ("aquifer_thickness", "Aquifer thickness [m]"),
-    ("plume_length", "Plume length [m]"),
-    ("plume_width", "Plume width [m]"),
-    ("hydraulic_conductivity", "Hydraulic conductivity [m/s]"),
-    ("electron_donor", "Electron donor [mg/L]"),
-    ("electron_acceptor_o2", "Electron acceptor O2 [mg/L]"),
-    ("electron_acceptor_no3", "Electron acceptor NO3 [mg/L]"),
-]
+# Full ordered (field, label) list for the input table, derived from the
+# catalog: identity columns first, then every typed model-parameter column in
+# registry order. Filtering/sorting validate against this; display narrows it
+# to columns that actually hold data (see _visible_field_defs).
+ALL_FIELD_DEFS = (
+    [("id", "ID")]
+    + [(col, TEXT_COLUMN_DEFS[col]["ui"]) for col in TEXT_SITE_FIELDS]
+    + [(db, ui) for db, ui, _unit in SITE_COLUMN_DEFS]
+)
+_ALL_FIELD_KEYS = {field for field, _label in ALL_FIELD_DEFS}
+# Identity columns are always shown even when empty so every row is identifiable.
+_ALWAYS_SHOWN = {"id", *TEXT_SITE_FIELDS}
 
 
-def _get_column_names():
-    return [label for (label, _) in COLUMN_DEFS]
+def _visible_field_defs(rows):
+    """Columns to render: identity columns + any column with data in some row."""
+    present = set()
+    for row in rows:
+        for field in _ALL_FIELD_KEYS:
+            value = row.get(field)
+            if value is not None and value != "":
+                present.add(field)
+    return [
+        (field, label)
+        for field, label in ALL_FIELD_DEFS
+        if field in _ALWAYS_SHOWN or field in present
+    ]
 
 
 def _get_column_index(label: str):
@@ -57,82 +84,91 @@ def _current_email():
     return current_user.email
 
 
-def _normalize_header(name: str) -> str:
-    return "".join(ch.lower() for ch in (name or "") if ch.isalnum())
-
-
-HEADER_ALIASES = {
-    "site_unit": [
-        "site_unit",
-        "site unit",
-        "siteno",
-        "site no.",
-    ],
-    "compound": [
-        "compound",
-    ],
-    "aquifer_thickness": [
-        "aquifer_thickness",
-        "aquifer thickness",
-        "aquifer thickness[m]",
-    ],
-    "plume_length": [
-        "plume_length",
-        "plume length",
-        "plume length[m]",
-    ],
-    "plume_width": [
-        "plume_width",
-        "plume width",
-        "plume width[m]",
-    ],
-    "hydraulic_conductivity": [
-        "hydraulic_conductivity",
-        "hydraulic conductivity",
-        "hydraulic conductivity[m/s]",
-        "hydraulic conductivity[10-3 [m/s]]",
-    ],
-    "electron_donor": [
-        "electron_donor",
-        "electron donor",
-        "electron donor[mg/l]",
-    ],
-    "electron_acceptor_o2": [
-        "electron_acceptor_o2",
-        "electron acceptor o2",
-        "electron acceptors : o2[mg/l]",
-        "o2[mg/l]",
-    ],
-    "electron_acceptor_no3": [
-        "electron_acceptor_no3",
-        "electron acceptor no3",
-        "no3[mg/l]",
-    ],
-}
-
-NORMALIZED_ALIAS_LOOKUP = {
-    field: {_normalize_header(alias) for alias in aliases}
-    for field, aliases in HEADER_ALIASES.items()
-}
-
-
 def _build_field_to_header_map(fieldnames):
-    normalized_headers = {
-        _normalize_header(h): h for h in fieldnames if h and h.strip()
-    }
+    """Map sites columns to the original CSV header that fills them.
+
+    Every header is matched against the catalog (symbol_registry), so any
+    recognized model-parameter column — not just the original 9 — is captured.
+    Returns { sites_column: original_header }.
+
+    Collisions (two headers mapping to one column) are resolved by precedence:
+    a canonical match wins over a soft alias. This keeps "Site Unit" (the name)
+    in site_unit even when "Site No." (a row index) appears earlier.
+    """
     mapping = {}
-    for field in SITE_FIELDS:
-        wanted = NORMALIZED_ALIAS_LOOKUP[field]
-        for normalized_name, original_name in normalized_headers.items():
-            if normalized_name in wanted:
-                mapping[field] = original_name
-                break
+    strong = {}
+    for header in fieldnames:
+        if not header or not header.strip():
+            continue
+        column, is_strong = header_match(header)
+        if not column:
+            continue
+        if column not in mapping or (is_strong and not strong.get(column)):
+            mapping[column] = header
+            strong[column] = is_strong
     return mapping
+
+
+# Detects a power-of-ten scale declared in a header unit, e.g. "10-3", "10^-3"
+# or "1e-3" inside "Hydraulic conductivity[10-3 [m/s]]".
+_SCALE_RE = re.compile(r"10\s*\^?\s*(-?\d+)|1[eE]\s*(-?\d+)")
+
+
+def _header_scale(header: str) -> float:
+    """Return the power-of-ten factor declared in a header, or 1.0 if none."""
+    if not header:
+        return 1.0
+    match = _SCALE_RE.search(header)
+    if not match:
+        return 1.0
+    exponent = match.group(1) if match.group(1) is not None else match.group(2)
+    try:
+        return 10.0 ** int(exponent)
+    except (ValueError, OverflowError):
+        return 1.0
+
+
+_CSV_DELIMITERS = [",", ";", "\t", "|"]
+
+
+def _detect_delimiter(text: str) -> str:
+    """Pick the delimiter used by the CSV header line.
+
+    Many exported datasets are semicolon- or tab-separated (common in European
+    locales and simulation tools). Choosing the candidate that appears most in
+    the header row handles those without assuming a comma.
+    """
+    header_line = ""
+    for line in text.splitlines():
+        if line.strip():
+            header_line = line
+            break
+    counts = {d: header_line.count(d) for d in _CSV_DELIMITERS}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
+
+def _extra_field_keys(rows):
+    """First-seen-ordered union of extra_data keys across the given rows.
+
+    These are the uploaded columns that did not match a catalog parameter; each
+    becomes its own table column so the whole file is visible and readable.
+    """
+    keys = []
+    seen = set()
+    for row in rows:
+        extra = row.get("extra_data") or {}
+        if isinstance(extra, dict):
+            for key in extra.keys():
+                if key not in seen:
+                    seen.add(key)
+                    keys.append(key)
+    return keys
 
 
 def _site_filters_from_request():
     filters = {}
-    for field, _label in TABLE_FIELD_DEFS:
+    for field, _label in ALL_FIELD_DEFS:
         value = (request.args.get(field) or "").strip()
         if value:
             filters[field] = value
@@ -160,8 +196,7 @@ def _filter_sites(rows, filters):
 def _site_sort_from_request():
     sort_field = (request.args.get("sort_by") or "").strip()
     sort_dir = (request.args.get("sort_dir") or "asc").strip().lower()
-    valid_fields = {field for field, _label in TABLE_FIELD_DEFS}
-    if sort_field not in valid_fields:
+    if sort_field not in _ALL_FIELD_KEYS:
         return "", "asc"
     if sort_dir not in {"asc", "desc"}:
         sort_dir = "asc"
@@ -218,35 +253,89 @@ def site_database():
                 if not file or not file.filename:
                     raise ValueError("Please choose a CSV file before uploading.")
 
-                text = file.stream.read().decode("utf-8-sig")
-                reader = csv.DictReader(io.StringIO(text))
+                try:
+                    text = file.stream.read().decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    raise ValueError("The file is not UTF-8 text. Please upload a plain CSV file.")
+                reader = csv.DictReader(io.StringIO(text), delimiter=_detect_delimiter(text))
                 if not reader.fieldnames:
                     raise ValueError("CSV appears empty or missing a header row.")
 
+                # Flexible CSV: map any recognized headers to fixed DB columns
+                # (as before), but do NOT reject CSVs lacking the 9 fixed
+                # columns. Every header that does not map to a fixed field is
+                # routed into payload["extra_data"], keyed by its trimmed
+                # original name, so model pages can autofill from it later.
                 header_map = _build_field_to_header_map(reader.fieldnames)
-                missing = [field for field in SITE_FIELDS if field not in header_map]
-                if missing:
-                    raise ValueError(f"Missing required CSV columns: {', '.join(missing)}")
+                mapped_originals = set(header_map.values())
+                extra_headers = [
+                    h
+                    for h in reader.fieldnames
+                    if h and h.strip() and h not in mapped_originals
+                ]
+                # Per-column unit scale (e.g. K header "[10-3 [m/s]]" -> 1e-3),
+                # applied only to numeric columns so values are stored in base
+                # units the models expect.
+                numeric_columns = set(NUMERIC_SITE_FIELDS)
+                column_scales = {
+                    column: _header_scale(header)
+                    for column, header in header_map.items()
+                    if column in numeric_columns and _header_scale(header) != 1.0
+                }
 
                 payloads = []
+                row_number = 0
                 for row in reader:
                     if not row:
                         continue
-                    payload = {
-                        field: (row.get(header_map[field], "") or "").strip()
-                        for field in SITE_FIELDS
-                    }
-                    if not payload["site_unit"] and not payload["compound"]:
+                    row_number += 1
+                    payload = {}
+                    for field in header_map:
+                        raw = (row.get(header_map[field], "") or "").strip()
+                        scale = column_scales.get(field)
+                        if scale and raw:
+                            try:
+                                raw = repr(float(raw) * scale)
+                            except ValueError:
+                                pass  # non-numeric (e.g. "NA"); leave untouched
+                        payload[field] = raw
+                    # Unmapped columns -> extra_data, dropping empty values.
+                    extra = {}
+                    for h in extra_headers:
+                        value = (row.get(h, "") or "").strip()
+                        if value:
+                            extra[h.strip()] = value
+                    payload["extra_data"] = extra
+
+                    site_unit = payload.get("site_unit", "")
+                    compound = payload.get("compound", "")
+                    # Synthesis rule: only skip a row that carries no identifying
+                    # value at all (no site_unit, no compound, no extra data).
+                    # Otherwise, if site_unit is blank, synthesize one from the
+                    # 1-based row position so the row is still importable;
+                    # a blank compound is left as "".
+                    if not site_unit and not compound and not extra:
                         continue
-                    if not payload["site_unit"] or not payload["compound"]:
-                        raise ValueError("Each row must include site_unit and compound.")
+                    if not site_unit:
+                        payload["site_unit"] = f"Imported row {row_number}"
                     payloads.append(payload)
 
                 if not payloads:
                     raise ValueError("No valid data rows found in CSV.")
 
-                inserted = insert_sites_bulk(email, payloads)
-                message = f"Uploaded {inserted} site row(s) successfully."
+                inserted, skipped = insert_sites_bulk(email, payloads)
+                if inserted and skipped:
+                    message = (
+                        f"Uploaded {inserted} site row(s); "
+                        f"skipped {skipped} duplicate row(s) already in your database."
+                    )
+                elif inserted:
+                    message = f"Uploaded {inserted} site row(s) successfully."
+                else:
+                    message = (
+                        f"No new rows added: all {skipped} row(s) are already in "
+                        "your database."
+                    )
 
             else:
                 raise ValueError("Unsupported form action.")
@@ -256,26 +345,46 @@ def site_database():
             logger.exception("Database error while updating site data")
             error = "Unable to save site data. Please try again later."
 
-    table_data = get_user_sites(email)
+    # Single query: the template renders from `sites`; the old second query
+    # (get_user_sites -> table_data) produced a variable the template never used.
     sites = get_user_sites_rows(email)
+    # Columns are formed from the data: every catalog column that any uploaded
+    # row populates is shown (identity columns always), so different models'
+    # uploads surface their own parameters.
+    table_field_defs = _visible_field_defs(sites)
+    # Unrecognized uploaded columns each become their own column too, so the
+    # whole file is shown (not collapsed into one "Additional fields" cell).
+    extra_field_keys = _extra_field_keys(sites)
     active_filters = _site_filters_from_request()
     sort_field, sort_dir = _site_sort_from_request()
     filtered_sites = _filter_sites(sites, active_filters)
     filtered_sites = _sort_sites(filtered_sites, sort_field, sort_dir)
-    column_names = _get_column_names()
     return render_template(
         "site_database.html",
-        table_data=table_data,
         sites=filtered_sites,
-        table_field_defs=TABLE_FIELD_DEFS,
+        table_field_defs=table_field_defs,
+        extra_field_keys=extra_field_keys,
         active_filters=active_filters,
         sort_field=sort_field,
         sort_dir=sort_dir,
         total_site_count=len(sites),
-        column_names=column_names,
         message=message,
         error=error,
     )
+
+
+@site_bp.route("/sites/<int:site_id>/delete", methods=["POST"])
+@login_required
+@csrf_protect
+def delete_site_row(site_id):
+    try:
+        deleted = delete_site(_current_email(), site_id)
+    except Exception:
+        logger.exception("Database error while deleting site row")
+        deleted = False
+    if not deleted:
+        abort(404, description="Site not found.")
+    return redirect(url_for("site_bp.site_database"))
 
 
 # -----------------------------
@@ -353,11 +462,11 @@ def histogram_json():
         parameter = form.get("parameter")
 
     if not parameter:
-        return jsonify({"error": "No parameter provided"}), 400
+        return jsonify({"success": False, "message": "No parameter provided"}), 400
 
     col_index = _get_column_index(parameter)
     if col_index is None:
-        return jsonify({"error": f"Unknown parameter '{parameter}'"}), 400
+        return jsonify({"success": False, "message": f"Unknown parameter '{parameter}'"}), 400
 
     table_data = get_user_sites(_current_email())
     script, div = create_histogram(feature, table_data, col_index, parameter)
@@ -384,11 +493,11 @@ def boxplot_json():
         parameter = form.get("parameter")
 
     if not parameter:
-        return jsonify({"error": "No parameter provided"}), 400
+        return jsonify({"success": False, "message": "No parameter provided"}), 400
 
     col_index = _get_column_index(parameter)
     if col_index is None:
-        return jsonify({"error": f"Unknown parameter '{parameter}'"}), 400
+        return jsonify({"success": False, "message": f"Unknown parameter '{parameter}'"}), 400
 
     table_data = get_user_sites(_current_email())
     script, div = create_boxplot(parameter, table_data, col_index)
@@ -399,4 +508,74 @@ def boxplot_json():
             "plot_div": div,
             "parameter": parameter,
         }
+    )
+
+
+# ---- Generic report export (used by Multiple-simulation pages) ----
+# The Panel app posts its latest run results to the parent page via
+# postMessage; the page sends them here to build the branded PDF.
+@site_bp.route("/report/export", methods=["POST"])
+@login_required
+@csrf_protect
+def report_export():
+    data = json_object_or_400()
+
+    title = str(data.get("title") or "CAST Report")[:120]
+    subtitle = str(data.get("subtitle") or "CAST Model")[:120]
+    filename = str(data.get("filename") or "cast_report.pdf")[:80]
+    filename = "".join(c for c in filename if c.isalnum() or c in "._-") or "cast_report.pdf"
+    if not filename.endswith(".pdf"):
+        filename += ".pdf"
+
+    parameters = data.get("parameters") or []
+    outputs = data.get("outputs") or []
+    plot_data = data.get("plot_data")
+    if not isinstance(parameters, list) or not isinstance(outputs, list):
+        abort(400, description="parameters and outputs must be lists.")
+    if len(parameters) > 300 or len(outputs) > 100:
+        abort(400, description="Report payload too large.")
+    if plot_data is not None and not isinstance(plot_data, dict):
+        plot_data = None
+
+    plot_images = None
+    raw_images = data.get("plot_images")
+    if isinstance(raw_images, list) and raw_images:
+        import base64
+
+        MAX_PLOT_IMAGE_BYTES = 5 * 1024 * 1024
+        PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+        plot_images = []
+        for item in raw_images[:20]:
+            if not isinstance(item, dict) or not item.get("b64"):
+                continue
+            try:
+                png_bytes = base64.b64decode(item["b64"])
+            except Exception:
+                continue
+            # Cap each image and require a real PNG header before handing the
+            # bytes to the PDF renderer (PIL), to bound memory use.
+            if len(png_bytes) > MAX_PLOT_IMAGE_BYTES or not png_bytes.startswith(PNG_SIGNATURE):
+                continue
+            try:
+                max_height_mm = float(item.get("max_height_mm", 105))
+            except (TypeError, ValueError):
+                max_height_mm = 105.0
+            plot_images.append({
+                "title": str(item.get("title") or "Plot")[:200],
+                "bytes": png_bytes,
+                "caption": str(item.get("caption") or "")[:400],
+                "max_height_mm": max_height_mm,
+            })
+        plot_images = plot_images or None
+
+    try:
+        report = CASTReport(title, subtitle)
+        pdf_bytes = report.generate(parameters, outputs, plot_data, plot_images=plot_images)
+    except Exception:
+        logger.exception("Report export failed")
+        abort(400, description="Could not generate the report from the supplied data.")
+
+    return Response(
+        pdf_bytes,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

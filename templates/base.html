@@ -5,20 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}CAST{% endblock %}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260601b">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260625a">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
-  {% for bokeh_js_file in bokeh_js_files %}
-  <script src="{{ bokeh_js_file }}"></script>
-  {% endfor %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {# BokehJS (~2 MB of render-blocking scripts) is only needed by pages that
+     embed Bokeh plots directly (the Analysis Visualisation pages). All other
+     pages skip it; Panel iframes load their own resources. #}
+  {% block bokeh_js %}{% endblock %}
 </head>
 
 <body>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <button class="icon-btn" id="closeSidebar" aria-label="Close sidebar">&#9776;</button>
+      
       <div class="brand">
         <span class="brand-badge">CAST</span>
         <span class="brand-sub">Groundwater Contamination Assessment</span>
@@ -33,18 +34,13 @@
       <a class="nav-link" href="#footer-contact">Contact Us</a>
     </nav>
 
-    <div class="nav-section">
-      <div class="nav-title">Quick Actions</div>
-      <button class="cta-light" aria-disabled="true" title="Demo only">Load Example Dataset</button>
-      <button class="cta-light" aria-disabled="true" title="Demo only">Download Template</button>
-    </div>
   </aside>
 
   <div class="backdrop" id="backdrop"></div>
 
   <div class="page">
     <header class="topbar">
-      <button class="icon-btn" id="openSidebar" aria-label="Open sidebar">&#9776;</button>
+      
 
       <nav class="headbar" aria-label="Global">
         <ul class="menu">
@@ -81,17 +77,7 @@
               <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">BIOSCREEN-AT (Multiple)</a></li>
               <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_single') }}">Cirpka et al. (2005) - Single</a></li>
               <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_multiple') }}">Cirpka et al. (2005) - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('source_geometry_bp.source_geometry') }}">Source Geometry Forward Model</a></li>
-              <li><a class="dd-link" href="{{ url_for('source_inversion_bp.source_inversion') }}">Source Inversion (αTv recovery)</a></li>
             </ul>
-          </li>
-
-          <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('source_geometry_bp.source_geometry') }}">Source Geometry</a>
-          </li>
-
-          <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('source_inversion_bp.source_inversion') }}">Source Inversion</a>
           </li>
 
           <li class="menu-item has-dd">
@@ -121,14 +107,21 @@
           </li>
 
           <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database &amp; Model Input</a>
+            <a class="menu-link" href="{{ url_for('aem_bp.aem_landing') }}">AEM Model</a>
+          </li>
+
+          <li class="menu-item">
+            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database</a>
           </li>
         </ul>
       </nav>
 
       <div class="topbar-right">
         {% if current_user.is_authenticated %}
-          <a href="{{ url_for('logout') }}" class="menu-link logout-link">Logout</a>
+          <form method="POST" action="{{ url_for('logout') }}" class="logout-form" style="display:inline;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="menu-link logout-link" style="background:none;border:none;cursor:pointer;font:inherit;">Logout</button>
+          </form>
         {% else %}
           <a href="{{ url_for('login_page') }}" class="menu-link">Login</a>
           <a href="{{ url_for('register_page') }}" class="menu-link">Sign Up</a>
@@ -160,9 +153,9 @@
         <div class="footer-col">
           <h4>Supported By</h4>
           <ul class="supporters">
-            <li><span class="logo-swatch"></span> MANIPAL UNIVERSITY JAIPUR</li>
+            <li><span class="logo-swatch"></span> Eberhard Karls University of Tübingen</li>
             <li><span class="logo-swatch"></span> Indian Institute of Technology Delhi</li>
-            <li><span class="logo-swatch"></span> TECHNISCHE UNIVERSIT&Auml;T DRESDEN</li>
+            <li><span class="logo-swatch"></span> University of Waterloo</li>
           </ul>
         </div>
       </div>

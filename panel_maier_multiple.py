@@ -1,11 +1,11 @@
-import io
-
 import pandas as pd
 import panel as pn
 
+from panel_auth import authenticated_email
+
 from empirical_models import maier_lmax
-from panel_empirical_common import comparison_plot, error_card, info_card, query_float, query_int, query_str, summary_card
-from pdf_report import CASTReport
+from panel_empirical_common import comparison_plot, error_card, info_card, query_float, query_int, summary_card
+from panel_theme import report_bridge_html
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -21,22 +21,12 @@ def maier_multiple_app():
     run_btn = pn.widgets.Button(name="Run Maier scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Maier scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "")
+    email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
 
-    def _pdf_callback():
-        if not _state:
-            return io.BytesIO(b"")
-        report = CASTReport("Maier & Grathwohl \u2014 Multiple Simulation", "Maier Empirical")
-        return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
-
-    export_btn = pn.widgets.FileDownload(
-        callback=_pdf_callback, filename="maier_multiple_report.pdf",
-        label="\u2193 Download PDF Report", button_type="primary",
-        sizing_mode="stretch_width", visible=False,
-    )
+    report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
     def _run(_=None):
         try:
@@ -57,11 +47,16 @@ def maier_multiple_app():
                 ],
                 "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lengths))], "values": lengths, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Maier & Grathwohl"},
             })
-            export_btn.visible = True
+            report_bridge.object = report_bridge_html(
+                "Maier & Grathwohl — Multiple Simulation", "Maier Empirical",
+                "maier_multiple_report.pdf",
+                parameters=_state["parameters"], outputs=_state["outputs"],
+                plot_data=_state.get("plot_data"),
+            )
         except Exception as exc:
             result_pane.object = error_card(exc)
             plot_pane.object = None
-            export_btn.visible = False
+            report_bridge.object = report_bridge_html(clear=True)
 
     run_btn.on_click(_run)
     if query_int("output_only", 0):
@@ -72,4 +67,4 @@ def maier_multiple_app():
     controls = pn.Column("## Maier & Grathwohl - Multiple Simulation", "### Manual scenario inputs", table, sizing_mode="stretch_width", styles={"flex": "1 1 380px", "min-width": "300px"})
     outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
     body = pn.FlexBox(controls, outputs_col, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
-    return pn.Column(run_btn, result_pane, body, export_btn, sizing_mode="stretch_both", styles={"gap": "14px"})
+    return pn.Column(run_btn, result_pane, body, report_bridge, sizing_mode="stretch_both", styles={"gap": "14px"})

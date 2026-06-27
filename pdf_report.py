@@ -303,6 +303,19 @@ class CASTReport:
 
     # ── Input parameter table ──────────────────────────────────────────────────
 
+    @staticmethod
+    def _fmt_value(v):
+        """Two-decimal formatting for every numeric value shown in the report
+        (Prof's instruction). Non-numeric values pass through unchanged."""
+        if isinstance(v, bool):
+            return str(v)
+        if isinstance(v, (int, float)):
+            return f"{float(v):.2f}"
+        try:
+            return f"{float(v):.2f}"
+        except (TypeError, ValueError):
+            return str(v)
+
     def build_input_table(self, parameters: list) -> Table:
         header = [
             Paragraph("Parameter", self.s_th),
@@ -315,7 +328,7 @@ class CASTReport:
             rows.append([
                 Paragraph(str(p["name"]), self.s_normal),
                 Paragraph(str(p["symbol"]), self.s_bold),
-                Paragraph(str(p["value"]), self.s_bold),
+                Paragraph(self._fmt_value(p["value"]), self.s_bold),
                 Paragraph(str(p["unit"]), self.s_normal),
             ])
 
@@ -354,7 +367,7 @@ class CASTReport:
         card_rows = []
         row_cells = []
         for i, out in enumerate(outputs):
-            val_str = str(out["value"])
+            val_str = self._fmt_value(out["value"])
             unit_str = str(out.get("unit", "")).strip()
             cell_content = Table(
                 [
@@ -532,6 +545,7 @@ class CASTReport:
             story.append(Spacer(1, 2 * mm))
 
             for figure_no, item in enumerate(image_items, start=1):
+                max_height_mm = 105.0
                 if isinstance(item, bytes):
                     title = f"Figure {figure_no}"
                     chart_bytes = item
@@ -540,6 +554,7 @@ class CASTReport:
                     title = item.get("title", f"Figure {figure_no}")
                     chart_bytes = item.get("bytes", b"")
                     caption = item.get("caption", "")
+                    max_height_mm = float(item.get("max_height_mm", 105))
                 if not chart_bytes:
                     continue
 
@@ -547,9 +562,9 @@ class CASTReport:
                     from PIL import Image as PILImage
                     pil = PILImage.open(io.BytesIO(chart_bytes))
                     aspect = pil.height / pil.width
-                    img_h = min(CONTENT_W * aspect, 105 * mm)
+                    img_h = min(CONTENT_W * aspect, max_height_mm * mm)
                 except Exception:
-                    img_h = 75 * mm
+                    img_h = min(75 * mm, max_height_mm * mm)
 
                 img = Image(io.BytesIO(chart_bytes), width=CONTENT_W, height=img_h)
                 img.hAlign = "CENTER"

@@ -30,11 +30,20 @@ RUN if [ -d /app/solvers ]; then \
         find /app/solvers -maxdepth 1 -type f -exec chmod +x {} +; \
     fi
 
+# Run as a non-root user. /data/numerical_jobs is pre-created and chowned so
+# the named volume mounted there inherits this ownership on first use.
+RUN useradd --system --create-home --uid 10001 cast \
+    && mkdir -p /data/numerical_jobs /tmp/numerical_runs \
+    && chown -R cast:cast /app /data /tmp/numerical_runs
+
 ENV PYTHONUNBUFFERED=1 \
     FLASK_HOST=0.0.0.0 \
     FLASK_PORT=5000 \
     PANEL_HOST=0.0.0.0 \
     PANEL_PORT=5007 \
-    MF6_EXE=/usr/local/bin/mf6
+    MF6_EXE=/usr/local/bin/mf6 \
+    MPLCONFIGDIR=/tmp/matplotlib
+
+USER cast
 
 EXPOSE 5000 5007

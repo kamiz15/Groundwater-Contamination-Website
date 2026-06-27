@@ -95,7 +95,9 @@ class AuthenticationFlowTests(unittest.TestCase):
 
     def test_logout_invalidates_access(self):
         self.login()
-        logout_response = self.client.get("/logout")
+        with self.client.session_transaction() as session:
+            token = session["_csrf_token"]
+        logout_response = self.client.post("/logout", headers={"X-CSRF-Token": token})
         protected_response = self.client.get("/analytical")
 
         self.assertEqual(logout_response.status_code, 302)
@@ -112,14 +114,13 @@ class AuthenticationFlowTests(unittest.TestCase):
 
     def test_site_reads_use_current_user_email(self):
         with (
-            patch.object(site_routes, "get_user_sites", return_value=[]) as get_sites,
             patch.object(site_routes, "get_user_sites_rows", return_value=[]) as get_rows,
         ):
             self.login()
             response = self.client.get("/sites")
 
         self.assertEqual(response.status_code, 200)
-        get_sites.assert_called_once_with(TEST_USER["email"])
+        # The page renders from a single query, scoped to the session user.
         get_rows.assert_called_once_with(TEST_USER["email"])
 
     def test_panel_iframe_email_cannot_be_overridden_by_query_string(self):
@@ -195,7 +196,7 @@ class AuthenticationFlowTests(unittest.TestCase):
             for _ in range(6)
         ]
 
-        self.assertTrue(all(response.status_code == 200 for response in responses[:5]))
+        self.assertTrue(all(response.status_code == 401 for response in responses[:5]))
         self.assertEqual(responses[5].status_code, 429)
 
 

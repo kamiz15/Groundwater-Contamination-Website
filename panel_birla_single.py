@@ -3,8 +3,10 @@ import io
 import pandas as pd
 import panel as pn
 
+from panel_auth import authenticated_email
+
 from empirical_models import birla_lmax
-from panel_empirical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, query_str, summary_card
+from panel_empirical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, summary_card
 from pdf_report import CASTReport
 
 pn.extension("tabulator", sizing_mode="stretch_width")
@@ -21,7 +23,7 @@ def birla_single_app():
 
     result_pane = pn.pane.HTML(info_card("Run the Birla et al. model to compute plume length."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = query_str("email", "")
+    email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}

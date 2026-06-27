@@ -7,12 +7,13 @@
 <label>
   <span class="input-label-row">
     <span>{{ field.label }}</span>
+    {# Only flag a positive source: DB when a value was loaded from the database,
+       Override for advanced fields. Plain manual inputs carry no per-field badge
+       (the column header already says "User / DB" / "Editable"). #}
     {% if field.from_db %}
     <em class="input-source-badge input-source-badge--db">DB</em>
     {% elif field.advanced %}
     <em class="input-source-badge input-source-badge--advanced">Override</em>
-    {% else %}
-    <em class="input-source-badge input-source-badge--manual">Manual</em>
     {% endif %}
   </span>
   <input
@@ -26,12 +27,59 @@
 {%- endmacro %}
 <div class="card-like external-input-card">
   <h3>Input Parameters</h3>
-  <form method="GET" class="model-input-form">
+  <form method="GET" class="model-input-form" id="model-input-form">
     <input type="hidden" name="run" value="1">
     {% if selected_site_id %}
     <input type="hidden" name="site_id" value="{{ selected_site_id }}">
     {% endif %}
 
+    {% if analytical_fields is defined %}
+    {# Numerical form: Input plus a combined Analytical / Standard column. #}
+    <div class="model-input-columns model-input-columns--numerical">
+      <section class="model-input-group" aria-labelledby="input-col-heading">
+        <div class="model-input-group-header">
+          <h4 id="input-col-heading">Input</h4>
+          <em class="input-source-badge input-source-badge--manual">User / DB</em>
+        </div>
+        <div class="model-input-grid">
+          {% for field in input_fields if field.column == 'input' %}
+          {{ render_model_input(field) }}
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="model-input-group model-input-group--combined" aria-labelledby="analytical-col-heading">
+        <section aria-labelledby="analytical-col-heading">
+          <div class="model-input-group-header">
+            <h4 id="analytical-col-heading">Analytical</h4>
+            <em class="input-source-badge input-source-badge--db">Auto</em>
+          </div>
+          <div class="model-input-grid">
+            {% for a in analytical_fields %}
+            <label>
+              <span class="input-label-row"><span>{{ a.label }}</span></span>
+              <input type="text" value="{{ '%.2f'|format(a.value) }}" readonly aria-readonly="true">
+            </label>
+            {% else %}
+            <p class="model-input-empty">Computed automatically from the analytical model.</p>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section aria-labelledby="standard-col-heading">
+          <div class="model-input-group-header">
+            <h4 id="standard-col-heading">Standard</h4>
+            <em class="input-source-badge input-source-badge--manual">Editable</em>
+          </div>
+          <div class="model-input-grid">
+            {% for field in input_fields if field.column == 'standard' %}
+            {{ render_model_input(field) }}
+            {% endfor %}
+          </div>
+        </section>
+      </section>
+    </div>
+    {% else %}
     <div class="model-input-columns">
       <section class="model-input-group model-input-group--db" aria-labelledby="database-inputs-heading">
         <div class="model-input-group-header">
@@ -65,6 +113,7 @@
         {% endif %}
       </section>
     </div>
+    {% endif %}
 
     {% if advanced_fields %}
     <details class="model-input-advanced">
@@ -78,9 +127,11 @@
     </details>
     {% endif %}
 
+    {% if not (run_button_under_conceptual | default(false)) %}
     <div class="model-input-actions">
       <button type="submit" class="primary-btn">Run Model</button>
     </div>
+    {% endif %}
   </form>
 </div>
 {% endif %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}AEM Source Designer{% endblock %}
+{% block content_class %}aem-designer-content{% endblock %}
+{% block content %}
+  <div id="aem-designer-root" class="aem-designer-app" data-aem-page="designer" data-csrf="{{ csrf_token() }}">
+    <header class="aem-designer-header">
+      <h1>AEM Source Designer</h1>
+      <p class="aem-designer-hint">In <strong>Draw</strong> mode: left-click to place polygon vertices, then click <strong>Close &amp; Pack polygon</strong> (or right-click / press Enter) to fill it with circles. Switch to <strong>Edit</strong> to select, drag, resize (↑↓) and recolour (+/−) circles.</p>
+    </header>
+    <div id="aem-message" class="aem-message" role="status" aria-live="polite"></div>
+    <div class="aem-designer-layout">
+      <aside class="aem-designer-sidebar">
+        <form id="aem-design-form" class="aem-designer-form">
+          <!-- Parameters are fixed global constants in the reference source designer
+               (source_designer.py DEFAULT GLOBAL PARAMETERS); kept as hidden inputs so the
+               exported geometry config still carries them, with no editable parameters window. -->
+          <input type="hidden" name="orientation" value="horizontal">
+          <input type="hidden" name="default_c" value="10">
+          <input type="hidden" name="alpha_l" value="2">
+          <input type="hidden" name="alpha_t" value="0.2">
+          <input type="hidden" name="ca" value="8">
+          <input type="hidden" name="gamma" value="3.5">
+          <input type="hidden" name="dom_inc" value="1">
+          <input type="hidden" name="num_cp" value="40">
+          <input type="hidden" name="num_terms" value="5">
+          <div class="aem-designer-buttons">
+            <button id="aem-mode-draw" type="button" class="aem-btn aem-btn--draw aem-btn--active">Draw (d)</button>
+            <button id="aem-mode-edit" type="button" class="aem-btn aem-btn--edit">Edit (e)</button>
+          </div>
+          <button id="aem-pack" type="button" class="aem-btn aem-btn--pack">Close &amp; Pack polygon</button>
+          <div class="aem-designer-buttons">
+            <button id="aem-view" type="button" class="aem-btn aem-btn--view">View (v)</button>
+            <button id="aem-export" type="button" class="aem-btn aem-btn--export">Export (s)</button>
+            <button id="aem-clear" type="button" class="aem-btn aem-btn--clear">Clear all</button>
+          </div>
+          <div class="aem-designer-buttons">
+            <button id="aem-import-trigger" type="button" class="aem-btn">Import JSON</button>
+            <input id="aem-import" type="file" accept="application/json,.json" hidden>
+          </div>
+          <button type="submit" class="aem-btn aem-btn--submit">Continue and Run Simulation</button>
+        </form>
+      </aside>
+      <main class="aem-designer-stage">
+        <canvas id="aem-designer-canvas" aria-label="Interactive AEM source geometry designer"></canvas>
+        <div class="aem-designer-panel">
+          <canvas id="aem-colorbar" class="aem-colorbar" aria-label="Electron donor concentration colorbar"></canvas>
+          <div id="aem-info" class="aem-info" aria-live="polite"></div>
+          <div id="aem-status" class="aem-status" aria-live="polite"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='aem.js') }}"></script>
+{% endblock %}
