@@ -2,56 +2,65 @@
 {% block title %}Analytical Models &bull; CAST{% endblock %}
 {% block content %}
 
-<section class="section-spaced">
-  <h2>Analytical Models</h2>
-  <p>Select a model and simulation type.</p>
+<section class="model-landing">
+  <header class="section-head">
+    <span class="kicker">Toolbox</span>
+    <h2>Analytical Models</h2>
+    <p class="section-sub">Closed-form plume solutions. Pick a model, then run a single scenario or compare multiple scenarios.</p>
+  </header>
 
-  <div class="tile-grid" style="margin-top: 16px;">
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+  <div class="model-grid">
+    <div class="model-card">
       <h3>Liedl et al.</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='liedl') }}">About</a>
       </div>
     </div>
 
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="model-card">
       <h3>Liedl 3D</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl3d_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl3d_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.liedl3d_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.liedl3d_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='liedl3d') }}">About</a>
       </div>
     </div>
 
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="model-card">
       <h3>Chu et al.</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.chu_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.chu_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.chu_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.chu_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='chu') }}">About</a>
       </div>
     </div>
 
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="model-card">
       <h3>Ham et al.</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.ham_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.ham_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.ham_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.ham_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='ham') }}">About</a>
       </div>
     </div>
 
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="model-card">
       <h3>BIOSCREEN-AT</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.bioscreen_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.bioscreen_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='bioscreen') }}">About</a>
       </div>
     </div>
 
-    <div class="tile" style="padding: 18px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <div class="model-card">
       <h3>Cirpka et al.</h3>
-      <div style="display:flex; gap:12px; margin-top:12px; justify-content:center; align-items:center;">
-        <a class="primary-btn" href="{{ url_for('analytical_bp.cirpka_single') }}">Single Simulation</a>
-        <a class="ghost-btn" href="{{ url_for('analytical_bp.cirpka_multiple') }}">Multiple Simulation</a>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('analytical_bp.cirpka_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('analytical_bp.cirpka_multiple') }}">Multiple</a>
+        <a class="ghost-btn" href="{{ url_for('model_about', slug='cirpka') }}">About</a>
       </div>
     </div>
   </div>

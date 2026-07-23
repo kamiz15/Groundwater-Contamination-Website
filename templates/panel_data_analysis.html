@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Data Analysis Workbench{% endblock %}
+
+{% block content %}
+<section class="section-spaced model-page">
+  <div class="model-output-card">
+    <div class="model-output-header">
+      <h2>Data Analysis Workbench</h2>
+      <a class="ghost-btn" href="{{ url_for('site_bp.site_database') }}">Back to Database</a>
+    </div>
+    <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame data-analysis-frame" loading="eager"></iframe>
+  </div>
+</section>
+{% endblock %}

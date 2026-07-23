@@ -1,42 +1,6 @@
-{% extends "base.html" %}
-{% block title %}Chu et al. - Single Simulation{% endblock %}
-{% block content %}
-<section class="section-spaced model-page">
-  <h2>Chu et al. - Single Simulation</h2>
-  <p class="small">Inputs are edited on this page. The output panel below updates from these values and contains only the result visualisation.</p>
-
-  <div class="card-like conceptual-figure">
-    <h3>Conceptual Model</h3>
-    <img src="{{ url_for('static', filename='images/conceptual_chu.png') }}" alt="Conceptual model diagram for Chu et al." class="conceptual-img" loading="eager" />
-  </div>
-
-  {% if sites %}
-  <div class="card-like">
-    <form method="GET" class="site-form csv-form">
-      <label for="site_id"><strong>Optional: load uploaded site data</strong></label>
-      <select id="site_id" name="site_id">
-        <option value="" {% if not selected_site_id %}selected{% endif %}>Manual input only</option>
-        {% for s in sites %}
-        <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="primary-btn">Load Uploaded Site</button>
-      {% if selected_site_id %}
-      <a href="{{ request.path }}" class="ghost-btn">Use Manual Input</a>
-      {% endif %}
-    </form>
-  </div>
-  {% endif %}
-
-  {% include "model_input_form.html" %}
-
-  <div class="card-like model-output-card">
-    <h3>Output Visualisation</h3>
-    <div class="panel-shell output-panel-shell">
-      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" loading="eager"></iframe>
-    </div>
-  </div>
-
-  {% include "report_download_card.html" %}
-</section>
-{% endblock %}
+{% extends "model_workbench_single.html" %}
+{% block model_kicker %}Analytical Toolbox{% endblock %}
+{% block model_title %}Chu et al. - Single Simulation{% endblock %}
+{% block conceptual_image %}{{ url_for('static', filename='images/conceptual_chu.png') }}{% endblock %}
+{% block conceptual_alt %}Conceptual model diagram for Chu et al.{% endblock %}
+{% block model_about_link %}<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='chu') }}">About</a>{% endblock %}

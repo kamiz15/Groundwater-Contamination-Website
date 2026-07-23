@@ -1,0 +1,87 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Analytical Model{% endblock %}
+{% block about_title %}Liedl 3D (2011){% endblock %}
+{% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
+{% block back_label %}All analytical models{% endblock %}
+
+{% block about_lead %}
+<p>A 3D extension of the Liedl et al. (2005) model for a fully penetrating
+source of finite width in a domain that is infinite in length and width. The
+threshold concentration <math><msub><mi>C</mi><mi>thres</mi></msub></math> lets
+the plume length (<math><msub><mi>L</mi><mi>max</mi></msub></math>) be measured to
+any chosen contour along the <math><mi>x</mi></math>-axis.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_liedl_3d.png') }}"
+       alt="Conceptual 3D model of Liedl et al. (2011): a finite-width, fully penetrating source releasing a plume that mixes in both horizontal and vertical transverse directions.">
+  <figcaption>Conceptual model &mdash; Liedl et al. (2011).</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <mi>erf</mi><mo>&#8289;</mo>
+    <mrow>
+      <mo>(</mo>
+      <mfrac>
+        <mi>W</mi>
+        <msqrt><mrow><mn>4</mn><msub><mi>α</mi><mi>Th</mi></msub><msub><mi>L</mi><mi>max</mi></msub></mrow></msqrt>
+      </mfrac>
+      <mo>)</mo>
+    </mrow>
+    <msup>
+      <mi>e</mi>
+      <mrow>
+        <mo>−</mo><msub><mi>α</mi><mi>Tv</mi></msub><msub><mi>L</mi><mi>max</mi></msub>
+        <msup>
+          <mrow><mo>(</mo><mfrac><mi>π</mi><mrow><mn>2</mn><mi>M</mi></mrow></mfrac><mo>)</mo></mrow>
+          <mn>2</mn>
+        </msup>
+      </mrow>
+    </msup>
+    <mo>=</mo>
+    <mfrac><mi>π</mi><mn>4</mn></mfrac>
+    <mfrac>
+      <mrow><mi>γ</mi><msub><mi>C</mi><mi>thres</mi></msub><mo>+</mo><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></mrow>
+      <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></mrow>
+    </mfrac>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_equation_note %}
+<p class="about-note">This equation is implicit in
+<math><msub><mi>L</mi><mi>max</mi></msub></math>; CAST solves it numerically by
+Newton's method.</p>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><mi>M</mi></math></dt><dd>Source thickness (equal to aquifer thickness) [m]</dd>
+<dt><math><mi>W</mi></math></dt><dd>Source width [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
+<dt><math><msub><mi>C</mi><mi>thres</mi></msub></math></dt><dd>Threshold contaminant concentration [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>Steady-state condition in a homogeneous and isotropic aquifer.</li>
+<li>A single-step bimolecular instantaneous reaction between reactants taking place only at the fringe.</li>
+<li>The contaminant source (electron donor) penetrates the entire thickness of the aquifer.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Liedl, R., Yadav, P.K., Dietrich, P., 2011. Length of 3-D mixing-controlled
+plumes for a fully penetrating contaminant source with finite width. Water
+Resour. Res. 47.
+<a href="https://doi.org/10.1029/2010WR009710" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2010WR009710</a></p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('analytical_bp.liedl3d_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('analytical_bp.liedl3d_multiple') }}{% endblock %}

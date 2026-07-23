@@ -1,0 +1,66 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Analytical Model{% endblock %}
+{% block about_title %}Cirpka et al. (2005){% endblock %}
+{% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
+{% block back_label %}All analytical models{% endblock %}
+
+{% block about_lead %}
+<p>A horizontal-flow model that estimates the steady-state length of a
+mixing-controlled plume (<math><msub><mi>L</mi><mi>max</mi></msub></math>) from a
+source of width <math><msub><mi>S</mi><mi>w</mi></msub></math>. The plume length
+follows from the inverse error function of the reactant-to-total concentration
+ratio, matching the horizontal numerical implementation used in CAST.</p>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mfrac>
+      <msubsup><mi>S</mi><mi>w</mi><mn>2</mn></msubsup>
+      <mrow>
+        <mn>16</mn><msub><mi>α</mi><mi>Th</mi></msub>
+        <msup>
+          <mrow>
+            <mo>[</mo>
+            <msup><mi>erf</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo>&#8289;</mo>
+            <mrow>
+              <mo>(</mo>
+              <mfrac>
+                <msub><mi>C</mi><mi>A</mi></msub>
+                <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub><mo>+</mo><msub><mi>C</mi><mi>A</mi></msub></mrow>
+              </mfrac>
+              <mo>)</mo>
+            </mrow>
+            <mo>]</mo>
+          </mrow>
+          <mn>2</mn>
+        </msup>
+      </mrow>
+    </mfrac>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><msub><mi>S</mi><mi>w</mi></msub></math></dt><dd>Source width [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometric ratio of the reactant [-]</dd>
+<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>Steady-state condition in a homogeneous and isotropic aquifer.</li>
+<li>A single-step bimolecular instantaneous reaction confined to the plume fringe.</li>
+<li>Mixing occurs only transverse to the horizontal groundwater flow.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Cirpka et al. (2005).</p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('analytical_bp.cirpka_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('analytical_bp.cirpka_multiple') }}{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Numerical Model{% endblock %}
+{% block about_title %}Numerical Model (MODFLOW 6 GWF/GWT){% endblock %}
+{% block back_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
+{% block back_label %}All numerical models{% endblock %}
+
+{% block about_lead %}
+<p>A 2D reactive-transport model based on the conceptual work of Yadav et al.
+(2014). It follows the same assumptions as Liedl et al. (2005) &mdash;
+homogeneous, isotropic, steady-state, bi-component instantaneous reaction
+between the electron donor
+(<math><msub><mi>C</mi><mi>ED</mi></msub></math>) and the electron acceptor
+(<math><msub><mi>C</mi><mi>EA</mi></msub></math>). The MODFLOW 6 GWF/GWT
+simulation produces a transformed concentration
+<math><mi>C</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo></math>
+that lets the reactive system be simulated as a conservative one. CAST runs the
+model in both a horizontal (<math><mi>x</mi></math>,&#8202;<math><mi>y</mi></math>)
+and a vertical (<math><mi>x</mi></math>,&#8202;<math><mi>z</mi></math>)
+orientation.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}"
+       alt="Conceptual horizontal (x, y) numerical domain: a plan-view MODFLOW 6 GWF/GWT grid with a source on the left edge and a mixing-controlled plume extending downstream.">
+  <figcaption>Horizontal orientation &mdash; (<math><mi>x</mi></math>,&#8202;<math><mi>y</mi></math>) domain.</figcaption>
+</figure>
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}"
+       alt="Conceptual vertical (x, z) numerical domain: a cross-section MODFLOW 6 GWF/GWT grid with a fully penetrating source and a plume thinning with distance.">
+  <figcaption>Vertical orientation &mdash; (<math><mi>x</mi></math>,&#8202;<math><mi>z</mi></math>) domain.</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mi>max</mi><mo>&#8289;</mo>
+    <mrow>
+      <mo>{</mo>
+      <mi>x</mi><mo>:</mo>
+      <mi>C</mi><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo>
+      <mo>=</mo>
+      <msub><mi>C</mi><mi>thres</mi></msub>
+      <mo>}</mo>
+    </mrow>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_equation_note %}
+<p class="about-note">There is no closed form. The maximum plume length is
+read from the simulated transformed-concentration field as the largest distance
+along the <math><mi>x</mi></math>-axis at which the chosen threshold
+concentration (e.g. <math><mi>C</mi><mo>=</mo><mn>0</mn></math>) is reached.</p>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><mi>M</mi></math></dt><dd>Source / aquifer thickness (vertical domain) [m]</dd>
+<dt><math><msub><mi>α</mi><mi>L</mi></msub></math></dt><dd>Longitudinal dispersivity [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math>, <math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Horizontal- and vertical-transverse dispersivity [m]</dd>
+<dt><math><mi>K</mi></math></dt><dd>Hydraulic conductivity [m/yr]</dd>
+<dt><math><mi>n</mi></math></dt><dd>Porosity [-]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
+<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>Homogeneous, isotropic, steady-state flow (as in Liedl et al., 2005).</li>
+<li>A bi-component instantaneous reaction between electron donor and electron acceptor.</li>
+<li>The transformed concentration lets the reactive transport be solved as a conservative problem.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Yadav, P.K., Liedl, R., Dietrich, P., 2014. Influence of source thickness on
+steady-state plume length. Environ. Earth Sci. 71 (2), 959&ndash;964.
+<a href="https://doi.org/10/f5qfwm28" target="_blank" rel="noopener noreferrer">https://doi.org/10/f5qfwm28</a></p>
+{% endblock %}
+
+{% block about_actions %}
+<a class="primary-btn" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">Horizontal &mdash; Single</a>
+<a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_horizontal_multiple') }}">Horizontal &mdash; Multiple</a>
+<a class="primary-btn" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">Vertical &mdash; Single</a>
+<a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_vertical_multiple') }}">Vertical &mdash; Multiple</a>
+{% endblock %}

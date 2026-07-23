@@ -317,8 +317,8 @@ def save_statistics(sim, line_index, statsfile):
 
 def process_input_file_with_logging(
         input_file,
-        output_file,
-        statsfile,
+        output_file=None,
+        statsfile=None,
         orientation="horizontal",
         elem_kind="Circle",
         source_thickness_modifier=1.0,
@@ -328,7 +328,7 @@ def process_input_file_with_logging(
         lower_bound: float = None,
         upper_bound: float = None
 ):
-    """Function that logs parameters and outputs per input line interleaved"""
+    """Function that logs parameters and outputs per input line interleaved."""
     input_file = _in_files_dir(input_file)
     output_file = _in_files_dir(output_file)
     statsfile = _in_files_dir(statsfile)

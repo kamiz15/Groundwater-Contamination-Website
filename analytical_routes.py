@@ -15,10 +15,11 @@ from analytical_models import (
     liedl3d_lmax,
 )
 from bioscreen_model import bio
-from data_queries import get_user_sites_rows
+from data_queries import get_user_sites, get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
 from route_guards import guard_model_errors, request_finite_float, request_finite_int
 from panel_analytical_common import comparison_plot
+from param_meta import attach_meta
 from pdf_report import CASTReport
 from security import GENERIC_DATABASE_ERROR_MESSAGE
 from settings import PANEL_PUBLIC_BASE
@@ -29,114 +30,114 @@ logger = logging.getLogger(__name__)
 
 ANALYTICAL_INPUT_SPECS = {
     "panel_liedl_single": [
-        ("M", "Aquifer Thickness M [m]", 3.5, "0.1", "0.000001"),
-        ("alpha_Tv", "Transverse Dispersivity alpha Tv [m]", 0.001, "0.0001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 2.0, "0.1", "0.000001"),
+        ("alpha_Tv", "Transverse Dispersivity [m]", 0.001, "0.0001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
     ],
     "panel_liedl_multiple": [
-        ("M", "Aquifer Thickness M [m]", 3.5, "0.1", "0.000001"),
-        ("alpha_Tv", "Transverse Dispersivity alpha Tv [m]", 0.001, "0.0001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 2.0, "0.1", "0.000001"),
+        ("alpha_Tv", "Transverse Dispersivity [m]", 0.001, "0.0001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
     ],
     "panel_liedl3d_single": [
-        ("M", "Source Thickness M [m]", 10.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.01, "0.001", "0.000001"),
-        ("alpha_Tv", "Vertical Transverse Dispersivity alpha Tv [m]", 0.01, "0.001", "0.000001"),
-        ("W", "Source Width W [m]", 7.0, "0.1", "0.000001"),
+        ("M", "Source Thickness [m]", 10.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("alpha_Tv", "Vertical Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("W", "Source Width [m]", 7.0, "0.1", "0.000001"),
         ("Cthres", "Threshold Concentration [mg/L]", 0.5, "0.01", "0.000001"),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.0, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.0, "0.1", None),
     ],
     "panel_liedl3d_multiple": [
-        ("M", "Source Thickness M [m]", 10.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.01, "0.001", "0.000001"),
-        ("alpha_Tv", "Vertical Transverse Dispersivity alpha Tv [m]", 0.01, "0.001", "0.000001"),
-        ("W", "Source Width W [m]", 7.0, "0.1", "0.000001"),
+        ("M", "Source Thickness [m]", 10.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("alpha_Tv", "Vertical Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("W", "Source Width [m]", 7.0, "0.1", "0.000001"),
         ("Cthres", "Threshold Concentration [mg/L]", 0.5, "0.01", "0.000001"),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.0, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.0, "0.1", None),
     ],
     "panel_chu_single": [
-        ("W", "Source Width W [m]", 2.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.01, "0.001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 1.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("epsilon", "Biological Factor epsilon [mg/L]", 0.0, "0.01", None),
+        ("W", "Source Width [m]", 2.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 1.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("epsilon", "Biological Factor [mg/L]", 0.0, "0.01", None),
     ],
     "panel_chu_multiple": [
-        ("W", "Source Width W [m]", 2.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.01, "0.001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 1.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("epsilon", "Biological Factor epsilon [mg/L]", 0.0, "0.01", None),
+        ("W", "Source Width [m]", 2.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 1.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("epsilon", "Biological Factor [mg/L]", 0.0, "0.01", None),
     ],
     "panel_ham_single": [
-        ("Q", "Source Flux Q [m2/yr]", 5.0, "0.1", "0.000001"),
-        ("alpha_T", "Transverse Dispersivity alpha T [m]", 0.01, "0.001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
+        ("Q", "Source Flux [m2/yr]", 5.0, "0.1", "0.000001"),
+        ("alpha_T", "Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
     ],
     "panel_ham_multiple": [
-        ("Q", "Source Flux Q [m2/yr]", 5.0, "0.1", "0.000001"),
-        ("alpha_T", "Transverse Dispersivity alpha T [m]", 0.01, "0.001", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_EA0", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_ED0", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
+        ("Q", "Source Flux [m2/yr]", 5.0, "0.1", "0.000001"),
+        ("alpha_T", "Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_EA0", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_ED0", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
     ],
     "panel_bioscreen_single": [
-        ("Cthres", "Threshold Concentration Cthres [mg/L]", 5e-5, "0.00001", "0"),
+        ("Cthres", "Threshold Concentration [mg/L]", 5e-5, "0.00001", "0"),
         ("time", "Simulation Time [yr]", 20, "1", "1"),
-        ("H", "Source Thickness H [m]", 5.0, "0.1", "0.000001"),
-        ("c0", "Source Concentration c0 [mg/L]", 100.0, "1", "0.000001"),
-        ("W", "Source Width W [m]", 10.0, "0.1", "0.000001"),
-        ("v", "Groundwater Velocity v [m/yr]", 50.0, "1", "0.000001"),
-        ("ax", "Longitudinal Dispersivity ax [m]", 10.0, "0.5", "0.000001"),
-        ("ay", "Horizontal Transverse Dispersivity ay [m]", 0.5, "0.1", "0.000001"),
-        ("az", "Vertical Transverse Dispersivity az [m]", 0.05, "0.01", "0.000001"),
-        ("Df", "Effective Diffusion Coefficient Df [m2/yr]", 0.0, "0.001", "0"),
-        ("R", "Retardation Factor R [-]", 1.0, "0.1", "0.01"),
-        ("gamma", "Source Decay gamma [1/yr]", 0.0, "0.01", "0"),
-        ("lam", "First-order Decay lambda [1/yr]", 0.1, "0.01", "0"),
-        ("ng", "Gauss Points ng [-]", 60, "1", "4"),
+        ("H", "Source Thickness [m]", 6.1, "0.1", "0.000001"),
+        ("c0", "Source Concentration [mg/L]", 106.35, "1", "0.000001"),
+        ("W", "Source Width [m]", 20.0, "0.1", "0.000001"),
+        ("v", "Groundwater Velocity [m/yr]", 292.0, "1", "0.000001"),
+        ("ax", "Longitudinal Dispersivity [m]", 10.7, "0.5", "0.000001"),
+        ("ay", "Horizontal Transverse Dispersivity [m]", 1.1, "0.1", "0.000001"),
+        ("az", "Vertical Transverse Dispersivity [m]", 0.11, "0.01", "0.000001"),
+        ("Df", "Effective Diffusion Coefficient [m2/yr]", 0.0, "0.001", "0"),
+        ("R", "Retardation Factor [-]", 1.0, "0.1", "0.01"),
+        ("gamma", "Source Decay [1/yr]", 0.0, "0.01", "0"),
+        ("lam", "First-order Decay [1/yr]", 0.445, "0.01", "0"),
+        ("ng", "Gauss Points [-]", 60, "1", "4"),
     ],
     "panel_bioscreen_multiple": [
-        ("Cthres", "Threshold Concentration Cthres [mg/L]", 5e-5, "0.00001", "0"),
+        ("Cthres", "Threshold Concentration [mg/L]", 5e-5, "0.00001", "0"),
         ("time", "Simulation Time [yr]", 20, "1", "1"),
-        ("H", "Source Thickness H [m]", 5.0, "0.1", "0.000001"),
-        ("c0", "Source Concentration c0 [mg/L]", 100.0, "1", "0.000001"),
-        ("W", "Source Width W [m]", 10.0, "0.1", "0.000001"),
-        ("v", "Groundwater Velocity v [m/yr]", 50.0, "1", "0.000001"),
-        ("ax", "Longitudinal Dispersivity ax [m]", 10.0, "0.5", "0.000001"),
-        ("ay", "Horizontal Transverse Dispersivity ay [m]", 0.5, "0.1", "0.000001"),
-        ("az", "Vertical Transverse Dispersivity az [m]", 0.05, "0.01", "0.000001"),
-        ("Df", "Effective Diffusion Coefficient Df [m2/yr]", 0.0, "0.001", "0"),
-        ("R", "Retardation Factor R [-]", 1.0, "0.1", "0.01"),
-        ("gamma", "Source Decay gamma [1/yr]", 0.0, "0.01", "0"),
-        ("lam", "First-order Decay lambda [1/yr]", 0.1, "0.01", "0"),
-        ("ng", "Gauss Points ng [-]", 60, "1", "4"),
+        ("H", "Source Thickness [m]", 6.1, "0.1", "0.000001"),
+        ("c0", "Source Concentration [mg/L]", 106.35, "1", "0.000001"),
+        ("W", "Source Width [m]", 20.0, "0.1", "0.000001"),
+        ("v", "Groundwater Velocity [m/yr]", 292.0, "1", "0.000001"),
+        ("ax", "Longitudinal Dispersivity [m]", 10.7, "0.5", "0.000001"),
+        ("ay", "Horizontal Transverse Dispersivity [m]", 1.1, "0.1", "0.000001"),
+        ("az", "Vertical Transverse Dispersivity [m]", 0.11, "0.01", "0.000001"),
+        ("Df", "Effective Diffusion Coefficient [m2/yr]", 0.0, "0.001", "0"),
+        ("R", "Retardation Factor [-]", 1.0, "0.1", "0.01"),
+        ("gamma", "Source Decay [1/yr]", 0.0, "0.01", "0"),
+        ("lam", "First-order Decay [1/yr]", 0.445, "0.01", "0"),
+        ("ng", "Gauss Points [-]", 60, "1", "4"),
     ],
     "panel_cirpka_single": [
-        ("Sw", "Source Width Sw [m]", 10.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.1, "0.001", "0.000001"),
-        ("C_A", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_D", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
+        ("Sw", "Source Width [m]", 10.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.1, "0.001", "0.000001"),
+        ("C_A", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_D", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
     ],
     "panel_cirpka_multiple": [
-        ("Sw", "Source Width Sw [m]", 10.0, "0.1", "0.000001"),
-        ("alpha_Th", "Horizontal Transverse Dispersivity alpha Th [m]", 0.1, "0.001", "0.000001"),
-        ("C_A", "Electron Acceptor CA [mg/L]", 8.0, "0.1", "0.000001"),
-        ("C_D", "Electron Donor CD [mg/L]", 5.0, "0.1", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
+        ("Sw", "Source Width [m]", 10.0, "0.1", "0.000001"),
+        ("alpha_Th", "Horizontal Transverse Dispersivity [m]", 0.1, "0.001", "0.000001"),
+        ("C_A", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("C_D", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
     ],
 }
 
@@ -243,21 +244,53 @@ def _input_fields(path, site):
     db_query = _build_panel_query(path, site)
     fields = []
     for name, label, default, step, minimum in ANALYTICAL_INPUT_SPECS.get(path, []):
-        fields.append({
+        fields.append(attach_meta({
             "name": name,
             "label": label,
             "value": _request_float(name, db_query.get(name, default)),
             "step": step,
             "min": minimum,
             "from_db": name in db_query,
-        })
+        }))
     return fields
 
 
-def _export_href(path, input_fields):
+def _export_href(path, input_fields, selected_site_id=None):
     query = {f["name"]: f["value"] for f in input_fields}
+    if selected_site_id:
+        query["site_id"] = selected_site_id
     return f"{request.path}/export?{urlencode(query)}"
 
+
+
+def _comparison_plot_data(title, manual_label, manual_y, selected_site_id, email, manual_axis_label):
+    field_x, field_y = [], []
+    if selected_site_id > 0:
+        try:
+            for i, row in enumerate(get_user_sites(email), start=1):
+                try:
+                    plume = float(row[4])
+                except (TypeError, ValueError):
+                    continue
+                field_x.append(i)
+                field_y.append(plume)
+        except Exception:
+            logger.exception("Database comparison points could not be loaded for PDF report")
+            field_x, field_y = [], []
+
+    return {
+        "type": "comparison_scatter",
+        "title": title,
+        "x_label": "Site Number" if selected_site_id > 0 else manual_axis_label,
+        "y_label": "Plume Length (m)",
+        "field_label": "Database plume length",
+        "field_x": field_x,
+        "field_y": field_y,
+        "manual_label": manual_label,
+        "manual_x": [selected_site_id if selected_site_id > 0 else 1],
+        "manual_y": [manual_y],
+        "caption": "Database plume lengths compared with the model result.",
+    }
 
 def _cirpka_single_params(site):
     db_query = _build_panel_query("panel_cirpka_single", site)
@@ -354,7 +387,7 @@ def liedl_single():
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         input_fields=input_fields,
-        export_href=_export_href("panel_liedl_single", input_fields),
+        export_href=_export_href("panel_liedl_single", input_fields, selected_site.get("id") if selected_site else None),
     )
 
 
@@ -362,7 +395,7 @@ def liedl_single():
 @login_required
 @guard_model_errors
 def liedl_single_export():
-    m = _request_float("M", 3.5)
+    m = _request_float("M", 2.0)
     alpha_tv = _request_float("alpha_Tv", 0.001)
     gamma = _request_float("gamma", 3.5)
     c_ea0 = _request_float("C_EA0", 8.0)
@@ -378,7 +411,14 @@ def liedl_single_export():
             {"symbol": "CD", "name": "Electron Donor", "value": c_ed0, "unit": "mg/L"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Liedl et al. (2005)"},
+        plot_data=_comparison_plot_data(
+            "Liedl et al. (2005)",
+            "Liedl model plume length",
+            lmax,
+            _request_int("site_id", 0),
+            _current_email(),
+            "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -412,7 +452,7 @@ def chu_single():
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         input_fields=input_fields,
-        export_href=_export_href("panel_chu_single", input_fields),
+        export_href=_export_href("panel_chu_single", input_fields, selected_site.get("id") if selected_site else None),
     )
 
 
@@ -472,7 +512,7 @@ def ham_single():
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         input_fields=input_fields,
-        export_href=_export_href("panel_ham_single", input_fields),
+        export_href=_export_href("panel_ham_single", input_fields, selected_site.get("id") if selected_site else None),
     )
 
 
@@ -530,7 +570,7 @@ def bioscreen_single():
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         input_fields=input_fields,
-        export_href=_export_href("panel_bioscreen_single", input_fields),
+        export_href=_export_href("panel_bioscreen_single", input_fields, selected_site.get("id") if selected_site else None),
     )
 
 
@@ -540,17 +580,17 @@ def bioscreen_single():
 def bioscreen_single_export():
     cthres = _request_float("Cthres", 5e-5)
     time_val = _request_int("time", 20)
-    h = _request_float("H", 5.0)
-    c0 = _request_float("c0", 100.0)
-    w = _request_float("W", 10.0)
-    v = _request_float("v", 50.0)
-    ax = _request_float("ax", 10.0)
-    ay = _request_float("ay", 0.5)
-    az = _request_float("az", 0.05)
+    h = _request_float("H", 6.1)
+    c0 = _request_float("c0", 106.35)
+    w = _request_float("W", 20.0)
+    v = _request_float("v", 292.0)
+    ax = _request_float("ax", 10.7)
+    ay = _request_float("ay", 1.1)
+    az = _request_float("az", 0.11)
     df = _request_float("Df", 0.0)
     r = _request_float("R", 1.0)
     gamma = _request_float("gamma", 0.0)
-    lam = _request_float("lam", 0.1)
+    lam = _request_float("lam", 0.445)
     ng = _request_int("ng", 60)
     lmax = float(bio(cthres, time_val, h, c0, w, v, ax, ay, az, df, r, gamma, lam, ng))
     report = CASTReport("BIOSCREEN-AT — Single Simulation", "BIOSCREEN Analytical")
@@ -606,7 +646,7 @@ def liedl3d_single():
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         input_fields=input_fields,
-        export_href=_export_href("panel_liedl3d_single", input_fields),
+        export_href=_export_href("panel_liedl3d_single", input_fields, selected_site.get("id") if selected_site else None),
     )
 
 

@@ -6,6 +6,7 @@ ReportLab-based with embedded matplotlib charts and CAST branding.
 import io
 from pathlib import Path
 from xml.etree import ElementTree as ET
+from xml.sax.saxutils import escape
 from datetime import datetime
 
 import matplotlib
@@ -15,6 +16,8 @@ import matplotlib.ticker as mticker
 import numpy as np
 
 from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -24,7 +27,7 @@ from reportlab.graphics import renderPDF
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.svgpath import SvgPath
 from reportlab.platypus import (
-    HRFlowable, Image, KeepTogether, Paragraph,
+    CondPageBreak, HRFlowable, Image, KeepTogether, Paragraph,
     SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
@@ -50,6 +53,40 @@ _MPL_AMBER  = "#F59E0B"
 _MPL_LIGHT  = "#EBF0F8"
 _MPL_STRIPE = "#E0E8F2"
 
+_FONT_REGULAR = "Helvetica"
+_FONT_BOLD = "Helvetica-Bold"
+_FONT_ITALIC = "Helvetica-Oblique"
+
+
+def _register_pdf_fonts():
+    global _FONT_REGULAR, _FONT_BOLD, _FONT_ITALIC
+    font_dir = Path(matplotlib.get_data_path()) / "fonts" / "ttf"
+    regular = font_dir / "DejaVuSans.ttf"
+    bold = font_dir / "DejaVuSans-Bold.ttf"
+    italic = font_dir / "DejaVuSans-Oblique.ttf"
+    bold_italic = font_dir / "DejaVuSans-BoldOblique.ttf"
+    if not (regular.exists() and bold.exists() and italic.exists() and bold_italic.exists()):
+        return
+    try:
+        pdfmetrics.registerFont(TTFont("CASTDejaVu", str(regular)))
+        pdfmetrics.registerFont(TTFont("CASTDejaVu-Bold", str(bold)))
+        pdfmetrics.registerFont(TTFont("CASTDejaVu-Italic", str(italic)))
+        pdfmetrics.registerFont(TTFont("CASTDejaVu-BoldItalic", str(bold_italic)))
+        pdfmetrics.registerFontFamily(
+            "CASTDejaVu",
+            normal="CASTDejaVu",
+            bold="CASTDejaVu-Bold",
+            italic="CASTDejaVu-Italic",
+            boldItalic="CASTDejaVu-BoldItalic",
+        )
+        _FONT_REGULAR = "CASTDejaVu"
+        _FONT_BOLD = "CASTDejaVu-Bold"
+        _FONT_ITALIC = "CASTDejaVu-Italic"
+    except Exception:
+        pass
+
+
+_register_pdf_fonts()
 PAGE_W, PAGE_H = A4
 CONTENT_W = PAGE_W - 40 * mm
 HEADER_H = 42 * mm
@@ -78,62 +115,62 @@ class CASTReport:
         ss = getSampleStyleSheet()
         self.s_title = ParagraphStyle(
             "CastTitle", parent=ss["Normal"],
-            fontSize=24, leading=30, fontName="Helvetica-Bold",
+            fontSize=24, leading=30, fontName=_FONT_BOLD,
             textColor=_NAVY, spaceAfter=1 * mm, alignment=TA_CENTER,
         )
         self.s_subtitle = ParagraphStyle(
             "CastSubtitle", parent=ss["Normal"],
-            fontSize=11, leading=15, fontName="Helvetica",
+            fontSize=11, leading=15, fontName=_FONT_REGULAR,
             textColor=_GRAY, alignment=TA_CENTER, spaceAfter=0,
         )
         self.s_h2 = ParagraphStyle(
             "CastH2", parent=ss["Normal"],
-            fontSize=12, leading=16, fontName="Helvetica-Bold",
+            fontSize=12, leading=16, fontName=_FONT_BOLD,
             textColor=_NAVY, spaceBefore=5 * mm, spaceAfter=1 * mm,
         )
         self.s_normal = ParagraphStyle(
             "CastNormal", parent=ss["Normal"],
-            fontSize=9, leading=13, fontName="Helvetica",
+            fontSize=9, leading=13, fontName=_FONT_REGULAR,
             textColor=_DARK,
         )
         self.s_bold = ParagraphStyle(
             "CastBold", parent=ss["Normal"],
-            fontSize=9, leading=13, fontName="Helvetica-Bold",
+            fontSize=9, leading=13, fontName=_FONT_BOLD,
             textColor=_DARK,
         )
         self.s_th = ParagraphStyle(
             "CastTH", parent=ss["Normal"],
-            fontSize=9, leading=13, fontName="Helvetica-Bold",
+            fontSize=9, leading=13, fontName=_FONT_BOLD,
             textColor=_WHITE,
         )
         self.s_metric_label = ParagraphStyle(
             "MetricLabel", parent=ss["Normal"],
-            fontSize=8, leading=11, fontName="Helvetica",
+            fontSize=8, leading=11, fontName=_FONT_REGULAR,
             textColor=_GRAY,
         )
         self.s_metric_value = ParagraphStyle(
             "MetricValue", parent=ss["Normal"],
-            fontSize=15, leading=19, fontName="Helvetica-Bold",
+            fontSize=15, leading=19, fontName=_FONT_BOLD,
             textColor=_NAVY,
         )
         self.s_metric_unit = ParagraphStyle(
             "MetricUnit", parent=ss["Normal"],
-            fontSize=9, leading=12, fontName="Helvetica",
+            fontSize=9, leading=12, fontName=_FONT_REGULAR,
             textColor=_BLUE,
         )
         self.s_caption = ParagraphStyle(
             "CastCaption", parent=ss["Normal"],
-            fontSize=8, leading=11, fontName="Helvetica-Oblique",
+            fontSize=8, leading=11, fontName=_FONT_ITALIC,
             textColor=_GRAY, alignment=TA_CENTER,
         )
         self.s_footer = ParagraphStyle(
             "CastFooter", parent=ss["Normal"],
-            fontSize=7, leading=10, fontName="Helvetica-Oblique",
+            fontSize=7, leading=10, fontName=_FONT_ITALIC,
             textColor=_GRAY, alignment=TA_CENTER,
         )
         self.s_disclaimer = ParagraphStyle(
             "CastDisclaimer", parent=ss["Normal"],
-            fontSize=7.5, leading=11, fontName="Helvetica-Oblique",
+            fontSize=7.5, leading=11, fontName=_FONT_ITALIC,
             textColor=_GRAY,
         )
 
@@ -141,13 +178,13 @@ class CASTReport:
 
     def _draw_project_mark(self, canvas, x, y):
         canvas.setFillColor(_WHITE)
-        canvas.setFont("Helvetica-Bold", 13)
+        canvas.setFont(_FONT_BOLD, 13)
         canvas.drawString(x, y, "HYMCAT")
-        canvas.setFont("Helvetica-Bold", 8)
+        canvas.setFont(_FONT_BOLD, 8)
         canvas.setFillColor(colors.Color(0.78, 0.88, 1.0))
         canvas.drawString(x + 24 * mm, y, "CAST")
-        canvas.setFont("Helvetica", 7)
-        canvas.drawString(x, y - 4.5 * mm, "Contaminant Assessment & Source Tool")
+        canvas.setFont(_FONT_REGULAR, 7)
+        canvas.drawString(x, y - 3.7 * mm, "Contaminant Assessment & Source Tool")
 
     def _draw_image_fit(self, canvas, path: Path, x, y, max_w, max_h):
         if not path.exists():
@@ -211,23 +248,23 @@ class CASTReport:
         canvas.setFillColor(_WHITE)
         canvas.rect(0, header_bottom, w, HEADER_H, fill=1, stroke=0)
 
-        self._draw_image_fit(canvas, DFG_LOGO_PATH, 18 * mm, h - 32 * mm, 78 * mm, 23 * mm)
-        self._draw_svg_fit(canvas, TUEBINGEN_LOGO_PATH, 112 * mm, h - 32 * mm, 78 * mm, 23 * mm)
+        self._draw_image_fit(canvas, DFG_LOGO_PATH, 20 * mm, h - 28 * mm, 76 * mm, 20 * mm)
+        self._draw_svg_fit(canvas, TUEBINGEN_LOGO_PATH, 114 * mm, h - 28 * mm, 76 * mm, 20 * mm)
 
         canvas.setStrokeColor(_LGRAY)
         canvas.setLineWidth(0.6)
-        canvas.line(18 * mm, h - 31 * mm, w - 18 * mm, h - 31 * mm)
+        canvas.line(18 * mm, h - 30 * mm, w - 18 * mm, h - 30 * mm)
 
         canvas.setFillColor(_NAVY)
         canvas.rect(0, header_bottom, w, 11 * mm, fill=1, stroke=0)
-        self._draw_project_mark(canvas, 20 * mm, header_bottom + 4.7 * mm)
+        self._draw_project_mark(canvas, 20 * mm, header_bottom + 6.6 * mm)
 
         canvas.setFillColor(_WHITE)
-        canvas.setFont("Helvetica-Bold", 8.5)
-        canvas.drawRightString(w - 20 * mm, header_bottom + 6 * mm, self.model_name)
-        canvas.setFont("Helvetica", 7.5)
+        canvas.setFont(_FONT_BOLD, 8.5)
+        canvas.drawRightString(w - 20 * mm, header_bottom + 6.7 * mm, self.model_name)
+        canvas.setFont(_FONT_REGULAR, 7.5)
         canvas.setFillColor(colors.Color(0.78, 0.88, 1.0))
-        canvas.drawRightString(w - 20 * mm, header_bottom + 2.4 * mm, self.date)
+        canvas.drawRightString(w - 20 * mm, header_bottom + 3.1 * mm, self.date)
 
         canvas.setStrokeColor(_TEAL)
         canvas.setLineWidth(1.1)
@@ -242,7 +279,7 @@ class CASTReport:
         canvas.setStrokeColor(_TUE_RED)
         canvas.line(w / 2, FOOTER_H, w, FOOTER_H)
 
-        canvas.setFont("Helvetica", 8)
+        canvas.setFont(_FONT_REGULAR, 8)
         canvas.setFillColor(colors.Color(0.7, 0.82, 1.0))
         canvas.drawCentredString(
             w / 2, 5.5 * mm,
@@ -292,8 +329,8 @@ class CASTReport:
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), _LIGHT),
             ("BACKGROUND", (0, 1), (-1, 1), _SOFT_BG),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
             ("RIGHTPADDING", (0, 0), (-1, -1), 8),
             ("LINEBELOW", (0, 0), (-1, 0), 0.5, _LGRAY),
@@ -302,6 +339,61 @@ class CASTReport:
         return t
 
     # ── Input parameter table ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _symbol_markup(symbol):
+        raw = str(symbol).strip()
+        compact = raw.replace(" ", "")
+        compact = compact.replace("\u03b1", "alpha_").replace("\u00ce\u00b1", "alpha_")
+        compact = compact.replace("\u03b3", "gamma").replace("\u00ce\u00b3", "gamma")
+        mapping = {
+            "M": "<i>M</i>",
+            "H": "<i>H</i>",
+            "W": "<i>W</i>",
+            "Sw": "<i>S</i><sub>w</sub>",
+            "S_w": "<i>S</i><sub>w</sub>",
+            "alpha_Tv": "&#945;<sub>Tv</sub>",
+            "alpha_tv": "&#945;<sub>Tv</sub>",
+            "alpha_Th": "&#945;<sub>Th</sub>",
+            "alpha_th": "&#945;<sub>Th</sub>",
+
+            "gamma": "&#947;",
+            "g": "&#947;",
+
+            "C_A": "<i>C</i><sub>A</sub>",
+            "CA": "<i>C</i><sub>A</sub>",
+            "C_D": "<i>C</i><sub>D</sub>",
+            "CD": "<i>C</i><sub>D</sub>",
+            "C_EA0": "<i>C</i><sub>EA0</sub>",
+            "C_ED0": "<i>C</i><sub>ED0</sub>",
+            "Cthres": "<i>C</i><sub>thres</sub>",
+            "C0": "<i>C</i><sub>0</sub>",
+            "Lmax": "<i>L</i><sub>max</sub>",
+            "LD": "<i>L</i><sub>D</sub>",
+            "DW": "<i>D</i><sub>W</sub>",
+            "dx": "<i>d</i><sub>x</sub>",
+        }
+        return mapping.get(compact, escape(raw))
+
+    @staticmethod
+    def _metric_value_markup(value, unit):
+        value_markup = f"<b>{escape(value)}</b>"
+        if unit:
+            unit_markup = escape(unit)
+            value_markup += f'&#8201;<font color="#2E6EBD" size="8">{unit_markup}</font>'
+        return value_markup
+
+    @staticmethod
+    def _fit_image_dimensions(width_px, height_px, max_height_mm):
+        """Fit an image to the report width without changing its aspect ratio."""
+        img_w = CONTENT_W
+        img_h = img_w * (height_px / width_px)
+        max_h = max_height_mm * mm
+        if img_h > max_h:
+            scale = max_h / img_h
+            img_w *= scale
+            img_h = max_h
+        return img_w, img_h
 
     @staticmethod
     def _fmt_value(v):
@@ -327,7 +419,7 @@ class CASTReport:
         for p in parameters:
             rows.append([
                 Paragraph(str(p["name"]), self.s_normal),
-                Paragraph(str(p["symbol"]), self.s_bold),
+                Paragraph(self._symbol_markup(p["symbol"]), self.s_bold),
                 Paragraph(self._fmt_value(p["value"]), self.s_bold),
                 Paragraph(str(p["unit"]), self.s_normal),
             ])
@@ -341,8 +433,8 @@ class CASTReport:
             ("LINEBELOW", (0, 0), (-1, 0), 2, _TEAL),
             # Body
             ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("LEFTPADDING", (0, 0), (-1, -1), 7),
             ("RIGHTPADDING", (0, 0), (-1, -1), 7),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, _LIGHT]),
@@ -372,8 +464,7 @@ class CASTReport:
             cell_content = Table(
                 [
                     [Paragraph(out["label"], self.s_metric_label)],
-                    [Paragraph(f"<b>{val_str}</b>", self.s_metric_value)],
-                    [Paragraph(unit_str, self.s_metric_unit)],
+                    [Paragraph(self._metric_value_markup(val_str, unit_str), self.s_metric_value)],
                 ],
                 colWidths=[col_w - 14],
             )
@@ -393,8 +484,8 @@ class CASTReport:
         outer = Table(card_rows, colWidths=[col_w] * n_cols)
         style = [
             ("BACKGROUND", (0, 0), (-1, -1), _LIGHT),
-            ("TOPPADDING", (0, 0), (-1, -1), 10),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
             ("LEFTPADDING", (0, 0), (-1, -1), 10),
             ("RIGHTPADDING", (0, 0), (-1, -1), 10),
             ("GRID", (0, 0), (-1, -1), 0.5, _LGRAY),
@@ -409,7 +500,75 @@ class CASTReport:
 
     # ── Matplotlib chart ───────────────────────────────────────────────────────
 
+    def _make_comparison_chart(self, plot_data: dict) -> bytes:
+        def pairs(xs, ys, limit=1200):
+            clean_x, clean_y = [], []
+            for x, y in zip(xs or [], ys or []):
+                try:
+                    xf = float(x)
+                    yf = float(y)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(xf) and np.isfinite(yf):
+                    clean_x.append(xf)
+                    clean_y.append(yf)
+                if len(clean_x) >= limit:
+                    break
+            return clean_x, clean_y
+
+        field_x, field_y = pairs(plot_data.get("field_x"), plot_data.get("field_y"))
+        manual_x, manual_y = pairs(plot_data.get("manual_x"), plot_data.get("manual_y"), limit=100)
+        if not field_y and not manual_y:
+            return b""
+
+        title = plot_data.get("title", "Computed Results")
+        x_label = plot_data.get("x_label", "Site Number")
+        y_label = plot_data.get("y_label", "Plume Length (m)")
+        field_label = plot_data.get("field_label", "Database plume length")
+        manual_label = plot_data.get("manual_label", "Model plume length")
+
+        fig, ax = plt.subplots(figsize=(8.2, 3.4), dpi=150)
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("#FFFFFF")
+
+        if field_x and field_y:
+            ax.scatter(field_x, field_y, s=34, color="#5598e3", label=field_label, zorder=3)
+        if manual_x and manual_y:
+            ax.scatter(manual_x, manual_y, s=46, color="#0e3a69", label=manual_label, zorder=4)
+
+        all_x = [*field_x, *manual_x]
+        all_y = [*field_y, *manual_y]
+        min_x, max_x = min(all_x), max(all_x)
+        min_y, max_y = min(all_y), max(all_y)
+        x_pad = max((max_x - min_x) * 0.04, 1.0)
+        y_pad = max((max_y - min_y) * 0.08, 10.0)
+        ax.set_xlim(max(0, min_x - x_pad), max_x + x_pad)
+        ax.set_ylim(max(0, min_y - y_pad), max_y + y_pad)
+
+        ax.set_title(title, fontsize=10.5, fontweight="bold", color=_MPL_NAVY, loc="left", pad=8)
+        ax.set_xlabel(x_label, fontsize=9, color="#4B5563", labelpad=6)
+        ax.set_ylabel(y_label, fontsize=9, color="#4B5563", labelpad=8, fontstyle="italic")
+        ax.grid(color="#E5E7EB", linewidth=0.7, zorder=0)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#4B5563")
+        ax.spines["bottom"].set_color("#4B5563")
+        ax.tick_params(colors="#4B5563", labelsize=8)
+        ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
+        ax.yaxis.set_minor_locator(mticker.AutoMinorLocator())
+        ax.legend(loc="upper right", fontsize=8, framealpha=0.9, edgecolor="#E5E7EB")
+
+        plt.tight_layout(pad=0.9)
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+
     def _make_chart(self, plot_data: dict) -> bytes:
+        if plot_data.get("type") == "comparison_scatter":
+            return self._make_comparison_chart(plot_data)
+
         labels = plot_data.get("labels", [])
         values = plot_data.get("values", [])
         ylabel = plot_data.get("ylabel", "Plume Length (m)")
@@ -505,33 +664,35 @@ class CASTReport:
         story = []
 
         # ── Cover block ───────────────────────────────────────────────────────
-        story.append(Spacer(1, 6 * mm))
+        story.append(Spacer(1, 8 * mm))
         story.append(Paragraph(self.title, self.s_title))
-        story.append(Spacer(1, 1 * mm))
+        story.append(Spacer(1, 2 * mm))
         story.append(Paragraph("Simulation Report", self.s_subtitle))
-        story.append(Spacer(1, 4 * mm))
+        story.append(Spacer(1, 6 * mm))
         story.append(self._hr(color=_TEAL, thickness=1.5))
         story.append(Spacer(1, 1 * mm))
         story.append(self._metadata_banner())
-        story.append(Spacer(1, 7 * mm))
+        story.append(Spacer(1, 10 * mm))
 
         # ── Input Parameters ──────────────────────────────────────────────────
         story.append(self._section_header("Input Parameters"))
-        story.append(Spacer(1, 2 * mm))
+        story.append(Spacer(1, 3 * mm))
         story.append(self.build_input_table(parameters))
-        story.append(Spacer(1, 7 * mm))
+        story.append(Spacer(1, 10 * mm))
 
         # ── Computed Results ──────────────────────────────────────────────────
-        story.append(self._section_header("Computed Results"))
-        story.append(Spacer(1, 2 * mm))
-        story.append(self.build_results_grid(outputs))
-        story.append(Spacer(1, 7 * mm))
+        story.append(KeepTogether([
+            self._section_header("Computed Results"),
+            Spacer(1, 3 * mm),
+            self.build_results_grid(outputs),
+        ]))
+        story.append(Spacer(1, 3 * mm))
 
         # ── Results Charts ────────────────────────────────────────────────────
         image_items = []
         if plot_images:
             image_items.extend(plot_images)
-        if plot_data:
+        if plot_data and not image_items:
             chart_bytes = self._make_chart(plot_data)
             if chart_bytes:
                 image_items.append({
@@ -541,8 +702,15 @@ class CASTReport:
                 })
 
         if image_items:
+            first_item = image_items[0]
+            first_max_height = (
+                float(first_item.get("max_height_mm", 105))
+                if isinstance(first_item, dict)
+                else 105.0
+            )
+            story.append(CondPageBreak((first_max_height + 20) * mm))
             story.append(self._section_header("Results Visualisation"))
-            story.append(Spacer(1, 2 * mm))
+            story.append(Spacer(1, 1 * mm))
 
             for figure_no, item in enumerate(image_items, start=1):
                 max_height_mm = 105.0
@@ -561,12 +729,14 @@ class CASTReport:
                 try:
                     from PIL import Image as PILImage
                     pil = PILImage.open(io.BytesIO(chart_bytes))
-                    aspect = pil.height / pil.width
-                    img_h = min(CONTENT_W * aspect, max_height_mm * mm)
+                    img_w, img_h = self._fit_image_dimensions(
+                        pil.width, pil.height, max_height_mm
+                    )
                 except Exception:
+                    img_w = CONTENT_W
                     img_h = min(75 * mm, max_height_mm * mm)
 
-                img = Image(io.BytesIO(chart_bytes), width=CONTENT_W, height=img_h)
+                img = Image(io.BytesIO(chart_bytes), width=img_w, height=img_h)
                 img.hAlign = "CENTER"
                 story.append(KeepTogether([
                     Paragraph(f"<b>Figure {figure_no} — {title}</b>", self.s_caption),
@@ -575,7 +745,7 @@ class CASTReport:
                     Spacer(1, 1.5 * mm),
                     Paragraph(caption, self.s_caption) if caption else Spacer(1, 0),
                 ]))
-                story.append(Spacer(1, 7 * mm))
+                story.append(Spacer(1, 4 * mm))
 
         # ── Disclaimer ────────────────────────────────────────────────────────
         story.append(Spacer(1, 4 * mm))

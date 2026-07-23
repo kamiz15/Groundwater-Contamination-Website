@@ -99,3 +99,49 @@ matters.
    downloadable (checks the `numerical_jobs` volume).
 7. From two different machines, fail one login each → no shared 429 (checks
    real-IP configuration).
+8. `curl -i http://<host>/health` → `204` (also confirms DB connectivity).
+
+## 7. Rollback
+
+Every deploy is a git commit plus a rebuilt image, so rolling back is
+redeploying the last good commit. Tag each deploy so "last good" is findable:
+
+```bash
+git tag deploy-$(date +%F)   # after each successful update
+# rollback:
+git checkout <last-good-tag>
+docker compose up --build -d
+```
+
+Schema changes are additive and idempotent (`ensure_schema` only ADDs
+columns), so older code runs safely against a newer database — a code
+rollback normally needs no DB restore. If data was corrupted, restore the
+latest §4 dump:
+
+```bash
+gunzip -c cast_YYYY-MM-DD.sql.gz \
+  | docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" cast_project'
+```
+
+## 8. Secret rotation
+
+Per site: rotate once per semester, and immediately whenever someone with
+server access leaves the project.
+
+- `SECRET_KEY`: generate a new one (§1), update `.env`, restart flask+panel.
+  Every user is logged out once — harmless.
+- `DB_PASSWORD` / `MYSQL_ROOT_PASSWORD`: `ALTER USER ... IDENTIFIED BY ...`
+  in MySQL, update `.env`, restart the stack.
+
+## 9. Data protection runbook
+
+- **Erasure request**: `DELETE FROM users WHERE email = '<user>';` — the
+  `ON DELETE CASCADE` foreign key removes all their site rows with it.
+- **Breach**: Tübingen → university DPO within 72 h (GDPR; authority: LfDI
+  Baden-Württemberg). Delhi → Data Protection Board of India AND affected
+  users (DPDP: every breach, no severity threshold).
+- **Logs** contain IP addresses (personal data). docker-compose caps them at
+  10 MB × 5 files per service; do not raise without a retention reason.
+- **Before go-live**: complete every `[FILL IN]` placeholder in
+  `templates/privacy.html` and `templates/imprint.html` (controller
+  addresses, DPO/grievance-officer contacts).

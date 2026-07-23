@@ -6,9 +6,10 @@ numpy>=1.26,<3.0
 Shapely>=2.0,<3.0
 pandas>=2.0,<3.0
 scipy>=1.11,<2.0
+KDEpy>=1.1,<2.0
 matplotlib>=3.8,<4.0
-bokeh>=3.4,<4.0
-panel>=1.4,<2.0
+bokeh==3.4.3
+panel==1.4.5
 flopy>=3.8,<4.0
 gunicorn>=23.0,<24.0
 python-dotenv>=1.0,<2.0

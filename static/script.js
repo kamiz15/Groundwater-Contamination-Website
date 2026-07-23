@@ -12,6 +12,7 @@ function closeSidebar(){ sidebar?.classList.remove('open'); backdrop?.classList.
 openBtn?.addEventListener('click', openSidebar);
 closeBtn?.addEventListener('click', closeSidebar);
 backdrop?.addEventListener('click', closeSidebar);
+sidebar?.querySelectorAll('a.nav-link').forEach(link => link.addEventListener('click', closeSidebar));
 
 // Dropdowns: click/tap to toggle; close on ESC or outside click
 // Theme toggle
@@ -21,10 +22,10 @@ if (themeBtn) {
     const root = document.documentElement;
     if (root.getAttribute("data-theme") === "dark") {
       root.removeAttribute("data-theme");   // back to light
-      themeBtn.textContent = "🌙";
+      themeBtn.textContent = "ÃƒÂ°Ã…Â¸Ã…â€™Ã¢â€žÂ¢";
     } else {
       root.setAttribute("data-theme", "dark");
-      themeBtn.textContent = "☀️";
+      themeBtn.textContent = "ÃƒÂ¢Ã‹Å“Ã¢â€šÂ¬ÃƒÂ¯Ã‚Â¸Ã‚Â";
     }
   });
 }
@@ -50,6 +51,55 @@ document.addEventListener('click', (e)=>{ if(!e.target.closest('.menu-item')) cl
 document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAllDropdowns(); });
 
 
+document.addEventListener("DOMContentLoaded", () => {
+  const contactForm = document.getElementById("contactForm");
+  if (!contactForm) return;
+
+  contactForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msgBox = document.getElementById("contactMessage");
+    const submitButton = contactForm.querySelector('button[type="submit"]');
+    const name = document.getElementById("contactName").value.trim();
+    const email = document.getElementById("contactEmail").value.trim();
+    const message = document.getElementById("contactMsg").value.trim();
+    const csrfToken = document.getElementById("contactCsrf").value;
+
+    if (!name || !email || !message) {
+      msgBox.className = "contact-message error";
+      msgBox.textContent = "Enter your name, email, and message.";
+      return;
+    }
+
+    submitButton.disabled = true;
+    msgBox.className = "contact-message";
+    msgBox.textContent = "Sending...";
+
+    try {
+      const res = await fetch("/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({ name, email, message }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Message could not be sent.");
+      }
+
+      msgBox.className = "contact-message success";
+      msgBox.textContent = data.message;
+      contactForm.reset();
+    } catch (error) {
+      msgBox.className = "contact-message error";
+      msgBox.textContent = error.message || "Message could not be sent. Try again later.";
+    }
+
+    submitButton.disabled = false;
+  });
+});
 // log in page
 document.addEventListener("DOMContentLoaded", () => {
     const loginForm = document.getElementById("loginForm");
@@ -61,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const password = document.getElementById("password").value;
             const csrfToken = loginForm.elements["_csrf_token"].value;
             const msgBox = document.getElementById("loginMessage");
-            msgBox.innerHTML = "⏳ Checking credentials...";
+            msgBox.textContent = "Checking credentials...";
 
             try {
                 const res = await fetch("/login", {
@@ -76,18 +126,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 const data = await res.json();
 
                 if (data.success) {
-                    msgBox.style.color = "green";
-                    msgBox.innerHTML = "✅ Login successful! Redirecting...";
-                    setTimeout(() => {
-                        window.location.href = data.redirect;
-                    }, 1200);
+                    window.location.href = data.redirect;
                 } else {
                     msgBox.style.color = "red";
-                    msgBox.innerHTML = "❌ " + data.message;
+                    msgBox.textContent = data.message;
                 }
             } catch (err) {
                 msgBox.style.color = "red";
-                msgBox.innerHTML = "⚠️ Server error. Try again later.";
+                msgBox.textContent = "Server error. Try again later.";
             }
         });
     }
@@ -109,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (submitButton.disabled) return;
             submitButton.disabled = true;
 
-            msgBox.textContent = "⏳ Creating account...";
+            msgBox.textContent = "Creating account...";
 
             try {
                 const res = await fetch("/register", {
@@ -124,17 +170,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 const data = await res.json();
 
                 if (data.success) {
-                    msgBox.className = "success";
-                    msgBox.textContent = "✅ Account created! Redirecting...";
-                    setTimeout(() => window.location.href = data.redirect, 1000);
+                    window.location.href = data.redirect;
                 } else {
                     msgBox.className = "error";
-                    msgBox.textContent = "❌ " + data.message;
+                    msgBox.textContent = data.message;
                     submitButton.disabled = false;
                 }
             } catch (error) {
                 msgBox.className = "error";
-                msgBox.textContent = "⚠️ Server error, please try again.";
+                msgBox.textContent = "Server error. Please try again.";
                 submitButton.disabled = false;
             }
         });
@@ -158,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (csvInput.files && csvInput.files.length > 0) {
         csvLabel.textContent = csvInput.files[0].name;
       } else {
-        csvLabel.textContent = "Choose CSV file…";
+        csvLabel.textContent = "Choose CSV fileÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦";
       }
     });
   }
@@ -175,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (dispersivityInput) {
     dispersivityInput.addEventListener("input", () => {
-      dispersivityInput.title = `α_Tv: ${dispersivityInput.value} m`;
+      dispersivityInput.title = `ÃƒÅ½Ã‚Â±_Tv: ${dispersivityInput.value} m`;
     });
   }
 });
@@ -197,7 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // “View full screen graph” – simple expand effect
+  // ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œView full screen graphÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ simple expand effect
   const fullBtn = document.getElementById("fullScreen");
   const wrapper = document.getElementById("liedlPlotWrapper");
   if (fullBtn && wrapper) {
@@ -251,31 +295,55 @@ document.addEventListener("DOMContentLoaded", () => {
   const frames = document.querySelectorAll("iframe.panel-frame");
   if (!frames.length) return;
 
-  const fitFrame = (frame) => {
+  // The Bokeh plots are aspect-locked (height scales with width), so no fixed
+  // height is ever right at every window size ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the frame must track content.
+  const measure = (frame) => {
+    const doc = frame.contentDocument || frame.contentWindow?.document;
+    if (!doc || !doc.body || !doc.documentElement) return null;
+    return Math.ceil(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
+  };
+  const floorOf = (frame) => Number(frame.dataset.minHeight || 680);
+
+  // Grow-only, exact target (no fudge). Safe to call from a ResizeObserver: once
+  // the frame equals its content the responsive body reports that same height,
+  // target == current, and it stops ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no runaway.
+  const growFrame = (frame) => {
     try {
-      const doc = frame.contentDocument || frame.contentWindow?.document;
-      if (!doc || !doc.body || !doc.documentElement) return;
-      const bodyH = doc.body.scrollHeight || 0;
-      const docH = doc.documentElement.scrollHeight || 0;
-      const minHeight = Number(frame.dataset.minHeight || 680);
-      const target = Math.max(bodyH, docH, minHeight);
-      frame.style.height = `${target + 8}px`;
-    } catch (_err) {
-      // Keep default min-height if frame is not ready yet.
-    }
+      const content = measure(frame);
+      if (content == null) return;
+      const target = Math.max(content, floorOf(frame));
+      const current = Math.round(parseFloat(frame.style.height) || 0);
+      if (target > current + 1) frame.style.height = `${target}px`;
+    } catch (_err) { /* not ready / cross-origin */ }
+  };
+
+  // Reset then fit ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â allows shrinking too. Only from discrete events (load,
+  // window resize), never an observer, so it can't loop.
+  const refitFrame = (frame) => {
+    try {
+      frame.style.height = "";               // collapse so short content can re-measure smaller
+      const content = measure(frame);
+      if (content == null) return;
+      frame.style.height = `${Math.max(content, floorOf(frame))}px`;
+    } catch (_err) { /* not ready / cross-origin */ }
   };
 
   frames.forEach((frame) => {
     frame.addEventListener("load", () => {
-      fitFrame(frame);
-      const i1 = setTimeout(() => fitFrame(frame), 150);
-      const i2 = setTimeout(() => fitFrame(frame), 600);
-      frame.dataset.fitTimers = `${i1},${i2}`;
+      refitFrame(frame);
+      try {
+        const doc = frame.contentDocument || frame.contentWindow?.document;
+        if (doc && doc.body && "ResizeObserver" in window) {
+          new ResizeObserver(() => growFrame(frame)).observe(doc.body);
+        }
+      } catch (_err) { /* timers below still cover it */ }
+      // Catch the async Bokeh render even if the observer misses it.
+      [150, 600, 1500, 3000, 5000, 8000].forEach((ms) => setTimeout(() => growFrame(frame), ms));
     });
   });
 
   window.addEventListener("resize", () => {
-    frames.forEach((frame) => fitFrame(frame));
+    frames.forEach((frame) => refitFrame(frame));
   });
 });
 
@@ -517,9 +585,15 @@ document.addEventListener("DOMContentLoaded", () => {
 (function () {
   let reportPayload = null;
 
+  const fromEmbeddedFrame = (source) =>
+    Array.from(document.querySelectorAll("iframe")).some((f) => f.contentWindow === source);
+
   window.addEventListener("message", (event) => {
     const data = event.data;
     if (!data || data.type !== "cast-report") return;
+    // Only trust messages sent by an iframe we embedded (blocks a page that
+    // opened us via window.open from spoofing report payloads).
+    if (!fromEmbeddedFrame(event.source)) return;
     const card = document.getElementById("reportExportCard");
     if (!card) return;
     if (data.clear || !data.state) {
@@ -538,7 +612,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = document.getElementById("reportExportCard");
     const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "Preparing PDF…";
+    btn.textContent = "Preparing PDF...";
     try {
       const res = await fetch("/report/export", {
         method: "POST",
@@ -568,7 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
       URL.revokeObjectURL(url);
       btn.textContent = original;
     } catch (err) {
-      btn.textContent = "Export failed — try again";
+      btn.textContent = "Export failed - try again";
       setTimeout(() => { btn.textContent = original; }, 2500);
     }
     btn.disabled = false;
@@ -605,7 +679,7 @@ document.addEventListener("DOMContentLoaded", () => {
       show(msg);
     };
 
-    link.textContent = "Submitting simulation…";
+    link.textContent = "Submitting simulation...";
     try {
       const res = await fetch(link.getAttribute("href"), {
         headers: { "Accept": "application/json" },
@@ -618,7 +692,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!statusRes.ok) throw new Error("status failed");
         const status = await statusRes.json();
         if (status.status === "done") {
-          show("Simulation finished — downloading report.");
+          show("Simulation finished - downloading report.");
           link.textContent = original;
           link.dataset.exportRunning = "";
           window.location.href = status.report_url || job.report_url;
@@ -629,8 +703,8 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         link.textContent = status.queue_position
-          ? "Queued (position " + status.queue_position + ")…"
-          : "Running simulation…";
+          ? "Queued (position " + status.queue_position + ")..."
+          : "Running simulation...";
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
       }
       fail("Simulation timed out. Please try again.");

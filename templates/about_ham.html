@@ -1,0 +1,69 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Analytical Model{% endblock %}
+{% block about_title %}Ham et al. (2004){% endblock %}
+{% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
+{% block back_label %}All analytical models{% endblock %}
+
+{% block about_lead %}
+<p>A 2D model that estimates the steady-state plume length
+(<math><msub><mi>L</mi><mi>max</mi></msub></math>) and explores the effect of
+transverse dispersivity on the length of a plume degraded by an instantaneous
+bimolecular reaction at its fringe. In CAST the source is characterised by its
+flux <math><mi>Q</mi></math>.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_ham.png') }}"
+       alt="Conceptual 2D model of Ham et al. (2004): a mass-flux source releasing a plume whose steady-state length is controlled by hydrodynamic dispersion.">
+  <figcaption>Conceptual model &mdash; Ham et al. (2004).</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mfrac>
+      <msup><mi>Q</mi><mn>2</mn></msup>
+      <mrow><mn>4</mn><mi>π</mi><msub><mi>α</mi><mi>T</mi></msub></mrow>
+    </mfrac>
+    <msup>
+      <mrow>
+        <mo>(</mo>
+        <mfrac>
+          <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup></mrow>
+          <msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup>
+        </mfrac>
+        <mo>)</mo>
+      </mrow>
+      <mn>2</mn>
+    </msup>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><mi>Q</mi></math></dt><dd>Source flux [m&sup2;/yr]</dd>
+<dt><math><msub><mi>α</mi><mi>T</mi></msub></math></dt><dd>Transverse dispersivity [m]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
+<dt><math><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>A point source with constant mass-flow injection.</li>
+<li>An instantaneous reaction between the injected compound and a reactant in the ambient groundwater at the plume fringe.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Ham, P.A.S., Schotting, R.J., Prommer, H., Davis, G.B., 2004. Effects of
+hydrodynamic dispersion on plume lengths for instantaneous bimolecular
+reactions. Adv. Water Resour. 27, 803&ndash;813.
+<a href="https://doi.org/10.1016/j.advwatres.2004.05.008" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.advwatres.2004.05.008</a></p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('analytical_bp.ham_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('analytical_bp.ham_multiple') }}{% endblock %}

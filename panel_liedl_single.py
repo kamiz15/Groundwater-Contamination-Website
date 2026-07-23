@@ -5,14 +5,14 @@ import panel as pn
 from panel_auth import authenticated_email
 
 from analytical_models import liedl_lmax
-from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int
+from panel_analytical_common import comparison_plot, error_card, info_card, load_field_points, metric_card, query_float, query_int
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
 
 
 def liedl_single_app():
-    m = pn.widgets.FloatInput(name="M (mass per unit width)", value=query_float("M", 3.5), step=0.1)
+    m = pn.widgets.FloatInput(name="M (mass per unit width)", value=query_float("M", 2.0), step=0.1)
     alpha_tv = pn.widgets.FloatInput(name="alpha_Tv (transverse dispersivity)", value=query_float("alpha_Tv", 0.001), step=0.0001)
     gamma = pn.widgets.FloatInput(name="gamma (stoichiometric factor)", value=query_float("gamma", 3.5), step=0.1)
     c_ea0 = pn.widgets.FloatInput(name="C_EA0 (acceptor) [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
@@ -47,6 +47,7 @@ def liedl_single_app():
                 "Liedl et al. (2005)", "Liedl model plume length",
                 user_x, [lmax], selected_site_id, email, "Run Number",
             )
+            field_x, field_y = load_field_points(email) if selected_site_id > 0 else ([], [])
             _state.update({
                 "parameters": [
                     {"symbol": "M", "name": "Aquifer Thickness", "value": m.value, "unit": "m"},
@@ -56,7 +57,19 @@ def liedl_single_app():
                     {"symbol": "C_ED0", "name": "Electron Donor", "value": c_ed0.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
-                "plot_data": {"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Liedl et al. (2005)"},
+                "plot_data": {
+                    "type": "comparison_scatter",
+                    "title": "Liedl et al. (2005)",
+                    "x_label": "Site Number" if selected_site_id > 0 else "Run Number",
+                    "y_label": "Plume Length (m)",
+                    "field_label": "Database plume length",
+                    "field_x": field_x,
+                    "field_y": field_y,
+                    "manual_label": "Liedl model plume length",
+                    "manual_x": user_x,
+                    "manual_y": [lmax],
+                    "caption": "Database plume lengths compared with the model result.",
+                },
             })
             export_btn.visible = True
         except Exception as exc:

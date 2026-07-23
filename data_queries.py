@@ -239,7 +239,7 @@ def _extra_data_json(payload):
 def get_user_sites(email):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM sites WHERE user_email = %s", (email,))
+    cursor.execute("SELECT * FROM sites WHERE user_email = %s ORDER BY id ASC", (email,))
     data = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -264,11 +264,12 @@ def get_user_sites(email):
 def get_user_sites_rows(email):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM sites WHERE user_email = %s ORDER BY id DESC", (email,))
+    cursor.execute("SELECT * FROM sites WHERE user_email = %s ORDER BY id ASC", (email,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    for row in rows:
+    for display_id, row in enumerate(rows, start=1):
+        row["display_id"] = display_id
         raw = row.get("extra_data")
         if raw:
             try:
@@ -307,6 +308,18 @@ def delete_site(email, site_id):
         )
         conn.commit()
         return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        conn.close()
+
+def delete_user_sites(email):
+    """Delete all site rows owned by the user. Returns the number removed."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM sites WHERE user_email = %s", (email,))
+        conn.commit()
+        return cursor.rowcount
     finally:
         cursor.close()
         conn.close()

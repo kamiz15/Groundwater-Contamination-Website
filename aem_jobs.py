@@ -137,6 +137,12 @@ class AEMInverseResult:
 # Parameters the inverse model can recover.
 INVERSE_PARAMS = ("alpha_t", "alpha_l", "r", "C0", "ca", "gamma")
 
+# Prefix marking a worker error whose FIRST LINE is safe to show verbatim to the
+# user. The generic queue stores str(exc) + a traceback; aem_routes.aem_job_status
+# only passes through first lines carrying this prefix and keeps its generic
+# message for everything else (tracebacks/paths must never leak).
+USER_FACING_ERROR = "Simulation did not produce a physically meaningful plume"
+
 
 def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
     """Recover one transport/source parameter from a target plume length L_max.
@@ -376,9 +382,16 @@ def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
         sim.run()
     except Exception as exc:
         if getattr(sim, "validation_passed", None) is False:
+            # Single line on purpose: only the first line of the stored worker
+            # error is user-visible (see USER_FACING_ERROR).
             raise ValueError(
-                "Simulation did not produce a physically meaningful plume "
+                f"{USER_FACING_ERROR} "
                 f"({getattr(sim, 'validation_reason', '') or 'failed validation'}). "
+                f"Inputs: orientation={config.orientation}, dom_inc={config.dom_inc}, "
+                f"alpha_l={config.alpha_l}, alpha_t={config.alpha_t}, "
+                f"gamma={config.gamma}, ca={config.ca}, "
+                f"num_terms={config.num_terms}, num_cp={config.num_cp}, "
+                f"{len(config.elements)} source element(s). "
                 "The source geometry is likely too small or sparse to resolve on the "
                 "current grid increment — try larger/denser sources, a finer grid, or "
                 "horizontal orientation."

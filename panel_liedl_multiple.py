@@ -12,7 +12,7 @@ pn.extension("tabulator", sizing_mode="stretch_width")
 
 def liedl_multiple_app():
     init_df = pd.DataFrame([{
-        "M": query_float("M", 3.5), "alpha_Tv": query_float("alpha_Tv", 0.001),
+        "M": query_float("M", 2.0), "alpha_Tv": query_float("alpha_Tv", 0.001),
         "gamma": query_float("gamma", 3.5), "C_EA0": query_float("C_EA0", 8.0),
         "C_ED0": query_float("C_ED0", 5.0),
     }])

@@ -3,6 +3,10 @@
 
   const GRID_SPACING = 0.05;
   const SNAP_TO_GRID = true;
+  // Mutable snap bounds, updated by the designer when Ws / orientation change.
+  // Defaults (Ws = 0.5, horizontal) keep snapDrawPoint a pure function for the
+  // node-based unit tests, which never touch the DOM or the settings form.
+  const snapConfig = {wsMax: 0.5, orientation: "horizontal"};
   const roundHalfEven = (value) => {
     const lower = Math.floor(value);
     const fraction = value - lower;
@@ -12,16 +16,27 @@
   const snapDrawPoint = ([x, y]) => {
     const snappedX = SNAP_TO_GRID ? roundHalfEven(x / GRID_SPACING) * GRID_SPACING : x;
     const snappedY = SNAP_TO_GRID ? roundHalfEven(y / GRID_SPACING) * GRID_SPACING : y;
-    return [Math.max(0, Math.min(0.5, +snappedX.toFixed(10))),
-      Math.max(0, +snappedY.toFixed(10))];
+    const cx = Math.max(0, Math.min(snapConfig.wsMax, +snappedX.toFixed(10)));
+    const cy = +snappedY.toFixed(10);
+    // Vertical: the aquifer is below the water table (y <= 0); horizontal: y >= 0.
+    return [cx, snapConfig.orientation === "vertical" ? Math.min(0, cy) : Math.max(0, cy)];
   };
   const reselectCircle = (circles, changed) => {
     const index = circles.findIndex((circle) =>
       Math.abs(circle.x - changed.x) <= 1e-9 && Math.abs(circle.y - changed.y) <= 1e-9);
     return index < 0 ? null : {index, circle: circles[index]};
   };
+  // Display formatter: at most 2 decimals, with trailing zeros (and a bare whole
+  // number's decimals) dropped — 2 → "2", 3.5 → "3.5", 2.456 → "2.46". Used for
+  // every value shown to the user (inputs, readouts, axis ticks, result summary).
+  // Internal geometry/config precision is unaffected.
+  const fmt2 = (value) => {
+    const n = +value;
+    if (!Number.isFinite(n)) return String(value);
+    return String(parseFloat(n.toFixed(2)));
+  };
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = {roundHalfEven, snapDrawPoint, reselectCircle};
+    module.exports = {roundHalfEven, snapDrawPoint, reselectCircle, fmt2};
   }
   if (typeof document === "undefined") return;
 
@@ -45,10 +60,38 @@
     body: JSON.stringify(body)
   });
 
-  function referenceConfig(circles, values) {
-    const elements = circles.map((circle, index) => ({
-      kind: "circle", x: +circle.x, y: +circle.y, r: +circle.r, c: +circle.c,
-      id: circle.id || `src_${index}`
+  // Radius proxy for domain/shift sizing: circle radius, ellipse semi-major,
+  // or half the line length.
+  const elementRadius = (e) => e.kind === "circle" ? +e.r
+    : e.kind === "ellipse" ? Math.max(+e.a, +e.b)
+    : (+e.l) / 2;
+
+  // Rotation-aware half-width / half-height of an element's bounding box,
+  // mirroring designer_model.py:_elem_half_width / _elem_half_height. Used for
+  // scale-aware domain padding so the web domain matches the reference solver.
+  const elemHalfWidth = (e) => {
+    if (e.kind === "circle") return +e.r || 0;
+    if (e.kind === "ellipse") {
+      const a = +e.a || 0, b = +e.b || 0, t = (+e.theta || 0) * Math.PI / 180;
+      return Math.sqrt((a * Math.cos(t)) ** 2 + (b * Math.sin(t)) ** 2);
+    }
+    const t = (+e.theta || 0) * Math.PI / 180;
+    return (+e.l || 0) / 2 * Math.abs(Math.cos(t));
+  };
+  const elemHalfHeight = (e) => {
+    if (e.kind === "circle") return +e.r || 0;
+    if (e.kind === "ellipse") {
+      const a = +e.a || 0, b = +e.b || 0, t = (+e.theta || 0) * Math.PI / 180;
+      return Math.sqrt((a * Math.sin(t)) ** 2 + (b * Math.cos(t)) ** 2);
+    }
+    const t = (+e.theta || 0) * Math.PI / 180;
+    return (+e.l || 0) / 2 * Math.abs(Math.sin(t));
+  };
+
+  function referenceConfig(elementDicts, values) {
+    // Copy so the vertical shift below never mutates the live design objects.
+    const elements = (elementDicts || []).map((e, index) => ({
+      ...e, id: e.id || `src_${index}`
     }));
     const base = {
       alpha_l: +values.alpha_l, alpha_t: +values.alpha_t, ca: +values.ca,
@@ -57,19 +100,28 @@
       plot_aspect: "", elements
     };
     if (!elements.length) return base;
-    const maxR = Math.max(...elements.map((element) => element.r));
-    if (values.orientation === "vertical") {
-      const shift = Math.max(...elements.map((element) => element.y)) + maxR + 0.15;
-      if (shift > 0) elements.forEach((element) => { element.y = +(element.y - shift).toFixed(5); });
-    }
+    // Coordinates are physical and authoritative — no vertical shift. In vertical
+    // orientation the source zone is authored directly below the water table (y<=0),
+    // matching the reference designer_model.to_config_dict (which never shifts) and
+    // its validate_for_export guard (every element must sit below y=0).
     const xs = elements.map((element) => element.x);
     const ys = elements.map((element) => element.y);
+    const maxHW = Math.max(...elements.map(elemHalfWidth));
+    const maxHH = Math.max(...elements.map(elemHalfHeight));
+    // Scale-aware x-padding (mirrors designer_model.py:to_config_dict). A fixed
+    // +150 m is pathological for sub-metre sources — it produces a huge, mostly
+    // empty grid and lets exp(beta*x) blow up far downstream. Scale the padding
+    // to the source size, capped at 150 m; the solver extends it if the plume
+    // actually needs it.
+    const xSpan = Math.max(...xs) - Math.min(...xs);
+    const char = Math.max(2 * maxHW, 2 * maxHH, xSpan, 1.0);
+    const xPad = Math.min(150.0, Math.max(20.0, 25.0 * char));
     return {
       ...base,
-      dom_xmin: +(Math.min(...xs) - maxR - 2).toFixed(3),
-      dom_xmax: +(Math.max(...xs) + 150).toFixed(1),
-      dom_ymin: +(Math.min(...ys) - maxR - 5).toFixed(3),
-      dom_ymax: values.orientation === "vertical" ? 0 : +(Math.max(...ys) + maxR + 5).toFixed(3),
+      dom_xmin: +(Math.min(...xs) - maxHW - 2).toFixed(3),
+      dom_xmax: +(Math.max(...xs) + xPad).toFixed(1),
+      dom_ymin: +(Math.min(...ys) - maxHH - 5).toFixed(3),
+      dom_ymax: values.orientation === "vertical" ? 0 : +(Math.max(...ys) + maxHH + 5).toFixed(3),
     };
   }
 
@@ -106,7 +158,7 @@
   };
 
   function designer() {
-    const WS = 0.5;
+    let WS = 0.5;                 // source-zone width guide; driven by the Ws field
     const GRID = 0.05;
     const GRID_HEIGHT = 15.0;
     const CONC_MAX = 50.0;
@@ -120,15 +172,23 @@
     const statusEl = document.getElementById("aem-status");
     const infoEl = document.getElementById("aem-info");
     const colorbar = document.getElementById("aem-colorbar");
+    const DEFAULT_R = 0.02;       // fallback size for a click without a drag
     const polygons = [];
+    const sources = [];           // standalone simple sources: {kind,x,y,c,r|a,b|l,theta,id}
     let drawing = [];
-    let selected = null;          // {p, c} keyed by (polygonIndex, circleIndex)
+    // selected is a tagged union:
+    //   {type:"poly", p, c}  -> a packed circle inside polygons[p].circles[c]
+    //   {type:"source", i}   -> sources[i]
+    let selected = null;
     let dragOffset = [0, 0];
     let dragging = false;
+    let placing = null;           // {kind, x0, y0, x1, y1} during a press-drag shape draw
     let panning = false;
     let panStart = null;
-    let mode = "draw";            // "draw" | "edit"
+    let tool = "polygon";         // "polygon" | "circle" | "ellipse" | "line" | "select"
+    let mode = "draw";            // derived: "edit" when tool==="select", else "draw"
     let fullView = false;
+    let showIndices = false;      // "Index # (i)" toggle: number each element on the canvas
     let repacking = false;        // re-entrancy guard for radius repacks
     let dpr = 1;
     const view = {xmin: -0.05, xmax: WS + 0.05, ymin: -0.1, ymax: WS + 0.1};
@@ -136,10 +196,76 @@
     let importedDomain = null;   // explicit dom_* carried from an imported design
     let importedSig = null;      // geometry signature when importedDomain was captured
     const formValues = () => Object.fromEntries(new FormData(form));
+    const orientation = () => formValues().orientation || "vertical";
+    // Pull the live Ws / orientation from the form into the drawing state. Ws drives
+    // the source-zone width guide and the x-snap ceiling; orientation drives the
+    // y-snap half-plane and the canvas framing.
+    const syncSettings = () => {
+      WS = +formValues().ws || 0.5;
+      snapConfig.wsMax = WS;
+      snapConfig.orientation = orientation();
+    };
+    // Re-frame the view to the orientation convention, mirroring
+    // source_designer.py:_reframe_for_orientation:
+    //   vertical   → aquifer below the water table, y in [-(Ws+m), +m]
+    //   horizontal → transverse band,               y in [-m, Ws+m]
+    const reframeView = () => {
+      const m = Math.max(WS * 0.10, 0.05);
+      view.xmin = -m; view.xmax = WS + m;
+      if (orientation() === "vertical") { view.ymin = -(WS + m); view.ymax = m; }
+      else { view.ymin = -m; view.ymax = WS + m; }
+    };
     const allCircles = () => polygons.flatMap((polygon) => polygon.circles);
-    const geomSignature = () => allCircles().map((c) => `${c.x},${c.y},${c.r}`).join(";");
+    // Unified element dicts (copies) for config, signatures, bounds and rendering:
+    // packed circles plus standalone simple sources.
+    const allElementDicts = () => [
+      ...polygons.flatMap((poly) => poly.circles.map((c) => ({
+        kind: "circle", x: +c.x, y: +c.y, r: +c.r, c: +c.c, id: c.id,
+      }))),
+      ...sources.map((s) => ({ ...s })),
+    ];
+    const hasElements = () => polygons.some((p) => p.circles.length) || sources.length > 0;
+    const elemBBox = (e) => {
+      if (e.kind === "circle") return {minx: e.x - e.r, maxx: e.x + e.r, miny: e.y - e.r, maxy: e.y + e.r};
+      if (e.kind === "ellipse") { const m = Math.max(e.a, e.b); return {minx: e.x - m, maxx: e.x + m, miny: e.y - m, maxy: e.y + m}; }
+      const th = (e.theta || 0) * Math.PI / 180;
+      const hx = Math.abs(Math.cos(th) * e.l / 2), hy = Math.abs(Math.sin(th) * e.l / 2);
+      return {minx: e.x - hx, maxx: e.x + hx, miny: e.y - hy, maxy: e.y + hy};
+    };
+    const importNumber = (element, name, index, fallback = null) => {
+      if (element[name] === undefined || element[name] === null || element[name] === "") {
+        if (fallback !== null) return fallback;
+        throw new Error(`Element ${index + 1} requires numeric '${name}'.`);
+      }
+      const value = Number(element[name]);
+      if (!Number.isFinite(value)) throw new Error(`Element ${index + 1} has invalid '${name}'.`);
+      return value;
+    };
+    const normalizeImportedElement = (element, index) => {
+      const kind = String(element.kind || "").toLowerCase();
+      if (!["circle", "ellipse", "line"].includes(kind)) {
+        throw new Error(`Element ${index + 1} has unsupported kind '${element.kind}'.`);
+      }
+      const base = {
+        kind,
+        x: importNumber(element, "x", index),
+        y: importNumber(element, "y", index),
+        c: importNumber(element, "c", index, +form.default_c.value || 10),
+        id: element.id || newId(),
+      };
+      if (element.label !== undefined) base.label = element.label;
+      if (element.index !== undefined) base.index = element.index;
+      if (kind === "circle") return {...base, r: importNumber(element, "r", index)};
+      if (kind === "ellipse") {
+        return {...base, a: importNumber(element, "a", index),
+          b: importNumber(element, "b", index), theta: importNumber(element, "theta", index, 0)};
+      }
+      return {...base, l: importNumber(element, "l", index), theta: importNumber(element, "theta", index, 90)};
+    };
+    const geomSignature = () => allElementDicts().map((e) =>
+      `${e.kind}:${e.x},${e.y},${e.r || e.a || e.l},${e.b || 0},${e.theta || 0}`).join(";");
     const buildConfig = () => {
-      const config = referenceConfig(allCircles(), formValues());
+      const config = referenceConfig(allElementDicts(), formValues());
       // For an imported design, keep the file's own domain bounds (like main.py in
       // the source, which reads dom_* from the JSON) instead of the recomputed box —
       // but only while its geometry is unchanged. Any edit changes the signature and
@@ -157,12 +283,13 @@
       return {width: rect.width || canvas.clientWidth, height: rect.height || canvas.clientHeight};
     };
     const fitSource = () => {
-      const circles = allCircles(); if (!circles.length) return;
-      const padding = Math.max(0.05, ...circles.map((circle) => circle.r * 2));
-      view.xmin = Math.min(...circles.map((circle) => circle.x - circle.r)) - padding;
-      view.xmax = Math.max(...circles.map((circle) => circle.x + circle.r)) + padding;
-      view.ymin = Math.min(...circles.map((circle) => circle.y - circle.r)) - padding;
-      view.ymax = Math.max(...circles.map((circle) => circle.y + circle.r)) + padding;
+      const els = allElementDicts(); if (!els.length) return;
+      const boxes = els.map(elemBBox);
+      const padding = Math.max(0.05, ...els.map((e) => elementRadius(e) * 2));
+      view.xmin = Math.min(...boxes.map((b) => b.minx)) - padding;
+      view.xmax = Math.max(...boxes.map((b) => b.maxx)) + padding;
+      view.ymin = Math.min(...boxes.map((b) => b.miny)) - padding;
+      view.ymax = Math.max(...boxes.map((b) => b.maxy)) + padding;
     };
     // Equal-aspect viewport: uniform scale so circles always render circular.
     const viewport = (bounds, rect) => {
@@ -187,16 +314,39 @@
       const py = event.clientY - rect.top;
       return [view.xmin + (px - vp.left) / vp.scale, view.ymax - (py - vp.top) / vp.scale];
     };
+    const distToSegment = (px, py, ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+      let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    };
     const hit = (point) => {
       let best = Infinity, found = null;
       for (let p = 0; p < polygons.length; p++) {
         for (let c = 0; c < polygons[p].circles.length; c++) {
           const circle = polygons[p].circles[c];
           const dist = Math.hypot(point[0] - circle.x, point[1] - circle.y);
-          if (dist <= circle.r * 1.5 && dist < best) { best = dist; found = {p, c}; }
+          if (dist <= circle.r * 1.5 && dist < best) { best = dist; found = {type: "poly", p, c}; }
         }
       }
+      for (let i = 0; i < sources.length; i++) {
+        const s = sources[i];
+        let dist, reach;
+        if (s.kind === "line") {
+          const th = (s.theta || 0) * Math.PI / 180, hx = Math.cos(th) * s.l / 2, hy = Math.sin(th) * s.l / 2;
+          dist = distToSegment(point[0], point[1], s.x - hx, s.y - hy, s.x + hx, s.y + hy);
+          reach = Math.max(0.01, elementRadius(s) * 0.4);
+        } else {
+          dist = Math.hypot(point[0] - s.x, point[1] - s.y);
+          reach = elementRadius(s) * 1.5;
+        }
+        if (dist <= reach && dist < best) { best = dist; found = {type: "source", i}; }
+      }
       return found;
+    };
+    const selectedElem = () => {
+      if (!selected) return null;
+      return selected.type === "source" ? sources[selected.i] : polygons[selected.p].circles[selected.c];
     };
 
     const drawGrid = (vp) => {
@@ -219,6 +369,24 @@
         ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, box().height); ctx.stroke();
       });
       ctx.restore();
+      // Vertical orientation: water table plus the minimum valid source-top line.
+      if (orientation() === "vertical") {
+        const [, py0] = toPixel([0, 0], vp);
+        const [, pyMinTop] = toPixel([0, -0.1], vp);
+        ctx.save();
+        ctx.strokeStyle = "#1565c0"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, py0); ctx.lineTo(box().width, py0); ctx.stroke();
+        ctx.fillStyle = "#1565c0"; ctx.font = "11px sans-serif";
+        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+        ctx.fillText("water table (y = 0) - draw below", 8, py0 - 4);
+
+        ctx.strokeStyle = "#d97706"; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(0, pyMinTop); ctx.lineTo(box().width, pyMinTop); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#92400e"; ctx.textBaseline = "top";
+        ctx.fillText("minimum source top (y = -0.1 m)", 8, pyMinTop + 4);
+        ctx.restore();
+      }
     };
 
     const drawAxes = (vp) => {
@@ -239,7 +407,7 @@
     const drawWsAnnotation = (vp, ws, b) => {
       ctx.save();
       ctx.font = "11px sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "top";
-      const label = `Ws = ${ws.toFixed(3)} m`;
+      const label = `Ws = ${fmt2(ws)} m`;
       const tw = ctx.measureText(label).width;
       const rx = (b.left !== undefined ? b.left + b.width : box().width) - 6;
       const ry = (b.top !== undefined ? b.top : 0) + 6;
@@ -282,6 +450,73 @@
       });
     };
 
+    // Draw any simple-source element (circle/ellipse/line); active = selected.
+    const drawShape = (vp, e, active) => {
+      const [cx, cy] = toPixel([e.x, e.y], vp);
+      ctx.save();
+      if (e.kind === "circle") {
+        ctx.beginPath(); ctx.arc(cx, cy, e.r * vp.scale, 0, Math.PI * 2);
+        ctx.fillStyle = redsColor(e.c / CONC_MAX); ctx.fill();
+        ctx.strokeStyle = active ? "#e94560" : "black"; ctx.lineWidth = active ? 2 : 0.5; ctx.stroke();
+      } else if (e.kind === "ellipse") {
+        const th = (e.theta || 0) * Math.PI / 180;   // -th: data CCW vs canvas y-down
+        ctx.beginPath(); ctx.ellipse(cx, cy, e.a * vp.scale, e.b * vp.scale, -th, 0, Math.PI * 2);
+        ctx.fillStyle = redsColor(e.c / CONC_MAX); ctx.fill();
+        ctx.strokeStyle = active ? "#e94560" : "black"; ctx.lineWidth = active ? 2 : 0.5; ctx.stroke();
+      } else {                                         // line
+        const th = (e.theta || 0) * Math.PI / 180, hx = Math.cos(th) * e.l / 2, hy = Math.sin(th) * e.l / 2;
+        const [ax, ay] = toPixel([e.x - hx, e.y - hy], vp);
+        const [bx, by] = toPixel([e.x + hx, e.y + hy], vp);
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        ctx.strokeStyle = redsColor(e.c / CONC_MAX); ctx.lineWidth = active ? 7 : 5; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        ctx.strokeStyle = active ? "#e94560" : "black"; ctx.lineWidth = active ? 2 : 1; ctx.stroke();
+      }
+      ctx.restore();
+    };
+    const drawSources = (vp) => {
+      sources.forEach((s, i) => drawShape(vp, s, selected && selected.type === "source" && selected.i === i));
+    };
+    // Faint ordinal at each element centroid, in allElementDicts order.
+    // ponytail: collection order, not the reference's spatial reindex — it's a visual aid.
+    const drawIndices = (vp) => {
+      if (!showIndices) return;
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.8)"; ctx.font = "9px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      allElementDicts().forEach((e, i) => {
+        const [px, py] = toPixel([e.x, e.y], vp);
+        ctx.fillText(String(i), px, py);
+      });
+      ctx.restore();
+    };
+
+    const newId = () => "src_" + Math.random().toString(36).slice(2, 8);
+    // Convert an in-progress press-drag into a source object. preview=true keeps
+    // tiny drags visible; on commit, sub-threshold drags fall back to defaults.
+    const placingToSource = (pl, preview) => {
+      const c = +form.default_c.value || 10;
+      const dx = pl.x1 - pl.x0, dy = pl.y1 - pl.y0, dist = Math.hypot(dx, dy);
+      if (pl.kind === "circle") {
+        const r = preview ? Math.max(dist, 1e-4) : (dist > 0.003 ? dist : DEFAULT_R);
+        return {kind: "circle", x: pl.x0, y: pl.y0, r: +r.toFixed(5), c, id: pl.id};
+      }
+      if (pl.kind === "ellipse") {
+        const a = preview ? Math.max(Math.abs(dx), 1e-4) : (Math.abs(dx) > 0.003 ? Math.abs(dx) : DEFAULT_R);
+        const b = preview ? Math.max(Math.abs(dy), 1e-4) : (Math.abs(dy) > 0.003 ? Math.abs(dy) : DEFAULT_R * 0.6);
+        return {kind: "ellipse", x: pl.x0, y: pl.y0, a: +a.toFixed(5), b: +b.toFixed(5), theta: 0, c, id: pl.id};
+      }
+      const l = preview ? Math.max(dist, 1e-4) : (dist > 0.003 ? dist : 0.05);
+      const theta = dist > 0.003 ? +(Math.atan2(dy, dx) * 180 / Math.PI).toFixed(3) : 90;
+      return {kind: "line", x: +((pl.x0 + pl.x1) / 2).toFixed(5), y: +((pl.y0 + pl.y1) / 2).toFixed(5),
+              l: +l.toFixed(5), theta, c, id: pl.id};
+    };
+    const drawPlacing = (vp) => {
+      if (!placing) return;
+      ctx.save(); ctx.globalAlpha = 0.6; drawShape(vp, placingToSource(placing, true), true); ctx.restore();
+    };
+
     const drawInProgress = (vp) => {
       if (!drawing.length) return;
       ctx.beginPath();
@@ -304,13 +539,13 @@
       for (let i = 0; i <= nx; i++) {
         const xv = vp.bounds.xmin + (vp.bounds.xmax - vp.bounds.xmin) * (i / nx);
         const [px] = toPixel([xv, 0], vp);
-        ctx.fillText(xv.toFixed(Math.abs(xv) >= 10 ? 0 : 2), px, panelTop + panelH + 2);
+        ctx.fillText(fmt2(xv), px, panelTop + panelH + 2);
       }
       ctx.textAlign = "right"; ctx.textBaseline = "middle";
       for (let i = 0; i <= ny; i++) {
         const yv = vp.bounds.ymin + (vp.bounds.ymax - vp.bounds.ymin) * (i / ny);
         const [, py] = toPixel([0, yv], vp);
-        ctx.fillText(yv.toFixed(Math.abs(yv) >= 10 ? 0 : 2), panelLeft - 2, py);
+        ctx.fillText(fmt2(yv), panelLeft - 2, py);
       }
       ctx.restore();
     };
@@ -320,15 +555,16 @@
     // domain panel just frames them within the full simulation extents).
     const drawFullView = () => {
       const b = box();
-      const raw = allCircles();
+      const raw = allElementDicts();
+      const boxes = raw.map(elemBBox);
       const splitX = b.width * 0.30;
       const panelH = b.height - 56;
       const panelTop = 30;
-      // Shared y-range and source width from the SAME (unshifted) circles.
-      const ws = Math.max(WS, ...raw.map((c) => c.x + c.r));
-      const allX = raw.map((c) => c.x);
-      const ymin = Math.min(...raw.map((c) => c.y - c.r));
-      const ymax = Math.max(...raw.map((c) => c.y + c.r));
+      // Shared y-range and source width from the SAME (unshifted) elements.
+      const ws = Math.max(WS, ...boxes.map((bb) => bb.maxx));
+      const allX = raw.map((e) => e.x);
+      const ymin = Math.min(...boxes.map((bb) => bb.miny));
+      const ymax = Math.max(...boxes.map((bb) => bb.maxy));
       const pad = Math.max((ymax - ymin) * 0.08, 0.5);
 
       // Left: equal-aspect Source zone panel.
@@ -341,7 +577,7 @@
         ctx.save(); ctx.strokeStyle = "gold"; ctx.lineWidth = 1.2; ctx.setLineDash([6, 4]);
         ctx.beginPath(); ctx.moveTo(px, panelTop); ctx.lineTo(px, panelTop + panelH); ctx.stroke(); ctx.restore();
       });
-      drawCircleList(srcVp, raw);
+      raw.forEach((e) => drawShape(srcVp, e, false));
       drawPanelTicks(srcVp, 30, panelTop, srcW, panelH, 3, 8);
       ctx.fillStyle = "#222"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.fillText("Source zone", 30, 22);
@@ -359,7 +595,7 @@
       const [bx1] = toPixel([ws, 0], domVp);
       ctx.save(); ctx.fillStyle = "rgba(255,215,0,0.18)";
       ctx.fillRect(Math.min(bx0, bx1), panelTop, Math.abs(bx1 - bx0), panelH); ctx.restore();
-      drawCircleList(domVp, raw);
+      raw.forEach((e) => drawShape(domVp, e, false));
       drawPanelTicks(domVp, domLeft, panelTop, domW, panelH, 7, 8);
       ctx.fillStyle = "#222"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.fillText("Full simulation domain", domLeft, 22);
@@ -374,12 +610,15 @@
       ctx.clearRect(0, 0, b.width, b.height);
       ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, b.width, b.height);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      if (fullView && allCircles().length) { drawFullView(); return; }
+      if (fullView && hasElements()) { drawFullView(); return; }
       if (fullView) { fullView = false; }
       const vp = sourceViewport();
       drawGrid(vp);
-      drawPolygons(vp, polygons, selected);
+      drawPolygons(vp, polygons, selected && selected.type === "poly" ? selected : null);
+      drawSources(vp);
+      drawPlacing(vp);
       drawInProgress(vp);
+      drawIndices(vp);
       drawAxes(vp);
       drawWsAnnotation(vp, WS, {});
     };
@@ -401,13 +640,17 @@
       cb.textBaseline = "bottom";
       cb.textAlign = "left"; cb.fillText("0", 1, h);
       cb.textAlign = "center"; cb.fillText("Electron donor concentration [mg/l]", w / 2, h);
-      cb.textAlign = "right"; cb.fillText(String(CONC_MAX), w - 1, h);
+      cb.textAlign = "right"; cb.fillText(fmt2(CONC_MAX), w - 1, h);
     };
 
     const updateInfo = () => {
-      if (!selected) { setInfo(""); return; }
-      const c = polygons[selected.p].circles[selected.c];
-      setInfo(`Circle ${selected.c}  |  r = ${c.r.toFixed(4)} m  |  c = ${c.c.toFixed(1)} mg/l  |  pos = (${c.x.toFixed(4)}, ${c.y.toFixed(4)})`);
+      const e = selectedElem();
+      if (!e) { setInfo(""); return; }
+      const size = e.kind === "circle" ? `r = ${fmt2(e.r)} m`
+        : e.kind === "ellipse" ? `a = ${fmt2(e.a)}, b = ${fmt2(e.b)} m`
+        : `l = ${fmt2(e.l)} m, θ = ${fmt2(e.theta || 0)}°`;
+      const label = selected.type === "source" ? e.kind : "circle";
+      setInfo(`${label}  |  ${size}  |  c = ${fmt2(e.c)} mg/l  |  pos = (${fmt2(e.x)}, ${fmt2(e.y)})`);
     };
 
     // Resize backing store to displayed box (DPR-aware) and redraw.
@@ -430,21 +673,29 @@
       drawColorbar();
     };
 
-    const setMode = (next) => {
-      mode = next;
-      selected = null; dragging = false; dragOffset = [0, 0];
-      const drawBtn = document.getElementById("aem-mode-draw");
-      const editBtn = document.getElementById("aem-mode-edit");
-      if (drawBtn) drawBtn.classList.toggle("aem-btn--active", mode === "draw");
-      if (editBtn) editBtn.classList.toggle("aem-btn--active", mode === "edit");
-      if (mode === "draw") {
-        setStatus("DRAW — left-click to add vertices, then 'Close & Pack polygon' (or right-click / Enter). Scroll = zoom, Shift+drag = pan.");
-      } else {
-        setStatus("EDIT — click circle, ↑↓ radius, +/- conc, Del remove, 'x' delete polygon.");
-      }
+    const TOOL_BTNS = ["polygon", "circle", "ellipse", "line", "select"];
+    const TOOL_HINTS = {
+      polygon: "POLYGON — left-click vertices, then 'Close & Pack' (right-click / Enter) to fill with circles.",
+      circle: "CIRCLE — press and drag from the centre to set the radius.",
+      ellipse: "ELLIPSE — press and drag to set the semi-axes (a horizontal, b vertical).",
+      line: "LINE — press and drag from one end to the other.",
+      select: "SELECT — click an element; drag to move, ↑↓ size (←→ ellipse b), +/- conc, Del remove, 'x' delete polygon.",
+    };
+    const setTool = (next) => {
+      tool = next;
+      mode = tool === "select" ? "edit" : "draw";
+      selected = null; dragging = false; placing = null; dragOffset = [0, 0];
+      if (tool !== "polygon") drawing = [];
+      TOOL_BTNS.forEach((t) => {
+        const btn = document.getElementById(`aem-tool-${t}`);
+        if (btn) btn.classList.toggle("aem-btn--active", t === tool);
+      });
+      setStatus(TOOL_HINTS[tool] || "");
       updateInfo();
       draw();
     };
+    // Back-compat shim for the existing draw/edit call sites.
+    const setMode = (m) => setTool(m === "edit" ? "select" : "polygon");
 
     canvas.addEventListener("mousedown", (event) => {
       if (event.button === 1 || (event.button === 0 && event.shiftKey)) {
@@ -452,24 +703,30 @@
       }
       if (event.button !== 0 || fullView) return;
       const point = toData(event);
-      if (mode === "draw") {
+      if (tool === "polygon") {
         drawing.push(snapDrawPoint(point));
         setStatus(`Vertex ${drawing.length} — right-click to close polygon.`);
         draw();
         return;
       }
-      // EDIT: select nearest circle, else deselect (no stray vertices).
+      if (tool === "circle" || tool === "ellipse" || tool === "line") {
+        const [sx, sy] = snapDrawPoint(point);
+        placing = {kind: tool, x0: sx, y0: sy, x1: sx, y1: sy, id: newId()};
+        draw();
+        return;
+      }
+      // SELECT: pick nearest element (packed circle or standalone source).
       const found = hit(point);
       if (found) {
         selected = found; dragging = true;
-        const circle = polygons[found.p].circles[found.c];
-        dragOffset = [circle.x - point[0], circle.y - point[1]];
+        const e = selectedElem();
+        dragOffset = [e.x - point[0], e.y - point[1]];
         updateInfo();
-        setStatus("↑↓ radius | +/- conc | Del remove | drag to move");
+        setStatus("drag to move | ↑↓ size | +/- conc | Del remove");
       } else {
         selected = null; dragging = false;
         updateInfo();
-        setStatus("EDIT — click a circle to select it.");
+        setStatus("SELECT — click an element to select it.");
       }
       draw();
     });
@@ -481,12 +738,28 @@
         view.xmin = panStart.xmin - dx; view.xmax = panStart.xmax - dx;
         view.ymin = panStart.ymin + dy; view.ymax = panStart.ymax + dy; draw(); return;
       }
-      if (!dragging || !selected || mode !== "edit") return;
-      const [x, y] = toData(event); const circle = polygons[selected.p].circles[selected.c];
-      circle.x = +(x + dragOffset[0]).toFixed(5); circle.y = +(y + dragOffset[1]).toFixed(5);
+      if (placing) {
+        const [x, y] = toData(event);
+        placing.x1 = +x.toFixed(5); placing.y1 = +y.toFixed(5);
+        draw(); return;
+      }
+      if (!dragging || !selected || tool !== "select") return;
+      const [x, y] = toData(event); const e = selectedElem();
+      e.x = +(x + dragOffset[0]).toFixed(5); e.y = +(y + dragOffset[1]).toFixed(5);
       updateInfo(); draw();
     });
-    window.addEventListener("mouseup", () => { dragging = false; panning = false; });
+    window.addEventListener("mouseup", () => {
+      if (placing) {
+        const s = placingToSource(placing, false);
+        sources.push(s);
+        selected = {type: "source", i: sources.length - 1};
+        placing = null;
+        updateInfo();
+        setStatus(`${s.kind} placed — keep placing, or switch to Select to edit.`);
+        draw();
+      }
+      dragging = false; panning = false;
+    });
     canvas.addEventListener("wheel", (event) => {
       if (fullView) return;
       event.preventDefault(); const center = toData(event); const factor = event.deltaY < 0 ? 0.85 : 1.18;
@@ -500,7 +773,7 @@
     // on the user discovering the right-click gesture.
     const packPolygon = async () => {
       if (fullView) { show("Leave View mode before packing.", true); return; }
-      if (mode !== "draw") { show("Switch to Draw mode to add and pack a polygon.", true); setMode("draw"); return; }
+      if (tool !== "polygon") { show("Switch to the Polygon tool to add and pack a polygon.", true); setTool("polygon"); return; }
       if (drawing.length < 3) {
         const msg = "Place at least 3 polygon vertices first (left-click on the canvas).";
         show(msg, true); setStatus(msg); return;
@@ -514,9 +787,9 @@
           setStatus("No circles fit — draw a larger polygon."); return;
         }
         polygons.push({vertices: drawing, circles: data.circles}); drawing = []; selected = null;
-        setStatus(`${data.circles.length} circles packed. Switched to Edit mode.`);
+        setStatus(`${data.circles.length} circles packed. Switched to Select.`);
         show(`${data.circles.length} circles packed.`);
-        setMode("edit");
+        setTool("select");
       } catch (error) { show(error.message, true); setStatus(error.message); }
     };
     canvas.addEventListener("contextmenu", (event) => { event.preventDefault(); packPolygon(); });
@@ -524,54 +797,65 @@
       const tag = document.activeElement ? document.activeElement.tagName : "";
       if (["INPUT", "SELECT"].includes(tag)) return;
       const key = event.key;
-      if (key === "d") { event.preventDefault(); setMode("draw"); return; }
-      if (key === "e") { event.preventDefault(); setMode("edit"); return; }
-      if (key === "v") { event.preventDefault(); toggleView(); return; }
+      const TOOL_KEYS = {"1": "polygon", "2": "circle", "3": "ellipse", "4": "line", "5": "select"};
+      if (TOOL_KEYS[key]) { event.preventDefault(); setTool(TOOL_KEYS[key]); return; }
+      if (key === "d") { event.preventDefault(); setTool("polygon"); return; }
+      if (key === "e") { event.preventDefault(); setTool("select"); return; }
       if (key === "s") { event.preventDefault(); exportJson(); return; }
-      if (key === "Escape") { event.preventDefault(); drawing = []; setStatus("Drawing cancelled."); draw(); return; }
-      if (key === "n" && mode === "draw") { event.preventDefault(); drawing = []; setStatus("New polygon — click to place vertices."); draw(); return; }
-      if (key === "Enter" && mode === "draw" && drawing.length >= 3) { event.preventDefault(); packPolygon(); return; }
-      if (!selected) {
+      if (key === "i") { event.preventDefault(); toggleIndices(); return; }
+      if (key === "Escape") { event.preventDefault(); drawing = []; placing = null; setStatus("Cancelled."); draw(); return; }
+      if (key === "n" && tool === "polygon") { event.preventDefault(); drawing = []; setStatus("New polygon — click to place vertices."); draw(); return; }
+      if (key === "Enter" && tool === "polygon" && drawing.length >= 3) { event.preventDefault(); packPolygon(); return; }
+      const elem = selectedElem();
+      if (!elem) {
         if (["Backspace", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) event.preventDefault();
         return;
       }
-      const poly = polygons[selected.p]; const circle = poly.circles[selected.c];
-      if (["Delete", "Backspace"].includes(key)) { event.preventDefault(); poly.circles.splice(selected.c, 1); selected = null; updateInfo(); setStatus("Circle deleted."); draw(); return; }
-      if (key === "x") { event.preventDefault(); polygons.splice(selected.p, 1); selected = null; updateInfo(); setStatus("Polygon deleted."); draw(); return; }
-      if (["+", "="].includes(key)) { event.preventDefault(); circle.c = +(Math.max(0.1, circle.c + CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
-      if (["-", "_"].includes(key)) { event.preventDefault(); circle.c = +(Math.max(0.1, circle.c - CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
+      if (["Delete", "Backspace"].includes(key)) {
+        event.preventDefault();
+        if (selected.type === "source") sources.splice(selected.i, 1);
+        else polygons[selected.p].circles.splice(selected.c, 1);
+        selected = null; updateInfo(); setStatus("Element deleted."); draw(); return;
+      }
+      if (key === "x" && selected.type === "poly") { event.preventDefault(); polygons.splice(selected.p, 1); selected = null; updateInfo(); setStatus("Polygon deleted."); draw(); return; }
+      if (["+", "="].includes(key)) { event.preventDefault(); elem.c = +(Math.max(0.1, elem.c + CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
+      if (["-", "_"].includes(key)) { event.preventDefault(); elem.c = +(Math.max(0.1, elem.c - CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
+      if (["ArrowLeft", "ArrowRight"].includes(key) && selected.type === "source" && elem.kind === "ellipse") {
+        event.preventDefault();
+        elem.b = Math.max(MIN_RADIUS, +(elem.b + (key === "ArrowRight" ? RADIUS_STEP : -RADIUS_STEP)).toFixed(5));
+        updateInfo(); setStatus(`b → ${fmt2(elem.b)} m`); draw(); return;
+      }
       if (["ArrowUp", "ArrowDown"].includes(key)) {
         event.preventDefault();
+        const step = key === "ArrowUp" ? RADIUS_STEP : -RADIUS_STEP;
+        if (selected.type === "source") {
+          if (elem.kind === "circle") elem.r = Math.max(MIN_RADIUS, +(elem.r + step).toFixed(5));
+          else if (elem.kind === "ellipse") elem.a = Math.max(MIN_RADIUS, +(elem.a + step).toFixed(5));
+          else elem.l = Math.max(MIN_RADIUS, +(elem.l + 2 * step).toFixed(5));
+          updateInfo(); setStatus("Resized."); draw(); return;
+        }
         if (repacking) return;                       // ignore held arrows mid-repack
-        circle.r = Math.max(MIN_RADIUS, +(circle.r + (key === "ArrowUp" ? RADIUS_STEP : -RADIUS_STEP)).toFixed(5));
+        const poly = polygons[selected.p];
+        elem.r = Math.max(MIN_RADIUS, +(elem.r + step).toFixed(5));
         if (poly.vertices.length) {
-          const changed = {x: circle.x, y: circle.y};
+          const changed = {x: elem.x, y: elem.y};
           repacking = true;
           try {
             const data = await post("/aem/api/repack", {vertices: poly.vertices,
               circles: poly.circles, changed_idx: selected.c});
             poly.circles = data.circles;
             const match = reselectCircle(poly.circles, changed);
-            selected = match ? {p: selected.p, c: match.index} : null;
+            selected = match ? {type: "poly", p: selected.p, c: match.index} : null;
           }
           catch (error) { show(error.message, true); setStatus(error.message); }
           finally { repacking = false; }
         }
         updateInfo();
-        setStatus(`Radius → ${circle.r.toFixed(4)} m (${poly.circles.length} circles)`);
+        setStatus(`Radius → ${fmt2(elem.r)} m`);
         draw();
         return;
       }
     });
-
-    const toggleView = () => {
-      if (!fullView && !allCircles().length) { show("Draw and pack at least one polygon first.", true); return; }
-      fullView = !fullView;
-      const viewBtn = document.getElementById("aem-view");
-      if (viewBtn) viewBtn.textContent = fullView ? "Back to design (v)" : "View (v)";
-      setStatus(fullView ? "VIEW — full simulation domain." : (mode === "edit" ? "EDIT mode." : "DRAW mode."));
-      draw();
-    };
 
     const exportJson = () => {
       const blob = new Blob([JSON.stringify(buildConfig(), null, 2)], {type: "application/json"});
@@ -579,44 +863,149 @@
       link.download = "source_config.json"; link.click(); URL.revokeObjectURL(link.href);
     };
 
-    document.getElementById("aem-mode-draw").addEventListener("click", () => setMode("draw"));
-    document.getElementById("aem-mode-edit").addEventListener("click", () => setMode("edit"));
+    TOOL_BTNS.forEach((t) => {
+      const btn = document.getElementById(`aem-tool-${t}`);
+      if (btn) btn.addEventListener("click", () => setTool(t));
+    });
     const packBtn = document.getElementById("aem-pack");
     if (packBtn) packBtn.addEventListener("click", packPolygon);
     document.getElementById("aem-clear").addEventListener("click", () => {
-      polygons.length = 0; drawing = []; selected = null; fullView = false;
-      const viewBtn = document.getElementById("aem-view"); if (viewBtn) viewBtn.textContent = "View (v)";
-      setMode("draw"); updateInfo(); setStatus("Cleared all polygons."); draw();
+      polygons.length = 0; sources.length = 0; drawing = []; placing = null; selected = null; fullView = false;
+      setTool("polygon"); updateInfo(); setStatus("Cleared all sources."); draw();
     });
-    document.getElementById("aem-view").addEventListener("click", toggleView);
     const importInput = document.getElementById("aem-import");
-    document.getElementById("aem-import-trigger").addEventListener("click", () => importInput.click());
+    document.getElementById("aem-import-trigger").addEventListener("click", (event) => {
+      event.preventDefault();
+      importInput.value = "";
+      importInput.click();
+    });
     importInput.addEventListener("change", async () => {
       try {
+        if (!importInput.files || !importInput.files[0]) return;
         const config = JSON.parse(await importInput.files[0].text());
-        if (!Array.isArray(config.elements) || config.elements.some((element) => element.kind !== "circle")) {
-          throw new Error("Imported AEM designs must contain circle elements.");
+        if (!Array.isArray(config.elements) || !config.elements.length) {
+          throw new Error("Imported AEM designs must contain circle, ellipse, or line elements.");
         }
-        ["orientation", "alpha_l", "alpha_t", "ca", "gamma", "dom_inc", "num_cp", "num_terms"].forEach((name) => {
-          if (config[name] !== undefined) form.elements[name].value = config[name];
+        const importedElements = config.elements.map(normalizeImportedElement);
+        ["orientation", "alpha_l", "alpha_t", "ca", "gamma", "dom_inc", "num_cp", "num_terms", "ws", "plot_aspect"].forEach((name) => {
+          if (config[name] !== undefined && form.elements[name]) form.elements[name].value = config[name];
         });
-        polygons.length = 0;
-        polygons.push({vertices: [], circles: config.elements.map((element) => ({...element}))});
+        if (form.elements.orientation) {
+          const importedOrientation = String(form.elements.orientation.value || "").toLowerCase();
+          form.elements.orientation.value = importedOrientation === "horizontal" ? "horizontal" : "vertical";
+        }
+        syncSettings(); syncOrientationLabel();
+        polygons.length = 0; sources.length = 0;
+        importedElements.forEach((element) => sources.push(element));
         // Remember the file's own domain bounds so the run frames exactly as the
         // file specifies (matching main.py in the source), unless the geometry is edited.
         const domainKeys = ["dom_xmin", "dom_xmax", "dom_ymin", "dom_ymax"];
         importedDomain = domainKeys.every((k) => Number.isFinite(config[k]))
           ? Object.fromEntries(domainKeys.map((k) => [k, config[k]])) : null;
         importedSig = importedDomain ? geomSignature() : null;
-        drawing = []; selected = null; fitSource(); show(`Imported ${config.elements.length} source circles.`); setStatus(`Imported ${config.elements.length} circles.`);
-        setMode("edit"); draw();
+        drawing = []; selected = null; fitSource();
+        show(`Imported ${config.elements.length} source element(s).`);
+        setStatus(`Imported ${config.elements.length} element(s).`);
+        setTool("select"); draw();
       } catch (error) { show(`Invalid AEM JSON: ${error.message}`, true); }
       importInput.value = "";
     });
     document.getElementById("aem-export").addEventListener("click", exportJson);
+    const indexBtn = document.getElementById("aem-index");
+    const toggleIndices = () => {
+      showIndices = !showIndices;
+      if (indexBtn) indexBtn.classList.toggle("aem-btn--active", showIndices);
+      setStatus(`Index labels ${showIndices ? "on" : "off"}.`);
+      draw();
+    };
+    if (indexBtn) indexBtn.addEventListener("click", toggleIndices);
+
+    // ── Simulation Settings panel ────────────────────────────────────────────
+    // Mirrors source_designer.py:SettingsPanel — live apply with ✓/error feedback,
+    // and an orientation toggle that re-frames the canvas.
+    const settingsMsg = document.getElementById("aem-settings-msg");
+    const showSettingsMsg = (text, ok) => {
+      if (!settingsMsg) return;
+      settingsMsg.textContent = text;
+      settingsMsg.classList.toggle("aem-settings-msg--ok", ok);
+      settingsMsg.classList.toggle("aem-settings-msg--error", !ok);
+    };
+    // Per-field validators, matching SettingsPanel.FIELDS in the reference.
+    const FIELD_RULES = {
+      alpha_l: (v) => v > 0, alpha_t: (v) => v > 0, ca: () => true,
+      gamma: (v) => v > 0, dom_inc: (v) => v > 0,
+      num_cp: (v) => v >= 1, num_terms: (v) => v >= 1, ws: (v) => v > 0,
+    };
+    const applyField = (name) => {
+      const input = form.elements[name];
+      if (!input) return;
+      if (name === "plot_aspect") { showSettingsMsg(`aspect = ${input.value || "(auto)"}  ✓`, true); return; }
+      const value = +input.value;
+      const rule = FIELD_RULES[name];
+      if (!Number.isFinite(value) || (rule && !rule(value))) {
+        showSettingsMsg(`${name}: invalid value`, false); return;
+      }
+      // num_cp must stay ≥ num_terms (reference validate_for_export).
+      if (name === "num_cp" || name === "num_terms") {
+        const ncp = +form.elements.num_cp.value, nt = +form.elements.num_terms.value;
+        if (Number.isFinite(ncp) && Number.isFinite(nt) && ncp < nt) {
+          showSettingsMsg(`ctrl pts (${ncp}) must be ≥ terms (${nt})`, false); return;
+        }
+      }
+      // Normalise the field to at most 2 displayed decimals (whole numbers bare).
+      input.value = fmt2(value);
+      if (name === "ws") { syncSettings(); reframeView(); draw(); }
+      // Non-blocking dispersivity-ratio warning (reference warnings_for_export).
+      if (name === "alpha_l" || name === "alpha_t") {
+        const al = +form.elements.alpha_l.value, at = +form.elements.alpha_t.value;
+        const ratio = al / at;
+        if (at > 0 && (ratio > 100 || ratio < 1)) {
+          showSettingsMsg(`alpha_l/alpha_t = ${ratio.toFixed(1)} is extreme — thin/wide plumes can be slow to solve.`, false);
+          return;
+        }
+      }
+      showSettingsMsg(`${name} = ${fmt2(value)}  ✓`, true);
+    };
+    ["alpha_l", "alpha_t", "ca", "gamma", "dom_inc", "num_cp", "num_terms", "ws", "plot_aspect"]
+      .forEach((name) => {
+        const input = form.elements[name];
+        if (input) input.addEventListener("change", () => applyField(name));
+      });
+    const orientBtn = document.getElementById("aem-orientation");
+    const syncOrientationLabel = () => { if (orientBtn) orientBtn.textContent = `Orientation: ${orientation()}`; };
+    if (orientBtn) orientBtn.addEventListener("click", () => {
+      form.elements.orientation.value = orientation() === "vertical" ? "horizontal" : "vertical";
+      syncOrientationLabel(); syncSettings(); reframeView();
+      showSettingsMsg(`orientation = ${orientation()}  ✓`, true);
+      setStatus(TOOL_HINTS[tool] || ""); draw();
+    });
+
+    // Highest y the solver sees for an element (mirrors designer_model._elem_solver_top);
+    // in vertical orientation every element must sit below the water table (top < -0.1).
+    const elemSolverTop = (e) => {
+      if (e.kind === "circle") return e.y + (+e.r || 0);
+      const th = ((e.theta != null ? e.theta : 90) || 0) * Math.PI / 180;
+      if (e.kind === "ellipse") return e.y + (+e.a || 0) * Math.abs(Math.sin(th));
+      return e.y + (+e.l || 0) / 2 * Math.abs(Math.sin(th));
+    };
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (!allCircles().length) { show("Draw and pack at least one polygon first.", true); setStatus("Nothing to submit — draw and pack a polygon."); return; }
+      if (!hasElements()) { show("Add at least one source first (draw a shape or pack a polygon).", true); setStatus("Nothing to submit — add a source."); return; }
+      // Instant feedback for the obvious cases; the server re-checks everything.
+      const ncp = +form.elements.num_cp.value, nt = +form.elements.num_terms.value;
+      if (Number.isFinite(ncp) && Number.isFinite(nt) && ncp < nt) {
+        show(`num_cp (${ncp}) must be >= num_terms (${nt}).`, true);
+        setStatus("Fix the simulation settings before running."); return;
+      }
+      if (orientation() === "vertical") {
+        const above = allElementDicts().filter((e) => elemSolverTop(e) >= -0.1);
+        if (above.length) {
+          show(`${above.length} source(s) too close to the water table — in vertical orientation every source `
+            + "(its top edge included) must sit at least 0.1 m below the water table (y = 0).", true);
+          setStatus("Move sources at least 0.1 m below the water table before running."); return;
+        }
+      }
       try {
         show("Saving source design..."); const data = await post("/aem/api/design", {config: buildConfig()});
         window.location.assign(data.forward_url);
@@ -627,6 +1016,8 @@
       new ResizeObserver(() => resize()).observe(canvas);
     }
     window.addEventListener("resize", resize);
+    // Initialise the drawing frame from the form's default settings (vertical, Ws=0.5).
+    syncSettings(); reframeView(); syncOrientationLabel();
     setMode("draw");
     resize();
   }
@@ -635,7 +1026,7 @@
     const summary = document.getElementById("aem-summary"); summary.innerHTML = "";
     Object.entries(result).filter(([key, value]) => !["field", "xaxis", "yaxis"].includes(key) && value !== null)
       .forEach(([key, value]) => { const dt = document.createElement("dt"); dt.textContent = key.replaceAll("_", " ");
-        const dd = document.createElement("dd"); dd.textContent = typeof value === "number" ? value.toPrecision(6) : String(value); summary.append(dt, dd); });
+        const dd = document.createElement("dd"); dd.textContent = typeof value === "number" ? fmt2(value) : String(value); summary.append(dt, dd); });
   };
   // Render the concentration field the way the source simulation does
   // (at_simulation.py: contourf): discrete filled bands — electron donor (C >= 0)
@@ -645,27 +1036,34 @@
   // bands, so boundaries are smooth and crisp like contourf instead of a blurry
   // upscaled bitmap.
   const DONOR_BANDS = 10, ACC_BANDS = 8;   // 11 donor / 9 acceptor levels, like the source
-  // "Nice" evenly-spaced tick values in [lo, hi] (like matplotlib's MaxNLocator).
-  const niceTicks = (lo, hi, target) => {
+  // Tick values in [lo, hi], reproducing matplotlib's MaxNLocator: choose the
+  // smallest "nice" step (from its default multiplier set) that is >= range/nbins,
+  // then place ticks at integer multiples of that step. This matches the
+  // reference plot's axes exactly (e.g. x-range ~27, nbins=7 -> step 4 -> 0,4,..,24).
+  const NICE_STEPS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+  const niceTicks = (lo, hi, nbins) => {
     const span = hi - lo;
     if (!(span > 0)) return [lo];
-    const mag = Math.pow(10, Math.floor(Math.log10(span / Math.max(1, target))));
-    const norm = span / Math.max(1, target) / mag;
-    const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+    const rawStep = span / nbins;
+    const scale = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    let step = 10 * scale;
+    for (const m of NICE_STEPS) { if (m * scale >= rawStep) { step = m * scale; break; } }
     const ticks = [];
-    for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) {
+    const kStart = Math.ceil(lo / step - 1e-9), kEnd = Math.floor(hi / step + 1e-9);
+    for (let k = kStart; k <= kEnd; k++) {
+      const v = k * step;
       ticks.push(Math.abs(v) < step * 1e-9 ? 0 : v);
     }
     return ticks;
   };
-  const fmtTick = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(Math.abs(v) < 1 ? 2 : 1));
+  const fmtTick = (v) => fmt2(v);
   const renderField = (result) => {
     if (!result.field || !result.field.length || !result.xaxis?.length || !result.yaxis?.length) return;
     const canvas = document.getElementById("aem-result-canvas");
     // Size the backing store to the displayed width (× DPR) so the plot is crisp
     // instead of a CSS-upscaled 1000px bitmap. Layout constants below were tuned for
     // a 1000-wide canvas, so scale them all by s.
-    const BASE_W = 1000, BASE_H = 560, dpr = window.devicePixelRatio || 1;
+    const BASE_W = 1000, BASE_H = 660, dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(BASE_W, Math.round((canvas.clientWidth || BASE_W) * dpr));
     canvas.height = Math.round(canvas.width * BASE_H / BASE_W);
     const s = canvas.width / BASE_W;
@@ -676,65 +1074,98 @@
     const maxDonor = max > 0 ? max : 1;          // donor band scale 0..max
     const minAcc = min < 0 ? min : -1;            // acceptor band scale 0..|min|
 
-    // Discrete band colour, mirroring contourf's stepped levels.
-    const bandColor = (v) => {
-      if (!Number.isFinite(v)) return [247, 251, 255];                    // background
-      if (v >= 0) {
-        const band = Math.min(DONOR_BANDS - 1, Math.floor((v / maxDonor) * DONOR_BANDS));
-        return sampleStops(REDS_STOPS, (band + 0.5) / DONOR_BANDS);
-      }
-      const band = Math.min(ACC_BANDS - 1, Math.floor((v / minAcc) * ACC_BANDS));  // (|v|/|min|)
-      return sampleStops(BLUES_STOPS, (band + 0.5) / ACC_BANDS);
-    };
-    // Bilinear sample at fractional grid (col, row); NaN if any node is non-finite.
-    const sampleField = (c, r) => {
-      const c0 = Math.min(cols - 1, Math.floor(c)), r0 = Math.min(rows - 1, Math.floor(r));
-      const c1 = Math.min(cols - 1, c0 + 1), r1 = Math.min(rows - 1, r0 + 1);
-      const fc = c - c0, fr = r - r0;
-      const a = field[r0][c0], b = field[r0][c1], d = field[r1][c0], e = field[r1][c1];
-      if (!(Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(d) && Number.isFinite(e))) return NaN;
-      const top = a + (b - a) * fc, bot = d + (e - d) * fc;
-      return top + (bot - top) * fr;
-    };
+    // Bottom margin (175·s) holds the x-axis label plus two stacked, full-width
+    // colorbars (acceptor over donor), matching the reference matplotlib layout.
+    const plot = {left: 80 * s, top: 35 * s, width: canvas.width - 160 * s, height: canvas.height - 210 * s};
+    const xs = result.xaxis, ys = result.yaxis;
+    const xmin = xs[0], xmax = xs[xs.length - 1];
+    const ymin = ys[0], ymax = ys[ys.length - 1];
+    const xPix = (v) => plot.left + (v - xmin) / (xmax - xmin) * plot.width;
+    const yPix = (v) => plot.top + (ymax - v) / (ymax - ymin) * plot.height;
 
-    const plot = {left: 80 * s, top: 35 * s, width: canvas.width - 160 * s, height: canvas.height - 130 * s};
-    const bufW = Math.max(1, Math.round(plot.width)), bufH = Math.max(1, Math.round(plot.height));
-    const image = ctx.createImageData(bufW, bufH);
-    const vals = new Float64Array(bufW * bufH);
-    for (let py = 0; py < bufH; py++) {
-      const r = (1 - py / (bufH - 1 || 1)) * (rows - 1);   // image top = high y; data row 0 = low y
-      for (let px = 0; px < bufW; px++) {
-        const c = (px / (bufW - 1 || 1)) * (cols - 1);
-        const v = sampleField(c, r); vals[py * bufW + px] = v;
-        const rgb = bandColor(v); const i = (py * bufW + px) * 4;
-        image.data[i] = rgb[0]; image.data[i + 1] = rgb[1]; image.data[i + 2] = rgb[2]; image.data[i + 3] = 255;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Filled contour bands as true vector polygons, matching matplotlib contourf:
+    // each grid quad is split into 4 triangles about its centre and linearly
+    // interpolated, then every triangle is clipped to each [lo,hi] band and
+    // filled. This reproduces contourf's straight, triangulated band edges
+    // instead of a quantised raster bitmap.
+    //
+    // Clip a convex polygon of [x,y,v] vertices to the half-space v>=t (keepGE)
+    // or v<=t; new vertices are interpolated on crossed edges. The field is
+    // linear across a triangle, so each threshold is a single straight cut.
+    const clipPoly = (poly, t, keepGE) => {
+      const out = [], inside = (v) => keepGE ? v >= t : v <= t;
+      for (let i = 0; i < poly.length; i++) {
+        const A = poly[i], B = poly[(i + 1) % poly.length];
+        const ina = inside(A[2]), inb = inside(B[2]);
+        if (ina) out.push(A);
+        if (ina !== inb) {
+          const f = (t - A[2]) / (B[2] - A[2]);
+          out.push([A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f, t]);
+        }
       }
-    }
-    // Black zero-concentration interface line: pixels where the interpolated field
-    // changes sign vs the left/upper neighbour (thickness scales with resolution).
-    const paintBlack = (px, py) => {
-      if (px < 0 || py < 0 || px >= bufW || py >= bufH) return;
-      const i = (py * bufW + px) * 4; image.data[i] = image.data[i + 1] = image.data[i + 2] = 0; image.data[i + 3] = 255;
+      return out;
     };
-    const lw = Math.max(1, Math.round(s));
-    for (let py = 0; py < bufH; py++) for (let px = 0; px < bufW; px++) {
-      const v = vals[py * bufW + px]; if (!Number.isFinite(v)) continue;
-      const left = px > 0 ? vals[py * bufW + px - 1] : v, up = py > 0 ? vals[(py - 1) * bufW + px] : v;
-      if ((Number.isFinite(left) && (v >= 0) !== (left >= 0)) || (Number.isFinite(up) && (v >= 0) !== (up >= 0))) {
-        for (let dy = 0; dy <= lw; dy++) for (let dx = 0; dx <= lw; dx++) paintBlack(px + dx, py + dy);
+    const fillBand = (poly, lo, hi, col) => {
+      let p = clipPoly(poly, lo, true); if (p.length < 3) return;
+      p = clipPoly(p, hi, false); if (p.length < 3) return;
+      ctx.fillStyle = ctx.strokeStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+      ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+      for (let k = 1; k < p.length; k++) ctx.lineTo(p[k][0], p[k][1]);
+      ctx.closePath(); ctx.fill();
+      ctx.stroke();   // hairline same-colour stroke hides AA seams between polys
+    };
+    // Visit each quad's 4 centre-triangles, invoking cb([A,B,C]) per triangle.
+    const eachTriangle = (cb) => {
+      for (let r = 0; r < rows - 1; r++) {
+        for (let c = 0; c < cols - 1; c++) {
+          const v00 = field[r][c], v01 = field[r][c + 1], v10 = field[r + 1][c], v11 = field[r + 1][c + 1];
+          if (!(Number.isFinite(v00) && Number.isFinite(v01) && Number.isFinite(v10) && Number.isFinite(v11))) continue;
+          const xL = xPix(xs[c]), xR = xPix(xs[c + 1]), yB = yPix(ys[r]), yT = yPix(ys[r + 1]);
+          const p00 = [xL, yB, v00], p01 = [xR, yB, v01], p11 = [xR, yT, v11], p10 = [xL, yT, v10];
+          const pc = [(xL + xR) / 2, (yB + yT) / 2, (v00 + v01 + v10 + v11) / 4];
+          cb([p00, p01, pc]); cb([p01, p11, pc]); cb([p11, p10, pc]); cb([p10, p00, pc]);
+        }
       }
+    };
+    const contourf = (levels, bands, colorForBand) => {
+      eachTriangle((tri) => {
+        for (let i = 0; i < bands; i++) fillBand(tri, levels[i], levels[i + 1], colorForBand(i));
+      });
+    };
+    ctx.lineWidth = Math.max(0.6, 0.6 * s); ctx.lineJoin = "round";
+    if (max > 0) {   // donor: levels 0..max, Reds (light->dark)
+      const dl = []; for (let i = 0; i <= DONOR_BANDS; i++) dl.push((i / DONOR_BANDS) * maxDonor);
+      contourf(dl, DONOR_BANDS, (i) => sampleStops(REDS_STOPS, (i + 0.5) / DONOR_BANDS));
     }
-    const buffer = document.createElement("canvas"); buffer.width = bufW; buffer.height = bufH;
-    buffer.getContext("2d").putImageData(image, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(buffer, plot.left, plot.top);   // 1:1 — no upscaling blur
+    if (min < 0) {   // acceptor: levels -|min|..0, Blues_r (dark->light)
+      const al = []; for (let i = 0; i <= ACC_BANDS; i++) al.push(minAcc - (i / ACC_BANDS) * minAcc);
+      // Band i is the i-th interval up from |min| (most negative first), so the
+      // colour fraction is flipped: most-negative -> darkest (Blues_r).
+      contourf(al, ACC_BANDS, (i) => sampleStops(BLUES_STOPS, 1 - (i + 0.5) / ACC_BANDS));
+    }
+
+    // Black zero-concentration interface line (plume envelope): the 0-level
+    // contour drawn as straight per-triangle segments — matplotlib's vector
+    // contour(levels=[0], linewidths=2), not a thresholded pixel trace.
+    ctx.strokeStyle = "#000"; ctx.lineWidth = Math.max(1.5, 2 * s);
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
+    eachTriangle((tri) => {
+      const pts = [];
+      for (let i = 0; i < 3; i++) {
+        const A = tri[i], B = tri[(i + 1) % 3];
+        if ((A[2] < 0) !== (B[2] < 0)) {
+          const f = (0 - A[2]) / (B[2] - A[2]);
+          pts.push([A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f]);
+        }
+      }
+      if (pts.length === 2) { ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); }
+    });
+    ctx.stroke();
 
     // Axes — matplotlib-style: "x (m)" plus orientation-specific "y (m)" (horizontal)
     // or "z (m)" (vertical), with several evenly-spaced "nice" ticks, not just the ends.
-    const xmin = result.xaxis[0], xmax = result.xaxis[result.xaxis.length - 1];
-    const ymin = result.yaxis[0], ymax = result.yaxis[result.yaxis.length - 1];
-    const xPix = (v) => plot.left + (v - xmin) / (xmax - xmin) * plot.width;
-    const yPix = (v) => plot.top + (ymax - v) / (ymax - ymin) * plot.height;
     ctx.strokeStyle = "#26384d"; ctx.fillStyle = "#26384d"; ctx.lineWidth = Math.max(1, s);
     ctx.strokeRect(plot.left, plot.top, plot.width, plot.height);
     ctx.font = `${Math.round(13 * s)}px sans-serif`;
@@ -745,7 +1176,7 @@
       ctx.fillText(fmtTick(v), px, plot.top + plot.height + 20 * s);
     });
     ctx.textAlign = "right";
-    niceTicks(ymin, ymax, 6).forEach((v) => {
+    niceTicks(ymin, ymax, 5).forEach((v) => {
       if (v < ymin || v > ymax) return; const py = yPix(v);
       ctx.beginPath(); ctx.moveTo(plot.left - 5 * s, py); ctx.lineTo(plot.left, py); ctx.stroke();
       ctx.fillText(fmtTick(v), plot.left - 8 * s, py + 4 * s);
@@ -755,24 +1186,85 @@
     ctx.save(); ctx.translate(18 * s, plot.top + plot.height / 2); ctx.rotate(-Math.PI / 2);
     ctx.fillText(result.orientation === "vertical" ? "z (m)" : "y (m)", 0, 0); ctx.restore();
 
-    // Stepped colorbars matching the contour levels: donor (Reds, 0..max) left,
-    // acceptor (Blues, |min|..0) right.
-    const barY = canvas.height - 40 * s, barH = 9 * s, half = plot.width / 2 - 12 * s;
-    for (let b = 0; b < DONOR_BANDS; b++) {
-      const c = sampleStops(REDS_STOPS, (b + 0.5) / DONOR_BANDS);
-      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(plot.left + (b * half) / DONOR_BANDS, barY, half / DONOR_BANDS + 1, barH);
+    // Two stacked, full-width colorbars matching the reference matplotlib layout
+    // (at_simulation.py: fig.colorbar location="bottom"): the acceptor bar
+    // (Blues_r, extend="min", left arrow, ticks |min|..0) sits above the donor
+    // bar (Reds, extend="max", right arrow, ticks 0..max). Tick marks at every
+    // contour level with numeric labels, plus a centered axis title.
+    const drawCbar = (top, bands, sampleBand, capColor, capSide, labelAt, title) => {
+      const x0 = plot.left, w = plot.width, barH = 12 * s, cap = 9 * s;
+      const stepX0 = capSide === "min" ? x0 + cap : x0;
+      const stepW = w - cap, bw = stepW / bands;
+      for (let b = 0; b < bands; b++) {
+        const c = sampleBand(b);
+        ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+        ctx.fillRect(stepX0 + b * bw, top, bw + 0.7, barH);
+      }
+      // Extend triangle cap (the matplotlib over/under colour) on the dark end.
+      ctx.fillStyle = `rgb(${capColor[0]},${capColor[1]},${capColor[2]})`;
+      ctx.beginPath();
+      if (capSide === "max") { ctx.moveTo(x0 + w - cap, top); ctx.lineTo(x0 + w, top + barH / 2); ctx.lineTo(x0 + w - cap, top + barH); }
+      else { ctx.moveTo(x0 + cap, top); ctx.lineTo(x0, top + barH / 2); ctx.lineTo(x0 + cap, top + barH); }
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#26384d"; ctx.lineWidth = Math.max(1, 0.7 * s);
+      ctx.strokeRect(stepX0, top, stepW, barH);
+      // Tick marks + numeric labels at every level boundary.
+      ctx.fillStyle = "#26384d"; ctx.font = `${Math.round(11 * s)}px sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      for (let i = 0; i <= bands; i++) {
+        const x = stepX0 + i * bw;
+        ctx.beginPath(); ctx.moveTo(x, top + barH); ctx.lineTo(x, top + barH + 4 * s); ctx.stroke();
+        ctx.fillText(labelAt(i), x, top + barH + 6 * s);
+      }
+      ctx.font = `${Math.round(12 * s)}px sans-serif`; ctx.textBaseline = "alphabetic";
+      ctx.fillText(title, x0 + w / 2, top + barH + 28 * s);
+    };
+    const plotBottom = plot.top + plot.height;
+    // Acceptor bar (upper): dark blue (|min|) on the left, fading to white (0).
+    drawCbar(plotBottom + 58 * s, ACC_BANDS,
+      (b) => sampleStops(BLUES_STOPS, 1 - (b + 0.5) / ACC_BANDS),
+      sampleStops(BLUES_STOPS, 1), "min",
+      (i) => fmt2(Math.abs(minAcc) * (1 - i / ACC_BANDS)),
+      "Electron acceptor concentration [mg/l]");
+    // Donor bar (lower): white (0) on the left, deepening to dark red (max).
+    drawCbar(plotBottom + 110 * s, DONOR_BANDS,
+      (b) => sampleStops(REDS_STOPS, (b + 0.5) / DONOR_BANDS),
+      sampleStops(REDS_STOPS, 1), "max",
+      (i) => fmt2(i * maxDonor / DONOR_BANDS),
+      "Electron donor concentration [mg/l]");
+
+    // Full-height dashed L_max marker + upper-right legend, matching the reference
+    // (source_designer.py: ax.axvline(L_max, navy, dashed) + legend "upper right").
+    if (Number.isFinite(result.L_max) && result.L_max >= xmin && result.L_max <= xmax) {
+      const lx = xPix(result.L_max);
+      const dash = [5 * s, 4 * s], navy = "#000080", lw = Math.max(1.6, 2.4 * s);
+      ctx.save();
+      ctx.strokeStyle = navy; ctx.lineWidth = lw; ctx.setLineDash(dash);
+      ctx.beginPath(); ctx.moveTo(lx, plot.top); ctx.lineTo(lx, plot.top + plot.height); ctx.stroke();
+      ctx.setLineDash([]);
+      // Legend box in the upper-right corner.
+      const text = `L_max = ${fmt2(result.L_max)} m`;
+      ctx.font = `${Math.round(12 * s)}px sans-serif`;
+      const tw = ctx.measureText(text).width;
+      const padX = 8 * s, sample = 22 * s, gap = 6 * s, boxH = 24 * s;
+      const boxW = padX * 2 + sample + gap + tw;
+      const bx = plot.left + plot.width - boxW - 8 * s, by = plot.top + 8 * s;
+      ctx.fillStyle = "rgba(255,255,255,0.78)"; ctx.strokeStyle = "#c2c2c2"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.rect(bx, by, boxW, boxH); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = navy; ctx.lineWidth = lw; ctx.setLineDash(dash);
+      ctx.beginPath(); ctx.moveTo(bx + padX, by + boxH / 2); ctx.lineTo(bx + padX + sample, by + boxH / 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#111"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+      ctx.fillText(text, bx + padX + sample + gap, by + boxH / 2);
+      ctx.restore();
     }
-    const accLeft = plot.left + plot.width - half;
-    for (let b = 0; b < ACC_BANDS; b++) {
-      const c = sampleStops(BLUES_STOPS, 1 - (b + 0.5) / ACC_BANDS);
-      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(accLeft + (b * half) / ACC_BANDS, barY, half / ACC_BANDS + 1, barH);
-    }
-    ctx.fillStyle = "#26384d"; ctx.font = `${Math.round(11 * s)}px sans-serif`; ctx.textAlign = "left";
-    ctx.fillText("Donor 0", plot.left, barY - 3 * s); ctx.fillText(`${maxDonor.toPrecision(3)} mg/L`, plot.left + half - 60 * s, barY - 3 * s);
-    ctx.fillText(`Acceptor ${Math.abs(minAcc).toPrecision(3)}`, accLeft, barY - 3 * s); ctx.fillText("0 mg/L", accLeft + half - 40 * s, barY - 3 * s);
   };
   async function runJob(endpoint, payload) {
     const cancel = document.getElementById("aem-cancel");
+    const actions = document.getElementById("aem-result-actions");
+    const csvLink = document.getElementById("aem-download-csv");
+    const workbenchLink = document.getElementById("aem-open-workbench");
+    if (actions) actions.hidden = true;
     try {
       const submitted = await post(endpoint, payload); cancel.hidden = false;
       cancel.onclick = () => post(submitted.cancel_url, {}).then(() => show("Job cancelled."));
@@ -782,6 +1274,11 @@
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
       const completed = await json(submitted.result_url); cancel.hidden = true; show("Simulation complete."); renderSummary(completed.result); renderField(completed.result);
+      if (csvLink) csvLink.hidden = !completed.csv_url;
+      if (workbenchLink) workbenchLink.hidden = !completed.workbench_url;
+      if (completed.csv_url && csvLink) csvLink.href = completed.csv_url;
+      if (completed.workbench_url && workbenchLink) workbenchLink.href = completed.workbench_url;
+      if (actions) actions.hidden = !(completed.csv_url || completed.workbench_url);
     } catch (error) { cancel.hidden = true; show(error.message, true); }
   }
   if (root.dataset.aemPage === "designer") designer();

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{# Workbench shell for the analytical / empirical multiple pages. The Panel
+   iframe holds both the scenario table and the results, so the sidebar only
+   carries the site loader and the report bridge. #}
+
+{% block title %}{{ self.model_title() }}{% endblock %}
+
+{% block content %}
+<section class="section-spaced model-page model-workbench">
+  <header class="model-workbench-header">
+    <div class="section-head">
+      <span class="kicker">{% block model_kicker %}Toolbox{% endblock %}</span>
+      <h2>{% block model_title %}Model{% endblock %}</h2>
+      <p class="model-workbench-hint">{% block model_hint %}Enter scenarios in the table inside the simulation panel and click Run to compare simulations. Uploaded database records appear as comparison points.{% endblock %}</p>
+    </div>
+    <a class="ghost-btn model-workbench-back" href="{% block toolbox_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}">&larr; {% block toolbox_label %}All analytical models{% endblock %}</a>
+  </header>
+
+  <div class="model-workbench-layout">
+    <aside class="model-workbench-sidebar">
+      {% if sites %}
+      <div class="card-like site-loader-card">
+        <h3>Site Data</h3>
+        <form method="GET" class="workbench-site-form">
+          <label for="site_id">Load an uploaded site (optional)</label>
+          <select id="site_id" name="site_id">
+            <option value="" {% if not selected_site_id %}selected{% endif %}>Manual input only</option>
+            {% for s in sites %}
+            <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.display_id|default(s.id, true) }} - {{ s.site_unit }} ({{ s.compound }})</option>
+            {% endfor %}
+          </select>
+          <div class="workbench-site-actions">
+            <button type="submit" class="primary-btn">Load Site</button>
+            {% if selected_site_id %}
+            <a href="{{ request.path }}" class="ghost-btn">Reset</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
+      {% include "report_bridge_card.html" %}
+    </aside>
+
+    <main class="model-workbench-stage">
+      <div class="card-like model-output-card">
+        <h3>Simulation Panel</h3>
+        <div class="panel-shell output-panel-shell">
+          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+{% endblock %}

@@ -8,19 +8,25 @@
       <label>Parameter to recover<select name="estimate_param">{% for name in inverse_params %}<option value="{{ name }}">{{ name }}</option>{% endfor %}</select></label>
       <label>Orientation<select name="orientation"><option>horizontal</option><option>vertical</option></select></label>
       <label>Source element<select name="elem_kind"><option>Circle</option><option>Line</option></select></label>
-      <label>Observed L_max [m]<input name="target_Lmax" type="number" min="0.0001" value="100"></label>
-      <label>Source radius [m]<input name="r" type="number" min="0.0001" value="1"></label>
-      <label>Source concentration [mg/L]<input name="C0" type="number" min="0.0001" value="5"></label>
-      <label>Electron acceptor [mg/L]<input name="ca" type="number" min="0.0001" value="8"></label>
-      <label>Stoichiometric ratio<input name="gamma" type="number" min="0.0001" value="3.5"></label>
+      <label>Observed <i>L</i><sub>max</sub> [m]<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe target_Lmax]">i<span class="param-help__tip" role="tooltip">[TODO: describe target_Lmax]</span></span><input name="target_Lmax" type="number" min="0.0001" value="100"></label>
+      <label>Source radius <i>r</i> [m]<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe r]">i<span class="param-help__tip" role="tooltip">[TODO: describe r]</span></span><input name="r" type="number" min="0.0001" value="1"></label>
+      <label>Source concentration <i>c</i><sub>D</sub> [mg/L]<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe C0]">i<span class="param-help__tip" role="tooltip">[TODO: describe C0]</span></span><input name="C0" type="number" min="0.0001" value="5"></label>
+      <label>Electron acceptor <i>c</i><sub>A</sub> [mg/L]<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe ca]">i<span class="param-help__tip" role="tooltip">[TODO: describe ca]</span></span><input name="ca" type="number" min="0.0001" value="8"></label>
+      <label>Stoichiometric ratio &gamma;<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe gamma]">i<span class="param-help__tip" role="tooltip">[TODO: describe gamma]</span></span><input name="gamma" type="number" min="0.0001" value="3.5"></label>
       <label>Lower bound<input name="lower_bound" type="number"></label>
       <label>Upper bound<input name="upper_bound" type="number"></label>
-      <label>L_max tolerance [m]<input name="tolerance" type="number" min="0.0001" value="10"></label>
+      <label><i>L</i><sub>max</sub> tolerance [m]<span class="param-help" tabindex="0" role="note" aria-label="[TODO: describe tolerance]">i<span class="param-help__tip" role="tooltip">[TODO: describe tolerance]</span></span><input name="tolerance" type="number" min="0.0001" value="10"></label>
     </div>
     <div class="model-input-actions"><button type="submit" class="primary-btn">Run Inverse Model</button><button id="aem-cancel" type="button" class="secondary-btn" hidden>Cancel job</button></div>
   </form>
   <div id="aem-message" class="aem-message" role="status" aria-live="polite"></div>
-  <div class="card-like aem-result-card"><dl id="aem-summary" class="aem-summary"></dl><canvas id="aem-result-canvas" width="1000" height="560"></canvas></div>
+  <div class="card-like aem-result-card">
+    <div id="aem-result-actions" class="model-input-actions aem-result-actions" hidden>
+      <a id="aem-download-csv" class="ghost-btn" href="#" download>Download results CSV</a>
+      <a id="aem-open-workbench" class="primary-btn" href="#">Explore in Data Workbench</a>
+    </div>
+    <dl id="aem-summary" class="aem-summary"></dl><canvas id="aem-result-canvas" width="1000" height="560"></canvas>
+  </div>
 </section>
 <script src="{{ url_for('static', filename='aem.js') }}"></script>
 {% endblock %}

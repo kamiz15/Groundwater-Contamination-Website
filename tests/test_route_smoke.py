@@ -212,12 +212,15 @@ def test_numerical_multiple_wrapper_has_only_panel_run_action(path, authenticate
         ("/numerical/horizontal/multiple", "horizontalMultipleResultFrame"),
     ],
 )
-def test_numerical_multiple_wrapper_places_panel_under_site_loader(
+def test_numerical_multiple_wrapper_places_panel_in_layout(
     path,
     result_frame_id,
     authenticated_wrapper_client,
     monkeypatch,
 ):
+    # Sites are added from the in-panel click-to-add picker, so the wrapper has
+    # no server-side "Load Uploaded Site" loader. Layout: Simulation Panel on the
+    # left, the result frame on the right; no conceptual model.
     monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [{"id": 7}])
 
     page = authenticated_wrapper_client.get(path).get_data(as_text=True)
@@ -229,10 +232,9 @@ def test_numerical_multiple_wrapper_places_panel_under_site_loader(
     result_query = parse_qs(urlparse(iframe_srcs[1]).query)
 
     assert "model-input-form" not in page
-    assert page.index("Load Uploaded Site") < page.index("Simulation Panel")
-    assert page.index("Simulation Panel") < page.index('class="model-inputs-grid-side"')
-    assert page.index('class="model-inputs-grid-side"') < page.index('class="conceptual-img"')
-    assert page.index(f'id="{result_frame_id}"') > page.index('class="conceptual-img"')
+    assert "Load Uploaded Site" not in page
+    assert "conceptual-img" not in page
+    assert page.index("Simulation Panel") < page.index(f'id="{result_frame_id}"')
     assert len(iframe_srcs) == 2
     assert input_query["input_only"] == ["1"]
     assert "output_only" not in input_query
@@ -292,7 +294,9 @@ def test_vertical_single_run_button_sits_under_conceptual_model(authenticated_wr
 
 @pytest.mark.parametrize(
     "path",
-    ["/numerical/vertical/single", "/numerical/vertical/multiple"],
+    # The multiple page lists/validates sites inside the Panel now, so only the
+    # single page renders the server-side dropdown this test inspects.
+    ["/numerical/vertical/single"],
 )
 def test_vertical_pages_filter_invalid_high_hk_sites_and_still_load(path, authenticated_wrapper_client, monkeypatch):
     valid = {
@@ -343,6 +347,58 @@ def test_single_model_pages_share_branded_report_card(path, authenticated_wrappe
 
     assert "report-download-card" in page
     assert "Download the branded CAST PDF report" in page
+
+
+ABOUT_SLUGS = [
+    "liedl",
+    "liedl3d",
+    "chu",
+    "ham",
+    "bioscreen",
+    "cirpka",
+    "maier",
+    "birla",
+    "numerical",
+]
+
+
+@pytest.fixture
+def public_client():
+    # The per-model About pages must be reachable without authentication, so no
+    # LOGIN_DISABLED and no auth fixture — just a plain test client.
+    previous_login_disabled = app_module.app.config.get("LOGIN_DISABLED", False)
+    app_module.app.config.update(TESTING=True, LOGIN_DISABLED=False)
+    yield app_module.app.test_client()
+    app_module.app.config["LOGIN_DISABLED"] = previous_login_disabled
+
+
+@pytest.mark.parametrize("slug", ABOUT_SLUGS)
+def test_model_about_page_is_public_and_has_mathml(slug, public_client):
+    response = public_client.get(f"/models/{slug}/about")
+
+    assert response.status_code == 200
+    assert b"<math" in response.data
+
+
+def test_model_about_unknown_slug_returns_404(public_client):
+    response = public_client.get("/models/does-not-exist/about")
+
+    assert response.status_code == 404
+
+
+def test_liedl_about_pilot_has_chips_and_no_placeholders(public_client):
+    page = public_client.get("/models/liedl/about").get_data(as_text=True)
+
+    assert "about-chips" in page
+    assert "about-assumptions--check" in page
+    assert "[TODO" not in page
+
+
+def test_non_pilot_about_pages_stay_plain(public_client):
+    # The chips/checklist upgrades are gated to the Liedl pilot until approved.
+    page = public_client.get("/models/chu/about").get_data(as_text=True)
+
+    assert "about-chips" not in page
 
 
 def test_cirpka_single_output_hides_internal_error_detail(monkeypatch, caplog):

@@ -42,6 +42,7 @@ class ATElement:
         self.outline: list = []
         self.label: str = ""
         self.id: str = ""
+        self.index: int | None = None   # designer metadata; solver ignores it
 
     def calc_d_q(self, alpha_t: float, alpha_l: float, beta: float):
         a = float(self.r)

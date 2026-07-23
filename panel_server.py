@@ -28,10 +28,11 @@ from panel_numerical_vertical_single import numerical_vertical_single_app
 from panel_numerical_vertical_multiple import numerical_vertical_multiple_app
 from panel_cirpka_single import cirpka_single_app
 from panel_cirpka_multiple import cirpka_multiple_app
+from panel_data_analysis import data_analysis_app
 
 from panel_theme import apply_theme
 
-pn.extension("tabulator")
+pn.extension("tabulator", "mathjax")
 apply_theme()
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -69,6 +70,7 @@ apps = {
     "panel_cirpka_single": cirpka_single_app,
     "panel_cirpka_single_output": cirpka_single_app,
     "panel_cirpka_multiple": cirpka_multiple_app,
+    "panel_data_analysis": data_analysis_app,
 }
 
 if __name__ == "__main__":

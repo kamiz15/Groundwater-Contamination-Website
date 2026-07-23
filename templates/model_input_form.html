@@ -6,7 +6,12 @@
 {% macro render_model_input(field) -%}
 <label>
   <span class="input-label-row">
-    <span>{{ field.label }}</span>
+    {# Label format: "<name> <symbol> [<unit>]". The symbol follows the name, and a
+       dimensionless "[-]" unit is dropped (no brackets when there is no real unit). #}
+    {%- set _has_unit = ' [' in field.label -%}
+    {%- set _name = field.label.split(' [')[0] if _has_unit else field.label -%}
+    {%- set _unit = field.label.split(' [')[1]|replace(']', '') if _has_unit else '' -%}
+    <span>{{ _name }}{% if field.symbol %} <span class="param-symbol">{{ field.symbol|safe }}</span>{% endif %}{% if _unit and _unit != '-' %} [{{ _unit }}]{% endif %}{% if field.description %} <span class="param-help" tabindex="0" role="note" aria-label="{{ field.description }}">i<span class="param-help__tip" role="tooltip">{{ field.description }}</span></span>{% endif %}</span>
     {# Only flag a positive source: DB when a value was loaded from the database,
        Override for advanced fields. Plain manual inputs carry no per-field badge
        (the column header already says "User / DB" / "Editable"). #}
@@ -25,6 +30,17 @@
   >
 </label>
 {%- endmacro %}
+{# One grouped card of numerical inputs (chemical / physical / standard / numerical). #}
+{% macro render_input_group(heading, col) -%}
+<section class="model-input-group" aria-label="{{ heading }} parameters">
+  <div class="model-input-group-header"><h4>{{ heading }}</h4></div>
+  <div class="model-input-grid">
+    {% for field in input_fields if field.column == col %}
+    {{ render_model_input(field) }}
+    {% endfor %}
+  </div>
+</section>
+{%- endmacro %}
 <div class="card-like external-input-card">
   <h3>Input Parameters</h3>
   <form method="GET" class="model-input-form" id="model-input-form">
@@ -34,57 +50,24 @@
     {% endif %}
 
     {% if analytical_fields is defined %}
-    {# Numerical form: Input plus a combined Analytical / Standard column. #}
-    <div class="model-input-columns model-input-columns--numerical">
-      <section class="model-input-group" aria-labelledby="input-col-heading">
-        <div class="model-input-group-header">
-          <h4 id="input-col-heading">Input</h4>
-          <em class="input-source-badge input-source-badge--manual">User / DB</em>
-        </div>
-        <div class="model-input-grid">
-          {% for field in input_fields if field.column == 'input' %}
-          {{ render_model_input(field) }}
-          {% endfor %}
-        </div>
-      </section>
-
-      <section class="model-input-group model-input-group--combined" aria-labelledby="analytical-col-heading">
-        <section aria-labelledby="analytical-col-heading">
-          <div class="model-input-group-header">
-            <h4 id="analytical-col-heading">Analytical</h4>
-            <em class="input-source-badge input-source-badge--db">Auto</em>
-          </div>
-          <div class="model-input-grid">
-            {% for a in analytical_fields %}
-            <label>
-              <span class="input-label-row"><span>{{ a.label }}</span></span>
-              <input type="text" value="{{ '%.2f'|format(a.value) }}" readonly aria-readonly="true">
-            </label>
-            {% else %}
-            <p class="model-input-empty">Computed automatically from the analytical model.</p>
-            {% endfor %}
-          </div>
-        </section>
-
-        <section aria-labelledby="standard-col-heading">
-          <div class="model-input-group-header">
-            <h4 id="standard-col-heading">Standard</h4>
-            <em class="input-source-badge input-source-badge--manual">Editable</em>
-          </div>
-          <div class="model-input-grid">
-            {% for field in input_fields if field.column == 'standard' %}
-            {{ render_model_input(field) }}
-            {% endfor %}
-          </div>
-        </section>
-      </section>
+    {# Numerical form: editable inputs grouped by kind, two columns of grouped cards
+       to avoid whitespace. The domain-sizing (analytical) values are not inputs —
+       they are explained in a box under the Conceptual Model. #}
+    <div class="model-input-groups-2col">
+      <div class="model-input-col">
+        {{ render_input_group("Chemical", "chemical") }}
+        {{ render_input_group("Standard", "standard") }}
+      </div>
+      <div class="model-input-col">
+        {{ render_input_group("Physical", "physical") }}
+        {{ render_input_group("Numerical", "numerical") }}
+      </div>
     </div>
     {% else %}
     <div class="model-input-columns">
       <section class="model-input-group model-input-group--db" aria-labelledby="database-inputs-heading">
         <div class="model-input-group-header">
           <h4 id="database-inputs-heading">Database Inputs</h4>
-          <em class="input-source-badge input-source-badge--db">DB</em>
         </div>
         {% if db_fields %}
         <div class="model-input-grid">
@@ -100,7 +83,6 @@
       <section class="model-input-group model-input-group--manual" aria-labelledby="manual-inputs-heading">
         <div class="model-input-group-header">
           <h4 id="manual-inputs-heading">Manual Model Inputs</h4>
-          <em class="input-source-badge input-source-badge--manual">Manual</em>
         </div>
         {% if manual_fields %}
         <div class="model-input-grid">

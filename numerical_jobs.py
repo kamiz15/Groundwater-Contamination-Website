@@ -199,10 +199,72 @@ def load_job_payload(job_id: str) -> tuple[str, dict[str, Any]]:
     return row["kind"], json.loads(row["params_json"])
 
 
+def _pid_alive(pid: Any) -> bool:
+    """Best-effort check that a worker process is still alive."""
+    if not pid:
+        return False
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if os.name == "nt":
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True, text=True, check=False,
+        )
+        return str(pid) in (out.stdout or "")
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _reap_stale_jobs(conn: sqlite3.Connection) -> None:
+    """Free queue slots held by dead/hung workers.
+
+    A `running` job whose worker process has exited (e.g. after a container
+    restart) keeps its concurrency slot forever, so the queue stalls and newly
+    submitted jobs never start. Mark such jobs failed: their pid is gone, or they
+    have run past the wall-clock timeout, or they were claimed but never acquired
+    a pid within a short grace period. Must be called inside an open transaction.
+    """
+    now = time.time()
+    timeout = float(os.getenv("NUMERICAL_JOB_TIMEOUT_SECONDS", "900"))
+    grace = 60.0
+    rows = conn.execute(
+        "SELECT id, pid, started_at FROM numerical_jobs WHERE status = 'running'"
+    ).fetchall()
+    for row in rows:
+        started = row["started_at"] or 0.0
+        age = now - started if started else None
+        if row["pid"] is None:
+            # Just claimed by pump_queue; give the worker time to register its pid.
+            if age is not None and age < grace:
+                continue
+            reason = "Worker process never started (reaped)."
+        elif not _pid_alive(row["pid"]):
+            reason = "Worker process exited before completing (reaped)."
+        elif age is not None and age > timeout:
+            reason = f"Worker exceeded the {int(timeout)}s timeout (reaped)."
+        else:
+            continue
+        conn.execute(
+            "UPDATE numerical_jobs SET status = 'failed', updated_at = ?, finished_at = ?, error = ? "
+            "WHERE id = ? AND status = 'running'",
+            (now, now, reason, row["id"]),
+        )
+
+
 def pump_queue() -> None:
     while True:
         with _connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
+            _reap_stale_jobs(conn)
             running = conn.execute(
                 "SELECT COUNT(*) FROM numerical_jobs WHERE status = 'running'"
             ).fetchone()[0]

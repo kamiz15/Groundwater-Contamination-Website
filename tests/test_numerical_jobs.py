@@ -5,6 +5,8 @@ def test_new_job_queues_behind_running_job_without_cancelling_it(monkeypatch, tm
     monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
     monkeypatch.setenv("NUMERICAL_MAX_CONCURRENCY", "1")
     monkeypatch.setattr(numerical_jobs, "_start_worker", lambda _job_id: None)
+    # The simulated worker is alive, so the stale-job reaper leaves it running.
+    monkeypatch.setattr(numerical_jobs, "_pid_alive", lambda _pid: True)
     terminated = []
     monkeypatch.setattr(numerical_jobs, "_terminate_pid", terminated.append)
 

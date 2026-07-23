@@ -80,7 +80,6 @@ def numerical_vertical_single_app():
     def _stop_polling():
         cancel_btn.visible = False
         run_btn.disabled = False
-        run_btn.name = "Run Vertical Simulation"
         if poller["callback"] is not None:
             poller["callback"].stop()
             poller["callback"] = None
@@ -153,7 +152,7 @@ def numerical_vertical_single_app():
                     "title": "Vertical Plume Concentration",
                     "bytes": result.plot_png,
                     "caption": "Simulated contaminant plume - vertical cross-section.",
-                    "max_height_mm": 52,
+                    "max_height_mm": 82,
                 }
             ] if result.plot_png else [],
         })
@@ -173,7 +172,7 @@ def numerical_vertical_single_app():
                     "title": img["title"],
                     "caption": img.get("caption", ""),
                     "b64": base64.b64encode(img["bytes"]).decode(),
-                    "max_height_mm": img.get("max_height_mm", 52),
+                    "max_height_mm": img.get("max_height_mm", 82),
                 }
                 for img in (state.get("plot_images") or [])
             ],
@@ -206,7 +205,6 @@ def numerical_vertical_single_app():
         stop_growth(anim.get("holder"))
         report_bridge.object = report_bridge_html(clear=True)
         run_btn.disabled = True
-        run_btn.name = "Submitting Vertical Simulation..."
         ld_out.value = "\u2014"
         at_out.value = "\u2014"
         try:
@@ -230,7 +228,6 @@ def numerical_vertical_single_app():
             cancel_btn.visible = True
             graph_pane.object = None
             comparison_pane.object = None
-            run_btn.name = "Run Vertical Simulation"
             result_pane.object = _loading_status_card([("Job", job_id[:8]), ("Status", "queued")], title="Vertical Simulation Submitted")
             poller["callback"] = pn.state.add_periodic_callback(lambda: _poll(job_id), 2000, start=True)
             _poll(job_id)
@@ -242,7 +239,6 @@ def numerical_vertical_single_app():
             report_bridge.object = report_bridge_html(clear=True)
             cancel_btn.visible = False
             run_btn.disabled = False
-            run_btn.name = "Run Vertical Simulation"
 
     def _cancel(_=None):
         job_id = state.get("job_id")

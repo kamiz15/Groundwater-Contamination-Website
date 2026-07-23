@@ -1,0 +1,65 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Empirical Model{% endblock %}
+{% block about_title %}Maier &amp; Grathwohl (2006){% endblock %}
+{% block back_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
+{% block back_label %}All empirical models{% endblock %}
+
+{% block about_lead %}
+<p>A vertically oriented 2D empirical correlation for the steady-state plume
+length (<math><msub><mi>L</mi><mi>max</mi></msub></math>), derived from a
+sensitivity analysis of biodegradation kinetics, flow velocity, transverse
+vertical dispersivity, source and aquifer geometry, and reaction stoichiometry.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_liedl_2d.png') }}"
+       alt="Conceptual 2D vertical model shared with Liedl et al. (2005): a fully penetrating source releasing a mixing-controlled plume, used here for the Maier and Grathwohl correlation.">
+  <figcaption>Conceptual model &mdash; vertically oriented 2D domain.</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mn>0.5</mn>
+    <mfrac><msup><mi>M</mi><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mfrac>
+    <msup>
+      <mrow>
+        <mo>(</mo>
+        <mfrac>
+          <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub></mrow>
+          <msub><mi>C</mi><mi>A</mi></msub>
+        </mfrac>
+        <mo>)</mo>
+      </mrow>
+      <mn>0.3</mn>
+    </msup>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><mi>M</mi></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry coefficient [-]</dd>
+<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Reactant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Contaminant concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>A uniform flow field in an aquifer of constant thickness.</li>
+<li>A completely contaminated aquifer thickness (landfill or boundary source).</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Maier, U., Grathwohl, P., 2005. Numerical experiments and field results on
+the size of steady state plumes. J. Contam. Hydrol.
+<a href="https://doi.org/10.1016/j.jconhyd.2005.12.012" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.jconhyd.2005.12.012</a></p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('empirical_bp.maier_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('empirical_bp.maier_multiple') }}{% endblock %}

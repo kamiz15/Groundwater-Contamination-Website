@@ -1,24 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Numerical Model - CAST{% endblock %}
+{% block title %}Numerical Models &bull; CAST{% endblock %}
 {% block content %}
-<section class="section-spaced">
-  <h2>Numerical Model</h2>
-  <p>Run a MODFLOW 6 GWF/GWT numerical simulation.</p>
 
-  <div class="card-like" style="margin-bottom:1rem;">
-    <h3>Horizontal Model (x, y)</h3>
-    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-      <a class="primary-btn" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">Single Simulation</a>
-      <a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_horizontal_multiple') }}">Multiple Simulation</a>
+<section class="model-landing">
+  <header class="section-head">
+    <span class="kicker">Toolbox</span>
+    <h2>Numerical Models</h2>
+    <p class="section-sub">MODFLOW 6 GWF/GWT simulations. Pick an orientation, then run a single scenario or compare multiple scenarios.</p>
+    <p><a class="ghost-btn" href="{{ url_for('model_about', slug='numerical') }}">About</a></p>
+  </header>
+
+  <div class="model-grid">
+    <div class="model-card">
+      <h3>Horizontal Model (x, y)</h3>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_horizontal_multiple') }}">Multiple</a>
+      </div>
     </div>
-  </div>
 
-  <div class="card-like">
-    <h3>Vertical Model (x, z)</h3>
-    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-      <a class="primary-btn" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">Single Simulation</a>
-      <a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_vertical_multiple') }}">Multiple Simulation</a>
+    <div class="model-card">
+      <h3>Vertical Model (x, z)</h3>
+      <div class="model-actions">
+        <a class="primary-btn" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">Single</a>
+        <a class="ghost-btn" href="{{ url_for('numerical_bp.numerical_vertical_multiple') }}">Multiple</a>
+      </div>
     </div>
   </div>
 </section>
+
 {% endblock %}

@@ -8,6 +8,7 @@ from data_queries import get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
 from route_guards import guard_model_errors, request_finite_float
 from empirical_models import birla_lmax, maier_lmax
+from param_meta import attach_meta
 from pdf_report import CASTReport
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_to_model
@@ -16,34 +17,34 @@ empirical_bp = Blueprint("empirical_bp", __name__)
 
 EMPIRICAL_INPUT_SPECS = {
     "panel_maier_single": [
-        ("M", "Aquifer Thickness M [m]", 5.0, "0.1", "0.000001"),
-        ("tv", "Vertical Transverse Dispersivity tv [m]", 0.01, "0.001", "0.000001"),
-        ("g", "Stoichiometry Coefficient g [-]", 3.5, "0.1", None),
-        ("Ca", "Contaminant Concentration Ca [mg/L]", 8.0, "0.5", "0.000001"),
-        ("Cd", "Reactant Concentration Cd [mg/L]", 5.0, "0.5", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 5.0, "0.1", "0.000001"),
+        ("tv", "Vertical Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("g", "Stoichiometry Coefficient [-]", 3.5, "0.1", None),
+        ("Ca", "Contaminant Concentration [mg/L]", 8.0, "0.5", "0.000001"),
+        ("Cd", "Reactant Concentration [mg/L]", 5.0, "0.5", "0.000001"),
     ],
     "panel_maier_multiple": [
-        ("M", "Aquifer Thickness M [m]", 5.0, "0.1", "0.000001"),
-        ("tv", "Vertical Transverse Dispersivity tv [m]", 0.01, "0.001", "0.000001"),
-        ("g", "Stoichiometry Coefficient g [-]", 3.5, "0.1", None),
-        ("Ca", "Contaminant Concentration Ca [mg/L]", 8.0, "0.5", "0.000001"),
-        ("Cd", "Reactant Concentration Cd [mg/L]", 5.0, "0.5", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 5.0, "0.1", "0.000001"),
+        ("tv", "Vertical Transverse Dispersivity [m]", 0.01, "0.001", "0.000001"),
+        ("g", "Stoichiometry Coefficient [-]", 3.5, "0.1", None),
+        ("Ca", "Contaminant Concentration [mg/L]", 8.0, "0.5", "0.000001"),
+        ("Cd", "Reactant Concentration [mg/L]", 5.0, "0.5", "0.000001"),
     ],
     "panel_birla_single": [
-        ("M", "Aquifer Thickness M [m]", 2.0, "0.1", "0.000001"),
-        ("tv", "Vertical Transverse Dispersivity tv [m]", 0.001, "0.0005", "0.000001"),
-        ("g", "Stoichiometry Coefficient g [-]", 3.5, "0.1", None),
-        ("Ca", "Contaminant Concentration Ca [mg/L]", 8.0, "0.5", "0.000001"),
-        ("Cd", "Reactant Concentration Cd [mg/L]", 5.0, "0.5", "0.000001"),
-        ("R", "Recharge Rate R [m/yr]", 1.0, "0.1", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 2.0, "0.1", "0.000001"),
+        ("tv", "Vertical Transverse Dispersivity [m]", 0.001, "0.0005", "0.000001"),
+        ("g", "Stoichiometry Coefficient [-]", 3.5, "0.1", None),
+        ("Ca", "Contaminant Concentration [mg/L]", 8.0, "0.5", "0.000001"),
+        ("Cd", "Reactant Concentration [mg/L]", 5.0, "0.5", "0.000001"),
+        ("R", "Recharge Rate [m/yr]", 1.0, "0.1", "0.000001"),
     ],
     "panel_birla_multiple": [
-        ("M", "Aquifer Thickness M [m]", 2.0, "0.1", "0.000001"),
-        ("tv", "Vertical Transverse Dispersivity tv [m]", 0.001, "0.0005", "0.000001"),
-        ("g", "Stoichiometry Coefficient g [-]", 3.5, "0.1", None),
-        ("Ca", "Contaminant Concentration Ca [mg/L]", 8.0, "0.5", "0.000001"),
-        ("Cd", "Reactant Concentration Cd [mg/L]", 5.0, "0.5", "0.000001"),
-        ("R", "Recharge Rate R [m/yr]", 1.0, "0.1", "0.000001"),
+        ("M", "Aquifer Thickness [m]", 2.0, "0.1", "0.000001"),
+        ("tv", "Vertical Transverse Dispersivity [m]", 0.001, "0.0005", "0.000001"),
+        ("g", "Stoichiometry Coefficient [-]", 3.5, "0.1", None),
+        ("Ca", "Contaminant Concentration [mg/L]", 8.0, "0.5", "0.000001"),
+        ("Cd", "Reactant Concentration [mg/L]", 5.0, "0.5", "0.000001"),
+        ("R", "Recharge Rate [m/yr]", 1.0, "0.1", "0.000001"),
     ],
 }
 
@@ -95,14 +96,14 @@ def _input_fields(path, site):
     db_query = _build_panel_query(site, _model_from_path(path))
     fields = []
     for name, label, default, step, minimum in EMPIRICAL_INPUT_SPECS.get(path, []):
-        fields.append({
+        fields.append(attach_meta({
             "name": name,
             "label": label,
             "value": _request_float(name, db_query.get(name, default)),
             "step": step,
             "min": minimum,
             "from_db": name in db_query,
-        })
+        }))
     return fields
 
 

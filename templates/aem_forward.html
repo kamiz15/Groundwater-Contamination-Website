@@ -7,6 +7,10 @@
   <div id="aem-message" class="aem-message" role="status" aria-live="polite">Submitting simulation...</div>
   <div class="card-like aem-result-card">
     <div class="model-input-actions"><button id="aem-cancel" type="button" class="secondary-btn" hidden>Cancel job</button></div>
+    <div id="aem-result-actions" class="model-input-actions aem-result-actions" hidden>
+      <a id="aem-download-csv" class="ghost-btn" href="#" download>Download results CSV</a>
+      <a id="aem-open-workbench" class="primary-btn" href="#">Explore in Data Workbench</a>
+    </div>
     <div class="aem-result-layout">
       <canvas id="aem-result-canvas" width="1000" height="560" aria-label="AEM concentration field"></canvas>
       <dl id="aem-summary" class="aem-summary"></dl>

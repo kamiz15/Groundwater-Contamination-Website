@@ -26,6 +26,21 @@
           loading="eager"
         />
         {% block conceptual_note %}{% endblock %}
+        {% if analytical_fields is defined %}
+        {# The simulation domain is sized automatically from the analytical model,
+           so it is not a user input — explain the derivation here instead. #}
+        <div class="analytical-derivation">
+          <h4>Domain from the analytical model</h4>
+          {% if analytical_fields %}
+          <dl class="analytical-derivation-values">
+            {% for a in analytical_fields %}
+            <div><dt>{{ a.label }}</dt><dd>{{ '%.2f'|format(a.value) }}</dd></div>
+            {% endfor %}
+          </dl>
+          {% endif %}
+          <p class="small">{% block analytical_explanation %}These values are computed automatically from the analytical solution and are not entered by hand.{% endblock %}</p>
+        </div>
+        {% endif %}
       </div>
       {% if run_button_under_conceptual | default(false) %}
       <div class="model-input-actions model-input-actions--side">

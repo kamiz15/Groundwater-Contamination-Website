@@ -1,0 +1,79 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Analytical Model{% endblock %}
+{% block about_title %}BIOSCREEN-AT{% endblock %}
+{% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
+{% block back_label %}All analytical models{% endblock %}
+
+{% block about_lead %}
+<p>An exact analytical (BIOSCREEN-AT) solution for the three-dimensional
+transient transport of a dissolved contaminant undergoing advection,
+dispersion, equilibrium sorption and first-order decay. The source is a patch
+specified-concentration boundary. CAST evaluates the solution with
+Gauss&ndash;Legendre quadrature and reports the maximum plume length
+(<math><msub><mi>L</mi><mi>max</mi></msub></math>) as the farthest point on the
+centre line where the concentration still exceeds the threshold.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_bioscreen.png') }}"
+       alt="Conceptual BIOSCREEN-AT model: a patch source at the aquifer boundary releasing a transient three-dimensional plume that decays with distance downstream.">
+  <figcaption>Conceptual model &mdash; BIOSCREEN-AT (Karanovic et al., 2007).</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mi>max</mi><mo>&#8289;</mo>
+    <mrow>
+      <mo>{</mo>
+      <mi>x</mi><mo>:</mo>
+      <mi>c</mi><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><mi>t</mi><mo>)</mo>
+      <mo>&#8805;</mo>
+      <msub><mi>c</mi><mi>thres</mi></msub>
+      <mo>}</mo>
+    </mrow>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_equation_note %}
+<p class="about-note">The centre-line concentration
+<math><mi>c</mi><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><mi>t</mi><mo>)</mo></math>
+has no compact closed form; it is the transient advection&ndash;dispersion&ndash;decay
+integral of Newell et al. (1997) / Karanovic et al. (2007), evaluated
+numerically.</p>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><msub><mi>c</mi><mn>0</mn></msub></math></dt><dd>Initial source concentration [mg/L]</dd>
+<dt><math><msub><mi>c</mi><mi>thres</mi></msub></math></dt><dd>Threshold concentration defining the plume edge [mg/L]</dd>
+<dt><math><mi>W</mi></math></dt><dd>Source width [m]</dd>
+<dt><math><mi>H</mi></math></dt><dd>Source thickness (depth) [m]</dd>
+<dt><math><mi>v</mi></math></dt><dd>Groundwater seepage velocity [m/yr]</dd>
+<dt><math><msub><mi>α</mi><mi>x</mi></msub></math>, <math><msub><mi>α</mi><mi>y</mi></msub></math>, <math><msub><mi>α</mi><mi>z</mi></msub></math></dt><dd>Longitudinal, horizontal- and vertical-transverse dispersivity [m]</dd>
+<dt><math><mi>R</mi></math></dt><dd>Retardation factor [-]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Source decay coefficient [1/yr]</dd>
+<dt><math><mi>λ</mi></math></dt><dd>Effective first-order decay coefficient [1/yr]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>The aquifer is semi-infinite in <math><mi>x</mi></math>, infinite in <math><mi>y</mi></math>, and extends from the water table to a relatively large depth.</li>
+<li>Groundwater flow is steady and one-dimensional.</li>
+<li>The solute undergoes equilibrium sorption and first-order transformation reactions.</li>
+<li>The aquifer is homogeneous and <math><msub><mi>L</mi><mi>max</mi></msub></math> is always found on the centre line.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Karanovic, M., Neville, C.J., Andrews, C.B., 2007. BIOSCREEN-AT: BIOSCREEN
+with an Exact Analytical Solution. Ground Water 45 (2), 242&ndash;245.</p>
+<p>S.S. Papadopulos &amp; Associates, Inc.
+<a href="https://www.sspa.com/software/bioscreen" target="_blank" rel="noopener noreferrer">https://www.sspa.com/software/bioscreen</a></p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('analytical_bp.bioscreen_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('analytical_bp.bioscreen_multiple') }}{% endblock %}

@@ -3,12 +3,13 @@
 import math
 
 import numpy as np
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from aem_jobs import INVERSE_PARAMS, load_aem_design, save_aem_design
+from aem_jobs import INVERSE_PARAMS, USER_FACING_ERROR, load_aem_design, save_aem_design
 from aem_source_geometry import greedy_circle_pack, repack_after_resize
+from data_analysis.grids import aem_result_grid, long_form_from_aem_result
 from numerical_jobs import (
     cancel_job,
     fetch_result,
@@ -104,18 +105,70 @@ def _provided_domain(raw):
     return bounds
 
 
+def _elem_half_width(e):
+    """Rotation-aware half-width of an element's bounding box — mirrors
+    designer_model.py:_elem_half_width (theta in degrees)."""
+    kind = e["kind"]
+    if kind == "circle":
+        return e.get("r", 0.0) or 0.0
+    if kind == "ellipse":
+        a, b = e.get("a", 0.0) or 0.0, e.get("b", 0.0) or 0.0
+        t = math.radians(e.get("theta", 0.0) or 0.0)
+        return math.hypot(a * math.cos(t), b * math.sin(t))
+    t = math.radians(e.get("theta", 0.0) or 0.0)
+    return (e.get("l", 0.0) or 0.0) / 2.0 * abs(math.cos(t))
+
+
+def _elem_half_height(e):
+    """Rotation-aware half-height — mirrors designer_model.py:_elem_half_height."""
+    kind = e["kind"]
+    if kind == "circle":
+        return e.get("r", 0.0) or 0.0
+    if kind == "ellipse":
+        a, b = e.get("a", 0.0) or 0.0, e.get("b", 0.0) or 0.0
+        t = math.radians(e.get("theta", 0.0) or 0.0)
+        return math.hypot(a * math.sin(t), b * math.cos(t))
+    t = math.radians(e.get("theta", 0.0) or 0.0)
+    return (e.get("l", 0.0) or 0.0) / 2.0 * abs(math.sin(t))
+
+
+def _elem_solver_top(e):
+    """Highest y the solver sees for an element in vertical orientation — mirrors
+    designer_model.py:_elem_solver_top (circle: y+r; ellipse: y+a·|sinθ|; line:
+    y+½l·|sinθ|; default θ = 90°)."""
+    kind = e["kind"]
+    if kind == "circle":
+        return e["y"] + (e.get("r", 0.0) or 0.0)
+    t = math.radians(e.get("theta", 90.0) or 0.0)
+    if kind == "ellipse":
+        return e["y"] + (e.get("a", 0.0) or 0.0) * abs(math.sin(t))
+    if kind == "line":
+        return e["y"] + (e.get("l", 0.0) or 0.0) / 2.0 * abs(math.sin(t))
+    return e["y"]
+
+
 def _validated_config(raw):
     if not isinstance(raw, dict):
         raise ValueError("config must be an object.")
     config = {}
+    # Reference designer_model.validate_for_export conditions are COLLECTED
+    # (not raised one at a time) so the user sees every violated input
+    # condition in a single message.
+    errors = []
     defaults = {"alpha_l": 2.0, "alpha_t": 0.2, "ca": 8.0,
                 "gamma": 3.5, "dom_inc": 1.0}
     for name, default in defaults.items():
-        config[name] = _number(raw.get(name, default), name,
-                               positive=name in {"alpha_l", "alpha_t", "ca", "gamma", "dom_inc"},
-                               maximum=MAX_COORDINATE)
-    config["num_cp"] = int(_number(raw.get("num_cp", 40), "num_cp", minimum=4, maximum=500))
-    config["num_terms"] = int(_number(raw.get("num_terms", 5), "num_terms", minimum=1, maximum=50))
+        config[name] = _number(raw.get(name, default), name, maximum=MAX_COORDINATE)
+        if config[name] <= 0:
+            errors.append(f"{name} must be > 0.")
+    config["num_cp"] = int(_number(raw.get("num_cp", 40), "num_cp", maximum=500))
+    config["num_terms"] = int(_number(raw.get("num_terms", 5), "num_terms", maximum=50))
+    if config["num_terms"] < 1:
+        errors.append("num_terms must be >= 1.")
+    if config["num_cp"] < 4:
+        errors.append(f"num_cp ({config['num_cp']}) must be at least 4.")
+    elif config["num_cp"] < config["num_terms"]:
+        errors.append(f"num_cp ({config['num_cp']}) must be >= num_terms ({config['num_terms']}).")
     orientation = raw.get("orientation", "vertical")
     if orientation not in {"horizontal", "vertical"}:
         raise ValueError("orientation must be horizontal or vertical.")
@@ -123,8 +176,12 @@ def _validated_config(raw):
     config["plot_aspect"] = ""
 
     raw_elements = raw.get("elements")
-    if not isinstance(raw_elements, list) or not 1 <= len(raw_elements) <= MAX_ELEMENTS:
+    if raw_elements is None:
+        raw_elements = []
+    if not isinstance(raw_elements, list) or len(raw_elements) > MAX_ELEMENTS:
         raise ValueError(f"elements must contain 1 to {MAX_ELEMENTS} sources.")
+    if not raw_elements:
+        errors.append("Scene is empty — add at least one source element.")
     elements = []
     for index, raw_element in enumerate(raw_elements):
         if not isinstance(raw_element, dict):
@@ -150,31 +207,43 @@ def _validated_config(raw):
             element["theta"] = _number(raw_element.get("theta", 0), f"elements[{index}].theta", minimum=-360, maximum=360)
         elements.append(element)
     config["elements"] = elements
+    # Vertical orientation: physical coordinates are authoritative — no shift. Every
+    # source must already sit below the water table at y=0, mirroring the reference
+    # designer_model.validate_for_export (the solver requires elem top < -0.1).
+    if orientation == "vertical":
+        offenders = [element["id"] for element in elements if _elem_solver_top(element) >= -0.1]
+        if offenders:
+            shown = ", ".join(offenders[:3]) + ("…" if len(offenders) > 3 else "")
+            errors.append(
+                f"{len(offenders)} source(s) too close to the water table ({shown}) — "
+                "in vertical orientation every source (its top edge included) must sit "
+                "at least 0.1 m below the water table (y = 0).")
+    if errors:
+        raise ValueError(" ".join(errors))
     all_x = [element["x"] for element in elements]
     all_y = [element["y"] for element in elements]
-    max_r = max(element.get("r", element.get("a", element.get("l", 0) / 2))
-                for element in elements)
-    # "vertical" pins sources to the water table (shift elements + dom_ymax=0) — a
-    # deliberate solver-geometry guard, so its box is always derived. "horizontal"
-    # has no such convention: if the config carries explicit bounds (an imported
-    # design), honour them so it frames exactly as authored — same as the reference
-    # (main.py), which reads dom_* from the JSON. Otherwise derive them.
+    max_hw = max(_elem_half_width(element) for element in elements)
+    max_hh = max(_elem_half_height(element) for element in elements)
+    # "horizontal" has no water-table convention: if the config carries explicit
+    # bounds (an imported design), honour them so it frames exactly as authored —
+    # same as the reference (main.py), which reads dom_* from the JSON. "vertical"
+    # always derives its box (dom_ymax pinned to the water table at 0).
     bounds = None if orientation == "vertical" else _provided_domain(raw)
     if bounds is not None:
         config.update(bounds)
     else:
-        if orientation == "vertical":
-            shift = max(all_y) + max_r + 0.15
-            if shift > 0:
-                for element in elements:
-                    element["y"] = round(element["y"] - shift, 5)
-            all_y = [element["y"] for element in elements]
-            config["dom_ymax"] = 0.0
-        else:
-            config["dom_ymax"] = round(max(all_y) + max_r + 5.0, 3)
-        config["dom_xmin"] = round(min(all_x) - max_r - 2.0, 3)
-        config["dom_xmax"] = round(max(all_x) + 150.0, 1)
-        config["dom_ymin"] = round(min(all_y) - max_r - 5.0, 3)
+        config["dom_ymax"] = 0.0 if orientation == "vertical" else round(max(all_y) + max_hh + 5.0, 3)
+        # Scale-aware x-padding (mirrors designer_model.py:to_config_dict). A fixed
+        # +150 m is pathological for sub-metre sources (huge, mostly-empty grid that
+        # lets exp(beta*x) blow up far downstream); scale it to the source size and
+        # cap at 150 m. x/y padding use rotation-aware half-width/half-height so the
+        # domain matches the reference designer's export exactly.
+        x_span = max(all_x) - min(all_x)
+        char = max(2.0 * max_hw, 2.0 * max_hh, x_span, 1.0)
+        x_pad = min(150.0, max(20.0, 25.0 * char))
+        config["dom_xmin"] = round(min(all_x) - max_hw - 2.0, 3)
+        config["dom_xmax"] = round(max(all_x) + x_pad, 1)
+        config["dom_ymin"] = round(min(all_y) - max_hh - 5.0, 3)
     nx = int((config["dom_xmax"] - config["dom_xmin"]) / config["dom_inc"]) + 1
     ny = int((config["dom_ymax"] - config["dom_ymin"]) / config["dom_inc"]) + 1
     if nx * ny > MAX_GRID_CELLS:
@@ -293,6 +362,15 @@ def aem_forward_submit():
         config = load_aem_design(token, _current_email())
         if config is None:
             return _error("Unknown AEM design.", 404)
+        # Re-derive the domain at run time so designs saved before the scale-aware
+        # domain fix (old fixed "+150" framing) are re-framed to match the
+        # reference. Re-running the same validation is idempotent for the vertical
+        # water-table shift, and for horizontal still honours an imported design's
+        # explicit bounds. Fall back to the stored config if re-validation fails.
+        try:
+            config = _validated_config(config)
+        except Exception:
+            pass
         return _submit("aem_forward", {"config_json": config})
     except ValueError as exc:
         return _error(str(exc))
@@ -332,11 +410,17 @@ def aem_job_status(job_id):
     status = job_status(job_id)
     if status is None:
         return _error("Unknown AEM job.", 404)
+    error = None
+    if status["status"] == "failed":
+        # The stored worker error embeds a traceback; only the curated first
+        # line from aem_jobs (marked by USER_FACING_ERROR) is safe verbatim.
+        first = (status.get("error") or "").split("\n", 1)[0].strip()
+        error = (first if first.startswith(USER_FACING_ERROR)
+                 else "Simulation failed. Please check your inputs and try again.")
     return jsonify({"job_id": job_id, "status": status["status"],
                     "queue_position": status.get("queue_position"),
                     "plume_length": status.get("plume_length"),
-                    "error": "Simulation failed. Please check your inputs and try again."
-                    if status["status"] == "failed" else None})
+                    "error": error})
 
 
 @aem_bp.post("/aem/jobs/<job_id>/cancel")
@@ -388,4 +472,39 @@ def aem_job_result(job_id):
             "converged": result.converged, "ca": result.ca, "gamma": result.gamma,
             "orientation": result.orientation,
         }
-    return jsonify({"success": True, "result": payload})
+    response = {"success": True, "result": payload}
+    try:
+        concentration, *_ = aem_result_grid(result)
+        response["csv_url"] = url_for("aem_bp.aem_job_result_csv", job_id=job_id)
+        if np.isfinite(concentration).all():
+            response["workbench_url"] = url_for(
+                "site_bp.data_analysis_workbench", aem_job=job_id
+            )
+    except ValueError:
+        pass
+    return jsonify(response)
+
+
+@aem_bp.get("/aem/jobs/<job_id>/result.csv")
+@login_required
+def aem_job_result_csv(job_id):
+    meta = _owned_job_meta(job_id)
+    status = job_status(job_id) if meta else None
+    if status is None:
+        abort(404, description="Unknown AEM job.")
+    if status["status"] != "done":
+        abort(409, description="AEM job is not complete.")
+
+    try:
+        frame = long_form_from_aem_result(fetch_result(job_id))
+    except (KeyError, TypeError, ValueError):
+        abort(409, description="AEM job does not contain an exportable concentration grid.")
+
+    kind = "forward" if meta["kind"] == "aem_forward" else "inverse"
+    safe_job_id = "".join(char for char in job_id if char.isalnum())[:32]
+    filename = f"aem_{kind}_{safe_job_id}.csv"
+    return Response(
+        frame.to_csv(index=False, na_rep="").encode("utf-8"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

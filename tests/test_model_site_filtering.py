@@ -127,3 +127,24 @@ def test_hidden_site_id_in_query_string_is_ignored(model_pages_client):
     # Navigating directly with a hidden site's id must not load its data.
     page = model_pages_client.get("/liedl/single?site_id=2").get_data(as_text=True)
     assert 'value="2" selected' not in page
+
+
+def test_model_dropdown_displays_current_database_number_but_submits_primary_key(monkeypatch):
+    rows = [
+        _site(id=1577, display_id=1, site_unit="First Current Site"),
+        _site(id=1578, display_id=2, site_unit="Second Current Site"),
+    ]
+    monkeypatch.setattr(analytical_routes, "_current_email", lambda: "user@example.com")
+    monkeypatch.setattr(analytical_routes, "get_user_sites_rows", lambda _email: rows)
+
+    previous_login_disabled = app_module.app.config.get("LOGIN_DISABLED", False)
+    app_module.app.config.update(TESTING=True, LOGIN_DISABLED=True)
+    try:
+        page = app_module.app.test_client().get("/liedl/single").get_data(as_text=True)
+    finally:
+        app_module.app.config["LOGIN_DISABLED"] = previous_login_disabled
+
+    assert '<option value="1577" >#1 - First Current Site (BTEX)</option>' in page
+    assert '<option value="1578" >#2 - Second Current Site (BTEX)</option>' in page
+    assert "#1577 -" not in page
+    assert "#1578 -" not in page

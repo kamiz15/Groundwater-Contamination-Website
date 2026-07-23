@@ -1,28 +1,39 @@
-{% extends "model_page_base.html" %}
-{% set numerical_layout = true %}
+{% extends "model_workbench_single.html" %}
 {% block title %}Numerical Horizontal Model - Single Simulation{% endblock %}
+{% block model_page_class %}numerical-single-page{% endblock %}
+{% block model_kicker %}Numerical Toolbox{% endblock %}
 {% block model_title %}Numerical Horizontal Model - Single Simulation{% endblock %}
-{% block conceptual_image %}{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}{% endblock %}
-{% block conceptual_alt %}Plan-view horizontal numerical model diagram showing x-y spreading, source width Sw, and horizontal transverse dispersivity alpha Th{% endblock %}
-{% block conceptual_note %}
-  <p class="small conceptual-note">Horizontal configuration: plan-view (x, y) with source width Sw and horizontal transverse dispersivity alpha Th.</p>
-{% endblock %}
-{% block site_loader %}
-  {% if sites %}
-  <div class="card-like">
-    <h3>Load Uploaded Site</h3>
-    <form method="GET" class="site-form csv-form">
-      <select id="site_id" name="site_id">
-        <option value="" {% if not selected_site_id %}selected{% endif %}>Manual input only</option>
-        {% for s in sites %}
-        <option value="{{ s.id }}" {% if selected_site_id == s.id %}selected{% endif %}>#{{ s.id }} - {{ s.site_unit }} ({{ s.compound }})</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="primary-btn">Load Uploaded Site</button>
-    </form>
+{% block toolbox_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
+{% block toolbox_label %}All numerical models{% endblock %}
+{% block output_frame_attrs %}data-min-height="300"{% endblock %}
+{% block workbench_top %}
+<div class="card-like conceptual-figure conceptual-figure--banner">
+  <h3>Conceptual Model</h3>
+  <img
+    src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}"
+    alt="Plan-view horizontal numerical model diagram showing x-y spreading, source width Sw, and horizontal transverse dispersivity alpha Th"
+    class="conceptual-img"
+    loading="eager"
+  />
+  <div class="conceptual-figure__side">
+  {% if analytical_fields is defined %}
+  {# The simulation domain is sized automatically from the analytical model,
+     so it is not a user input — explain the derivation here instead. #}
+  <div class="analytical-derivation">
+    <h4>Domain from the analytical model</h4>
+    {% if analytical_fields %}
+    <dl class="analytical-derivation-values">
+      {% for a in analytical_fields %}
+      <div><dt>{{ a.label }}</dt><dd>{{ '%.2f'|format(a.value) }}</dd></div>
+      {% endfor %}
+    </dl>
+    {% endif %}
+    <p class="small">The simulation domain is sized from the analytical solution, so you never enter it. The maximum plume length <i>L</i><sub>max</sub> is computed with the Cirpka et&nbsp;al. (2005) horizontal model from the source width, horizontal transverse dispersivity α<sub>Th</sub>, electron acceptor/donor concentrations and the stoichiometric ratio γ. <b>Domain Length</b> = 1.5&nbsp;·&nbsp;<i>L</i><sub>max</sub> (a 50% downstream margin) and <b>Domain Width</b> = 10&nbsp;·&nbsp;source width.</p>
   </div>
   {% endif %}
+  <p class="small conceptual-note">Horizontal configuration: plan-view (x, y) with source width Sw and horizontal transverse dispersivity alpha Th.</p>
+  </div>
+</div>
 {% endblock %}
-{% block report_export %}
-  {% include "report_bridge_card.html" %}
-{% endblock %}
+{% block report_card %}{% endblock %}
+{% block stage_bottom %}{% include "report_bridge_card.html" %}{% endblock %}

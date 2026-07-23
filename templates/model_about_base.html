@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{# Per-model "About" page: description, governing equation (native MathML),
+   parameters, assumptions, reference. Thin children fill the blocks below.
+   Layout mirrors the landing page's design language: navy hero band with the
+   wave divider, the equation on a floating plate, then a centered card grid. #}
+
+{% block title %}{{ self.about_title() }} &bull; CAST{% endblock %}
+{% block content_class %}about-content{% endblock %}
+
+{% block content %}
+<article class="about-page">
+  <section class="about-hero">
+    <div class="about-hero-inner">
+      <div class="about-hero-top">
+        <span class="kicker">{% block about_category %}Model{% endblock %}</span>
+        <a class="ghost-btn about-back" href="{% block back_href %}{{ url_for('home') }}{% endblock %}">&larr; {% block back_label %}All models{% endblock %}</a>
+      </div>
+      <h1>{% block about_title %}About{% endblock %}</h1>
+      {% block about_chips %}{% endblock %}
+
+      <div class="about-equation-plate">
+        <span class="about-equation-label">Governing equation</span>
+        {% block about_equation %}{% endblock %}
+        {% block about_equation_note %}{% endblock %}
+      </div>
+
+      <div class="about-lead">
+        {% block about_lead %}{% endblock %}
+      </div>
+    </div>
+  </section>
+
+  <div class="about-grid">
+    <section class="about-card about-card-figure">
+      <h3>Conceptual Model</h3>
+      {% block about_figure %}{% endblock %}
+    </section>
+
+    <section class="about-card">
+      <h3>Parameters</h3>
+      <dl class="about-params">
+        {% block about_parameters %}{% endblock %}
+      </dl>
+    </section>
+
+    <section class="about-card">
+      <h3>Assumptions</h3>
+      <ol class="about-assumptions{% block about_assumptions_class %}{% endblock %}">
+        {% block about_assumptions %}{% endblock %}
+      </ol>
+    </section>
+  </div>
+
+  <div class="about-actions">
+    {% block about_actions %}
+    <a class="primary-btn" href="{% block run_single_href %}#{% endblock %}">Run Single Scenario</a>
+    <a class="ghost-btn" href="{% block run_multiple_href %}#{% endblock %}">Run Multiple Scenarios</a>
+    {% endblock %}
+  </div>
+
+  <footer class="about-reference">
+    {% block about_reference %}{% endblock %}
+  </footer>
+</article>
+
+<dialog class="about-figure-dialog" id="aboutFigureDialog">
+  <img alt="">
+  <button type="button" class="ghost-btn" id="aboutFigureClose">Close</button>
+</dialog>
+<script>
+  (function () {
+    var dialog = document.getElementById('aboutFigureDialog');
+    if (!dialog || !dialog.showModal) return;
+    var dialogImg = dialog.querySelector('img');
+    document.querySelectorAll('.about-figure img').forEach(function (img) {
+      img.classList.add('about-figure-zoomable');
+      img.tabIndex = 0;
+      img.setAttribute('role', 'button');
+      function openZoom() {
+        dialogImg.src = img.src;
+        dialogImg.alt = img.alt;
+        dialog.showModal();
+      }
+      img.addEventListener('click', openZoom);
+      img.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openZoom(); }
+      });
+    });
+    dialog.addEventListener('click', function (e) { if (e.target === dialog) dialog.close(); });
+    document.getElementById('aboutFigureClose').addEventListener('click', function () { dialog.close(); });
+  })();
+</script>
+{% endblock %}

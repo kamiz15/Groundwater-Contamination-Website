@@ -4,12 +4,14 @@ import csv
 import io
 import logging
 import re
+from urllib.parse import urlencode
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, jsonify, url_for
 from flask_login import current_user, login_required
 
 from data_queries import (
     delete_site,
+    delete_user_sites,
     get_user_sites,
     get_user_sites_rows,
     insert_site,
@@ -18,9 +20,11 @@ from data_queries import (
     SITE_FIELDS,
     TEXT_SITE_FIELDS,
 )
+from numerical_jobs import job_status, load_job_meta
 from pdf_report import CASTReport
 from plot_functions import create_bargraph, create_histogram, create_boxplot
-from security import csrf_protect, form_data_or_400, json_object_or_400
+from security import csrf_protect, form_data_or_400, json_object_or_400, rate_limit
+from settings import PANEL_PUBLIC_BASE
 from symbol_registry import SITE_COLUMN_DEFS, TEXT_COLUMN_DEFS, header_match, header_to_site_column
 
 site_bp = Blueprint("site_bp", __name__)
@@ -227,6 +231,7 @@ def _sort_sites(rows, sort_field, sort_dir):
 
 @site_bp.route("/sites", methods=["GET", "POST"])
 @login_required
+@rate_limit(limit=10, window_seconds=60, methods={"POST"})
 @csrf_protect
 def site_database():
     """
@@ -348,6 +353,8 @@ def site_database():
     # Single query: the template renders from `sites`; the old second query
     # (get_user_sites -> table_data) produced a variable the template never used.
     sites = get_user_sites_rows(email)
+    for display_id, site in enumerate(sites, start=1):
+        site["display_id"] = display_id
     # Columns are formed from the data: every catalog column that any uploaded
     # row populates is shown (identity columns always), so different models'
     # uploads surface their own parameters.
@@ -385,6 +392,34 @@ def delete_site_row(site_id):
     if not deleted:
         abort(404, description="Site not found.")
     return redirect(url_for("site_bp.site_database"))
+
+
+@site_bp.route("/sites/clear", methods=["POST"])
+@login_required
+@csrf_protect
+def clear_site_database():
+    delete_user_sites(_current_email())
+    return redirect(url_for("site_bp.site_database"))
+
+
+@site_bp.route("/data_analysis", methods=["GET"])
+@login_required
+def data_analysis_workbench():
+    panel_src = f"{PANEL_PUBLIC_BASE}/panel_data_analysis"
+    job_id = (request.args.get("aem_job") or "").strip()
+    if job_id:
+        meta = load_job_meta(job_id)
+        status = job_status(job_id) if meta else None
+        if (
+            meta is None
+            or meta.get("email") != _current_email()
+            or meta.get("kind") not in {"aem_forward", "aem_inverse"}
+            or status is None
+            or status.get("status") != "done"
+        ):
+            abort(404, description="Unknown AEM job.")
+        panel_src = f"{panel_src}?{urlencode({'aem_job': job_id})}"
+    return render_template("panel_data_analysis.html", panel_src=panel_src)
 
 
 # -----------------------------
@@ -516,6 +551,7 @@ def boxplot_json():
 # postMessage; the page sends them here to build the branded PDF.
 @site_bp.route("/report/export", methods=["POST"])
 @login_required
+@rate_limit(limit=10, window_seconds=60)
 @csrf_protect
 def report_export():
     data = json_object_or_400()

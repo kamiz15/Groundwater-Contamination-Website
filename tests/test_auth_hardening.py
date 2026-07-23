@@ -135,3 +135,20 @@ def test_panel_identity_ignores_query_when_untrusted(monkeypatch):
     monkeypatch.setattr(panel_auth.pn.state, "curdoc", _Doc(), raising=False)
     monkeypatch.setattr(panel_auth, "PANEL_TRUST_QUERY_EMAIL", False)
     assert authenticated_email() == ""
+
+
+def test_rate_limit_methods_param_only_counts_listed_verbs():
+    """rate_limit(methods={'POST'}) must never throttle GETs on the same view
+    (used on /sites so uploads are limited but page browsing is not)."""
+    security.reset_rate_limits()
+
+    @security.rate_limit(limit=1, window_seconds=60, methods={"POST"})
+    def view():
+        return "ok"
+
+    with app_module.app.test_request_context("/x", method="GET"):
+        assert view() == "ok"
+        assert view() == "ok"  # GETs bypass the bucket entirely
+    with app_module.app.test_request_context("/x", method="POST"):
+        assert view() == "ok"  # first POST consumes the single slot
+        assert view()[1] == 429  # second POST is limited

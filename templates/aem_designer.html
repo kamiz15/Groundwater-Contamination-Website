@@ -5,37 +5,56 @@
   <div id="aem-designer-root" class="aem-designer-app" data-aem-page="designer" data-csrf="{{ csrf_token() }}">
     <header class="aem-designer-header">
       <h1>AEM Source Designer</h1>
-      <p class="aem-designer-hint">In <strong>Draw</strong> mode: left-click to place polygon vertices, then click <strong>Close &amp; Pack polygon</strong> (or right-click / press Enter) to fill it with circles. Switch to <strong>Edit</strong> to select, drag, resize (↑↓) and recolour (+/−) circles.</p>
+      <p class="aem-designer-hint">Pick a tool (or press <strong>1–5</strong>): <strong>Polygon</strong> — click vertices then <strong>Close &amp; Pack</strong> (right-click / Enter) to fill a zone with circles; <strong>Circle / Ellipse / Line</strong> — press-drag on the canvas to place a single shape; <strong>Select</strong> — click an element to drag, resize (↑↓, and ←→ for an ellipse&rsquo;s second axis), recolour (+/−) or delete (Del).</p>
     </header>
     <div id="aem-message" class="aem-message" role="status" aria-live="polite"></div>
     <div class="aem-designer-layout">
       <aside class="aem-designer-sidebar">
         <form id="aem-design-form" class="aem-designer-form">
-          <!-- Parameters are fixed global constants in the reference source designer
-               (source_designer.py DEFAULT GLOBAL PARAMETERS); kept as hidden inputs so the
-               exported geometry config still carries them, with no editable parameters window. -->
-          <input type="hidden" name="orientation" value="horizontal">
+          <!-- Editable simulation parameters, mirroring the reference source designer's
+               docked SettingsPanel (source_designer.py: SettingsPanel.FIELDS). Each field
+               applies on change/Enter with live ✓/error feedback; the orientation toggle
+               re-frames the canvas. default_c stays hidden (adjusted per-element via +/-). -->
           <input type="hidden" name="default_c" value="10">
-          <input type="hidden" name="alpha_l" value="2">
-          <input type="hidden" name="alpha_t" value="0.2">
-          <input type="hidden" name="ca" value="8">
-          <input type="hidden" name="gamma" value="3.5">
-          <input type="hidden" name="dom_inc" value="1">
-          <input type="hidden" name="num_cp" value="40">
-          <input type="hidden" name="num_terms" value="5">
-          <div class="aem-designer-buttons">
-            <button id="aem-mode-draw" type="button" class="aem-btn aem-btn--draw aem-btn--active">Draw (d)</button>
-            <button id="aem-mode-edit" type="button" class="aem-btn aem-btn--edit">Edit (e)</button>
+          <input type="hidden" name="orientation" value="vertical">
+          <fieldset class="aem-settings">
+            <legend>Simulation Settings</legend>
+            <p class="aem-settings-hint">Type a value, press Enter to apply</p>
+            <h4 class="aem-settings-group">Model parameters</h4>
+            <div class="aem-field-grid">
+              <label>Long. dispersivity &alpha;<sub>L</sub><span class="param-help" tabindex="0" role="note" aria-label="Longitudinal dispersivity — plume spreading along the flow direction [m].">i<span class="param-help__tip" role="tooltip">Longitudinal dispersivity — plume spreading along the flow direction [m].</span></span><input type="number" name="alpha_l" value="2" step="any" min="0"></label>
+              <label>Trans. dispersivity &alpha;<sub>T</sub><span class="param-help" tabindex="0" role="note" aria-label="Transverse dispersivity — plume spreading across the flow direction [m].">i<span class="param-help__tip" role="tooltip">Transverse dispersivity — plume spreading across the flow direction [m].</span></span><input type="number" name="alpha_t" value="0.2" step="any" min="0"></label>
+              <label>Acceptor conc. <i>c</i><sub>A</sub><span class="param-help" tabindex="0" role="note" aria-label="Background electron-acceptor concentration [mg/L].">i<span class="param-help__tip" role="tooltip">Background electron-acceptor concentration [mg/L].</span></span><input type="number" name="ca" value="8" step="any"></label>
+              <label>Stoich. ratio &gamma;<span class="param-help" tabindex="0" role="note" aria-label="Donor : acceptor stoichiometric mass ratio (dimensionless).">i<span class="param-help__tip" role="tooltip">Donor : acceptor stoichiometric mass ratio (dimensionless).</span></span><input type="number" name="gamma" value="3.5" step="any" min="0"></label>
+              <label>Source width <i>W</i><sub>s</sub><span class="param-help" tabindex="0" role="note" aria-label="Source-zone width guide [m] — the x-extent shown by the gold lines.">i<span class="param-help__tip" role="tooltip">Source-zone width guide [m] — the x-extent shown by the gold lines.</span></span><input type="number" name="ws" value="0.5" step="any" min="0"></label>
+            </div>
+            <button id="aem-orientation" type="button" class="aem-btn">Orientation: vertical</button>
+            <p class="aem-settings-hint">Vertical orientation: every source top edge must be at least 0.1 m below the water table (y = 0).</p>
+            <h4 class="aem-settings-group">Computational parameters</h4>
+            <div class="aem-field-grid">
+              <label>Grid spacing &Delta;<span class="param-help" tabindex="0" role="note" aria-label="Output grid spacing [m]. Smaller = finer field but slower solve.">i<span class="param-help__tip" role="tooltip">Output grid spacing [m]. Smaller = finer field but slower solve.</span></span><input type="number" name="dom_inc" value="1" step="any" min="0"></label>
+              <label>Control points<span class="param-help" tabindex="0" role="note" aria-label="Boundary control points per element used to fit the solution.">i<span class="param-help__tip" role="tooltip">Boundary control points per element used to fit the solution.</span></span><input type="number" name="num_cp" value="40" step="1" min="1"></label>
+              <label>Expansion terms<span class="param-help" tabindex="0" role="note" aria-label="Number of Mathieu expansion terms (higher = more accurate, slower).">i<span class="param-help__tip" role="tooltip">Number of Mathieu expansion terms (higher = more accurate, slower).</span></span><input type="number" name="num_terms" value="5" step="1" min="1"></label>
+              <label>Plot aspect<span class="param-help" tabindex="0" role="note" aria-label="Result aspect: 'scaled' for equal x/y axes, blank for auto.">i<span class="param-help__tip" role="tooltip">Result aspect: 'scaled' for equal x/y axes, blank for auto.</span></span><input type="text" name="plot_aspect" value="" placeholder="(auto)"></label>
+            </div>
+            <div id="aem-settings-msg" class="aem-settings-msg" aria-live="polite"></div>
+          </fieldset>
+          <div class="aem-designer-buttons aem-tool-palette">
+            <button id="aem-tool-polygon" type="button" class="aem-btn aem-btn--active">Polygon (1)</button>
+            <button id="aem-tool-circle" type="button" class="aem-btn">Circle (2)</button>
+            <button id="aem-tool-ellipse" type="button" class="aem-btn">Ellipse (3)</button>
+            <button id="aem-tool-line" type="button" class="aem-btn">Line (4)</button>
+            <button id="aem-tool-select" type="button" class="aem-btn">Select (5)</button>
           </div>
           <button id="aem-pack" type="button" class="aem-btn aem-btn--pack">Close &amp; Pack polygon</button>
           <div class="aem-designer-buttons">
-            <button id="aem-view" type="button" class="aem-btn aem-btn--view">View (v)</button>
+            <button id="aem-index" type="button" class="aem-btn">Index # (i)</button>
             <button id="aem-export" type="button" class="aem-btn aem-btn--export">Export (s)</button>
             <button id="aem-clear" type="button" class="aem-btn aem-btn--clear">Clear all</button>
           </div>
           <div class="aem-designer-buttons">
             <button id="aem-import-trigger" type="button" class="aem-btn">Import JSON</button>
-            <input id="aem-import" type="file" accept="application/json,.json" hidden>
+            <input id="aem-import" class="aem-file-input" type="file" accept="application/json,.json" aria-label="Import AEM JSON">
           </div>
           <button type="submit" class="aem-btn aem-btn--submit">Continue and Run Simulation</button>
         </form>

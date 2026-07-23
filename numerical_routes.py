@@ -17,6 +17,7 @@ from numerical_jobs import (
 from security import csrf_protect, rate_limit
 from route_guards import guard_model_errors, request_finite_float
 from numerical_input_validation import format_issues, vertical_inputs_from_site
+from param_meta import GRID_SIZE_VERTICAL_SYMBOL, attach_meta
 from pdf_report import CASTReport
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_hydraulic_conductivity_to_numerical_hk, db_to_model
@@ -26,28 +27,28 @@ logger = logging.getLogger(__name__)
 
 NUMERICAL_INPUT_SPECS = {
     "horizontal": [
-        ("source_thickness", "Source Thickness Sw [m]", 5.0, "0.1", "0.000001"),
-        ("grid_size", "Grid Size dx=dy [m]", 1.0, "0.1", "0.000001"),
-        ("al", "Longitudinal Dispersivity aL [m]", 1.0, "0.1", "0.000001"),
-        ("at", "Transverse Dispersivity aT [m]", 0.2, "0.01", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_D", "Electron Donor Cd [mg/L]", 5.0, "0.1", "0.000001"),
-        ("C_A", "Electron Acceptor Ca [mg/L]", 8.0, "0.1", "0.000001"),
-        ("prsity", "Porosity n [-]", 0.3, "0.01", "0.000001"),
-        ("hk", "Hydraulic Conductivity K [m/d]", 8.64, "0.1", "0.000001"),
-        ("gradient", "Hydraulic Gradient i [-]", 0.0125, "0.001", "0.000001"),
+        ("source_thickness", "Source Width [m]", 5.0, "0.1", "0.000001"),
+        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
+        ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
+        ("at", "Horizontal Transverse Dispersivity [m]", 0.2, "0.01", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_D", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("C_A", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("prsity", "Porosity [-]", 0.3, "0.01", "0.000001"),
+        ("hk", "Hydraulic Conductivity [m/d]", 8.64, "0.1", "0.000001"),
+        ("gradient", "Hydraulic Gradient [-]", 0.0125, "0.001", "0.000001"),
     ],
     "vertical": [
-        ("Lz", "Aquifer Thickness Lz [m]", 10.0, "0.1", "0.000001"),
-        ("grid_size", "Grid Size dx=dz [m]", 1.0, "0.1", "0.000001"),
-        ("al", "Longitudinal Dispersivity aL [m]", 1.0, "0.1", "0.000001"),
-        ("atv", "Vertical Transverse Dispersivity aTv [m]", 0.1, "0.01", "0.000001"),
-        ("gamma", "Stoichiometric Ratio gamma [-]", 3.5, "0.1", None),
-        ("C_D", "Electron Donor Cd [mg/L]", 5.0, "0.1", "0.000001"),
-        ("C_A", "Electron Acceptor Ca [mg/L]", 8.0, "0.1", "0.000001"),
-        ("prsity", "Porosity n [-]", 0.3, "0.01", "0.000001"),
-        ("hk", "Hydraulic Conductivity K [m/d]", 8.64, "0.1", "0.000001"),
-        ("gradient", "Hydraulic Gradient i [-]", 0.0125, "0.001", "0.000001"),
+        ("Lz", "Aquifer Thickness [m]", 10.0, "0.1", "0.000001"),
+        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
+        ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
+        ("atv", "Vertical Transverse Dispersivity [m]", 0.1, "0.01", "0.000001"),
+        ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
+        ("C_D", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
+        ("C_A", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
+        ("prsity", "Porosity [-]", 0.3, "0.01", "0.000001"),
+        ("hk", "Hydraulic Conductivity [m/d]", 8.64, "0.1", "0.000001"),
+        ("gradient", "Hydraulic Gradient [-]", 0.0125, "0.001", "0.000001"),
     ],
 }
 
@@ -56,12 +57,18 @@ NUMERICAL_ADVANCED_INPUT_SPECS = {
     "vertical": [],
 }
 
-# Which of the 3 form columns each numerical field belongs to (Issue #4).
+# Which semantic group each numerical input belongs to. The form renders these
+# as four grouped cards (chemical / physical / standard / numerical) in two columns.
+#   chemical  — reaction stoichiometry + donor/acceptor concentrations
+#   physical  — source/aquifer geometry + dispersivity
+#   standard  — flow / hydraulic properties (porosity, K, gradient)
+#   numerical — grid discretisation (not a physical property)
 NUMERICAL_FIELD_COLUMN = {
-    "source_thickness": "input", "Lz": "input", "grid_size": "input",
-    "al": "input", "at": "input", "atv": "input", "gamma": "input",
-    "C_D": "input", "C_A": "input",
+    "gamma": "chemical", "C_D": "chemical", "C_A": "chemical",
+    "source_thickness": "physical", "Lz": "physical",
+    "al": "physical", "at": "physical", "atv": "physical",
     "prsity": "standard", "hk": "standard", "gradient": "standard",
+    "grid_size": "numerical",
 }
 
 
@@ -123,7 +130,7 @@ def _input_fields(orientation, site):
         db_query = {}
     fields = []
     for name, label, default, step, minimum in NUMERICAL_INPUT_SPECS.get(orientation, []):
-        fields.append({
+        field = attach_meta({
             "name": name,
             "label": label,
             "value": _request_float(name, db_query.get(name, default)),
@@ -131,10 +138,13 @@ def _input_fields(orientation, site):
             "min": minimum,
             "from_db": name in db_query,
             "advanced": False,
-            "column": NUMERICAL_FIELD_COLUMN.get(name, "input"),
+            "column": NUMERICAL_FIELD_COLUMN.get(name, "physical"),
         })
+        if name == "grid_size" and orientation == "vertical":
+            field["symbol"] = GRID_SIZE_VERTICAL_SYMBOL
+        fields.append(field)
     for name, label, default, step, minimum in NUMERICAL_ADVANCED_INPUT_SPECS.get(orientation, []):
-        fields.append({
+        fields.append(attach_meta({
             "name": name,
             "label": label,
             "value": _request_float(name, default),
@@ -142,7 +152,7 @@ def _input_fields(orientation, site):
             "min": minimum,
             "from_db": False,
             "advanced": True,
-        })
+        }))
     return fields
 
 
@@ -588,10 +598,11 @@ def numerical_horizontal_single_export():
 @numerical_bp.route("/numerical/horizontal/multiple")
 @login_required
 def numerical_horizontal_multiple():
-    sites, selected_site, invalid_site_message = _selected_site("horizontal")
+    # Sites are added from inside the panel (the click-to-add picker), so this
+    # page has no server-side site loader.
     input_panel_src = _panel_src(
         "panel_numerical_horizontal_multiple",
-        selected_site,
+        None,
         orientation="horizontal",
         output_only=False,
     )
@@ -599,10 +610,7 @@ def numerical_horizontal_multiple():
     return render_template(
         "panel_numerical_horizontal_multiple.html",
         input_panel_src=input_panel_src,
-        result_panel_src=_panel_src("panel_numerical_horizontal_multiple", selected_site, orientation="horizontal"),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        invalid_site_message=invalid_site_message,
+        result_panel_src=_panel_src("panel_numerical_horizontal_multiple", None, orientation="horizontal"),
     )
 
 
@@ -637,10 +645,11 @@ def numerical_vertical_single_export():
 @numerical_bp.route("/numerical/vertical/multiple")
 @login_required
 def numerical_vertical_multiple():
-    sites, selected_site, invalid_site_message = _selected_site("vertical")
+    # Sites are added from inside the panel (the click-to-add picker), so this
+    # page has no server-side site loader.
     input_panel_src = _panel_src(
         "panel_numerical_vertical_multiple",
-        selected_site,
+        None,
         orientation="vertical",
         output_only=False,
     )
@@ -648,8 +657,5 @@ def numerical_vertical_multiple():
     return render_template(
         "panel_numerical_vertical_multiple.html",
         input_panel_src=input_panel_src,
-        result_panel_src=_panel_src("panel_numerical_vertical_multiple", selected_site, orientation="vertical"),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        invalid_site_message=invalid_site_message,
+        result_panel_src=_panel_src("panel_numerical_vertical_multiple", None, orientation="vertical"),
     )

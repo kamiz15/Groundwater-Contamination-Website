@@ -750,7 +750,6 @@ cast_landing_demo/
 | --- | --- |
 | `static/styles.css` | Global CAST layout, navigation, cards, forms, model pages, responsive rules, and visual styling. |
 | `static/script.js` | Sidebar and dropdown behaviour, account-form requests, active-navigation highlights, CSV filename display, iframe sizing, title animation, and landing-page canvas animation. |
-| `static/img/pic_test01.jpg` | Landing-page image for other water-quality toolboxes. |
 | `static/images/conceptual_liedl_2d.png` | Liedl 2D conceptual diagram. |
 | `static/images/conceptual_liedl_3d.png` | Liedl 3D conceptual diagram. |
 | `static/images/conceptual_chu.png` | Chu conceptual diagram. |

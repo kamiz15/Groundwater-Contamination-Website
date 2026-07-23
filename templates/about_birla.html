@@ -1,0 +1,73 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Empirical Model{% endblock %}
+{% block about_title %}Birla et al. (2020){% endblock %}
+{% block back_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
+{% block back_label %}All empirical models{% endblock %}
+
+{% block about_lead %}
+<p>A vertically oriented 2D empirical model that extends the Liedl (2005)
+expression with a recharge-rate correction, quantifying how vertical recharge
+shortens the steady-state plume length
+(<math><msub><mi>L</mi><mi>max</mi></msub></math>).</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/fig_birla.png') }}"
+       alt="Conceptual model of Birla et al. (2020): a fully penetrating source releasing a plume that is shortened by vertical recharge from above.">
+  <figcaption>Conceptual model &mdash; Birla et al. (2020).</figcaption>
+</figure>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <mrow>
+      <mo>(</mo>
+      <mn>1</mn><mo>−</mo><mn>0.047</mn><msup><mi>M</mi><mn>0.404</mn></msup><msup><mi>R</mi><mn>1.883</mn></msup>
+      <mo>)</mo>
+    </mrow>
+    <mfrac>
+      <mrow><mn>4</mn><msup><mi>M</mi><mn>2</mn></msup></mrow>
+      <mrow><msup><mi>π</mi><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mrow>
+    </mfrac>
+    <mi>ln</mi><mo>&#8289;</mo>
+    <mrow>
+      <mo>(</mo>
+      <mfrac><mn>4</mn><mi>π</mi></mfrac>
+      <mfrac>
+        <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub><mo>+</mo><msub><mi>C</mi><mi>A</mi></msub></mrow>
+        <msub><mi>C</mi><mi>A</mi></msub>
+      </mfrac>
+      <mo>)</mo>
+    </mrow>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><mi>M</mi></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
+<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
+<dt><math><mi>R</mi></math></dt><dd>Recharge rate [m/yr]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry coefficient [-]</dd>
+<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Reactant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Contaminant concentration [mg/L]</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>Steady-state condition in a homogeneous and isotropic aquifer.</li>
+<li>Uniform vertical recharge across the plume.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>Birla, S., Yadav, P.K., Mahalawat, P., Haendel, F., Liedl, R., Chahar, B.,
+2020. Influence of recharge rates on steady-state plume lengths. J. Contam.
+Hydrol.
+<a href="https://doi.org/10.1016/j.jconhyd.2020.103709" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.jconhyd.2020.103709</a></p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('empirical_bp.birla_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('empirical_bp.birla_multiple') }}{% endblock %}

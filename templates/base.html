@@ -5,33 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}CAST{% endblock %}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260625a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260721a">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {# Inter is self-hosted via @font-face in styles.css (GDPR: no visitor IPs to Google). #}
   {# BokehJS (~2 MB of render-blocking scripts) is only needed by pages that
-     embed Bokeh plots directly (the Analysis Visualisation pages). All other
+     embed Bokeh plots directly (the Visual Analysis pages). All other
      pages skip it; Panel iframes load their own resources. #}
   {% block bokeh_js %}{% endblock %}
 </head>
 
 <body>
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="Mobile navigation">
     <div class="sidebar-header">
-      
       <div class="brand">
         <span class="brand-badge">CAST</span>
         <span class="brand-sub">Groundwater Contamination Assessment</span>
       </div>
+      <button type="button" class="icon-btn sidebar-close" id="closeSidebar" aria-label="Close navigation">Close</button>
     </div>
 
     <nav class="nav" aria-label="Primary">
-      <a class="nav-link" href="#intro">Introduction</a>
-      <a class="nav-link" href="#gw-toolboxes">Groundwater quality assessment toolboxes</a>
-      <a class="nav-link" href="#other-toolboxes">Other water quality toolboxes</a>
-      <a class="nav-link" href="#docs">Documentations</a>
-      <a class="nav-link" href="#footer-contact">Contact Us</a>
+      <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+      <a class="nav-link" href="{{ url_for('site_bp.site_database') }}">Database</a>
+      <a class="nav-link" href="{{ url_for('aem_bp.aem_landing') }}">AEM Model</a>
+      <a class="nav-link" href="{{ url_for('analytical_bp.analytical_landing') }}">Analytical Models</a>
+      <a class="nav-link" href="{{ url_for('empirical_bp.empirical_landing') }}">Empirical Models</a>
+      <a class="nav-link" href="{{ url_for('numerical_bp.numerical_landing') }}">Numerical Models</a>
     </nav>
 
   </aside>
@@ -40,23 +39,15 @@
 
   <div class="page">
     <header class="topbar">
-      
+      <button type="button" class="icon-btn mobile-menu-btn" id="openSidebar" aria-label="Open navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <a class="mobile-brand-link" href="{{ url_for('home') }}">CAST</a>
 
       <nav class="headbar" aria-label="Global">
         <ul class="menu">
           <li class="menu-item">
             <a class="menu-link" href="{{ url_for('home') }}">Home</a>
-          </li>
-
-          <li class="menu-item has-dd">
-            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Analysis Visualisation &#9662;
-            </button>
-            <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_bar') }}">Bargraph</a></li>
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_box') }}">Boxplots</a></li>
-              <li><a class="dd-link" href="{{ url_for('site_bp.plot_hist') }}">Histograms</a></li>
-            </ul>
           </li>
 
           <li class="menu-item has-dd">
@@ -137,31 +128,42 @@
       <div class="footer-inner">
         <div class="footer-col">
           <h4>Contact Us</h4>
-          <form aria-disabled="true" onsubmit="return false;">
-            <label for="name">Name</label>
-            <input id="name" type="text" placeholder="Your name" />
-            <label for="email">Email</label>
-            <input id="email" type="email" placeholder="your@email.com" />
-            <label for="msg">Message</label>
-            <textarea id="msg" rows="3" placeholder="Your message"></textarea>
+          <form id="contactForm">
+            <input id="contactCsrf" type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <label for="contactName">Name</label>
+            <input id="contactName" name="name" type="text" placeholder="Your name" required />
+            <label for="contactEmail">Email</label>
+            <input id="contactEmail" name="email" type="email" placeholder="your@email.com" required />
+            <label for="contactMsg">Message</label>
+            <textarea id="contactMsg" name="message" rows="3" placeholder="Your message" required></textarea>
             <div class="form-actions">
-              <button class="cta" type="button" aria-disabled="true">Submit</button>
+              <button class="cta" type="submit">Submit</button>
             </div>
+            <p id="contactMessage" class="contact-message" role="status" aria-live="polite"></p>
           </form>
         </div>
 
-        <div class="footer-col">
+        <div class="footer-col footer-col-supporters">
           <h4>Supported By</h4>
           <ul class="supporters">
-            <li><span class="logo-swatch"></span> Eberhard Karls University of Tübingen</li>
-            <li><span class="logo-swatch"></span> Indian Institute of Technology Delhi</li>
-            <li><span class="logo-swatch"></span> University of Waterloo</li>
+            <li class="supporter">
+              <span class="partner-logo partner-logo-tu"><img src="{{ url_for('static', filename='images/logos/university-tuebingen.svg') }}" alt="University of Tübingen logo"></span>
+              <span class="supporter-copy"><strong>Eberhard Karls University of Tübingen</strong><small>Germany</small></span>
+            </li>
+            <li class="supporter">
+              <span class="partner-logo partner-logo-dark partner-logo-iitd"><img src="{{ url_for('static', filename='images/logos/iit-delhi.png') }}" alt="IIT Delhi logo"></span>
+              <span class="supporter-copy"><strong>Indian Institute of Technology Delhi</strong><small>India</small></span>
+            </li>
+            <li class="supporter">
+              <span class="partner-logo partner-logo-dark partner-logo-waterloo"><img src="{{ url_for('static', filename='images/logos/university-waterloo.png') }}" alt="University of Waterloo logo"></span>
+              <span class="supporter-copy"><strong>University of Waterloo</strong><small>Canada</small></span>
+            </li>
           </ul>
         </div>
       </div>
     </footer>
   </div>
 
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script src="{{ url_for('static', filename='script.js') }}?v=20260713a"></script>
 </body>
 </html>

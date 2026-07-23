@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Site Database & Model Input{% endblock %}
+{% block content_class %}site-database-content{% endblock %}
 
 {% block content %}
-<section class="section-spaced">
+<section class="section-spaced site-database-page">
   <h2>Site Database & Model Input</h2>
 
   {% if message %}
@@ -12,6 +13,13 @@
   {% if error %}
     <p class="flash flash-error">{{ error }}</p>
   {% endif %}
+  <div class="card-like">
+    <h3>Visual Analysis</h3>
+    <p class="small">Create quick visual summaries from your saved site data.</p>
+    <div class="model-actions">
+      <a class="primary-btn" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a>
+    </div>
+  </div>
 
   <div class="card-like">
     <h3>Upload Site Data (CSV)</h3>
@@ -60,67 +68,37 @@
     </form>
   </div>
 
-  <div class="card-like">
+  <div class="card-like site-table-card">
     <div class="table-header-row">
       <div>
         <h3>Your Site Entries</h3>
-        <p class="small table-subtitle">Review uploaded site data, narrow it by any column, and sort by any parameter.</p>
+        <p class="small table-subtitle">Review uploaded site data imported into your database.</p>
       </div>
       {% if sites or total_site_count %}
-        <div class="table-count-badge">{{ sites|length }} of {{ total_site_count }} row(s)</div>
+        <div class="model-actions">
+          <div class="table-count-badge">{{ sites|length }} of {{ total_site_count }} row(s)</div>
+          <form method="POST" action="{{ url_for('site_bp.clear_site_database') }}" onsubmit="return confirm('Delete all site rows in your database?');">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="ghost-btn">Clear Database</button>
+          </form>
+        </div>
       {% endif %}
     </div>
 
     {% if sites %}
-      <form method="GET" class="site-form table-tools">
-        <div class="table-tools-card">
-          <div class="table-tools-heading">Filter Columns</div>
-          <div class="site-form-grid table-filter-grid">
-            {% for field, label in table_field_defs %}
-              <label class="table-tool-field">
-                <span>{{ label }}</span>
-                <input
-                  type="text"
-                  name="{{ field }}"
-                  value="{{ active_filters.get(field, '') }}"
-                  placeholder="Type to filter"
-                >
-              </label>
-            {% endfor %}
-          </div>
-        </div>
-        <div class="table-sort-row">
-          <div class="table-tools-card table-sort-card">
-            <div class="table-tools-heading">Sort Rows</div>
-            <div class="table-sort-controls">
-              <label class="table-tool-field">
-                <span>Parameter</span>
-                <select name="sort_by">
-                  <option value="" {% if not sort_field %}selected{% endif %}>No sorting</option>
-                  {% for field, label in table_field_defs %}
-                    <option value="{{ field }}" {% if sort_field == field %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-              <label class="table-tool-field">
-                <span>Direction</span>
-                <select name="sort_dir">
-                  <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>Ascending</option>
-                  <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>Descending</option>
-                </select>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="csv-form table-actions-row">
-          <button type="submit" class="primary-btn">Apply Filters</button>
-          <a href="{{ url_for('site_bp.site_database') }}" class="ghost-btn">Clear Filters</a>
-          <span class="small table-meta">{{ sites|length }} of {{ total_site_count }} row(s) shown</span>
-        </div>
-      </form>
 
-      <div class="table-wrapper">
-        <table class="data-table">
+      {% set site_column_count = table_field_defs|length + extra_field_keys|length + 1 %}
+      <div class="table-wrapper site-table-wrapper">
+        <table class="data-table site-data-table{% if site_column_count > 12 %} site-data-table--dense{% endif %}">
+          <colgroup>
+            {% for field, label in table_field_defs %}
+              <col class="site-col site-col--{{ field }}">
+            {% endfor %}
+            {% for key in extra_field_keys %}
+              <col class="site-col site-col--extra">
+            {% endfor %}
+            <col class="site-col site-col--action">
+          </colgroup>
           <thead>
             <tr>
               {% for field, label in table_field_defs %}
@@ -136,17 +114,18 @@
             {% for s in sites %}
               <tr>
                 {% for field, label in table_field_defs %}
-                  <td>{{ s[field] }}</td>
+                  {% set value = s.display_id if field == 'id' else s[field] %}
+                  <td data-label="{{ label }}" title="{{ value }}">{{ value }}</td>
                 {% endfor %}
                 {% for key in extra_field_keys %}
                   {% set ev = (s.extra_data or {}).get(key) %}
-                  <td>{% if ev is not none and ev != '' %}{{ ev }}{% else %}<span class="small">&mdash;</span>{% endif %}</td>
+                  <td data-label="{{ key }}" title="{{ ev if ev is not none else '' }}">{% if ev is not none and ev != '' %}{{ ev }}{% else %}<span class="small">&mdash;</span>{% endif %}</td>
                 {% endfor %}
-                <td>
+                <td data-label="Actions" class="site-table-action">
                   <form method="POST" action="{{ url_for('site_bp.delete_site_row', site_id=s.id) }}"
-                        onsubmit="return confirm('Delete site #{{ s.id }} ({{ s.site_unit }})?');">
+                        onsubmit="return confirm('Delete site #{{ s.display_id }} ({{ s.site_unit }})?');">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="ghost-btn" title="Delete this row">Delete</button>
+                    <button type="submit" class="ghost-btn site-row-delete" title="Delete this row">Delete</button>
                   </form>
                 </td>
               </tr>

@@ -63,3 +63,47 @@ def test_delete_without_csrf_token_is_rejected(site_client):
     response = client.post("/sites/7/delete")
 
     assert response.status_code == 400
+
+
+def test_clear_site_database_is_scoped_to_current_user_and_redirects(site_client):
+    client, patches = site_client
+    calls = []
+
+    def fake_clear(email):
+        calls.append(email)
+        return 12
+
+    patches.enter_context(patch.object(site_routes, "delete_user_sites", fake_clear))
+
+    response = client.post(
+        "/sites/clear", headers={"X-CSRF-Token": _csrf_token(client)}
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/sites")
+    assert calls == ["user@example.com"]
+
+
+def test_clear_database_without_csrf_token_is_rejected(site_client):
+    client, _patches = site_client
+
+    response = client.post("/sites/clear")
+
+    assert response.status_code == 400
+
+
+def test_site_table_displays_compact_user_ids_but_deletes_by_primary_key(site_client):
+    client, patches = site_client
+    rows = [
+        {"id": 1577, "site_unit": "Brand", "compound": "1,2,4-TMB", "extra_data": {}},
+        {"id": 1578, "site_unit": "Brand", "compound": "Ethyltoluol", "extra_data": {}},
+        {"id": 1579, "site_unit": "Metlen", "compound": "MTBE", "extra_data": {}},
+    ]
+    patches.enter_context(patch.object(site_routes, "get_user_sites_rows", return_value=rows))
+
+    page = client.get("/sites").get_data(as_text=True)
+
+    assert "Delete site #1 (Brand)?" in page
+    assert "Delete site #2 (Brand)?" in page
+    assert "Delete site #3 (Metlen)?" in page
+    assert "/sites/1579/delete" in page

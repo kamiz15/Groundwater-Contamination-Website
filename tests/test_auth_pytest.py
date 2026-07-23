@@ -154,6 +154,30 @@ def test_registration_rejects_password_mismatch(monkeypatch):
     assert database.users_by_email == {}
 
 
+def test_me_reflects_session_state(monkeypatch):
+    database = MemoryDatabase()
+    monkeypatch.setattr(app_module, "get_db_connection", database.connect)
+    app_module.app.config.update(TESTING=True, LOGIN_DISABLED=False)
+    security.reset_rate_limits()
+    client = app_module.app.test_client()
+    _register(client)
+
+    anonymous = client.get("/me")
+    _login(client)
+    authenticated = client.get("/me")
+    client.post("/logout", headers={"X-CSRF-Token": _csrf_token(client, "/")})
+    after_logout = client.get("/me")
+
+    assert anonymous.status_code == 401
+    assert anonymous.get_json() == {"authenticated": False}
+    assert authenticated.status_code == 200
+    body = authenticated.get_json()
+    assert body["authenticated"] is True
+    assert body["username"] == "Test User"
+    assert body["email"] == "test.user@example.com"
+    assert after_logout.status_code == 401
+
+
 def test_registration_rejects_missing_json_field(monkeypatch):
     database = MemoryDatabase()
     monkeypatch.setattr(app_module, "get_db_connection", database.connect)

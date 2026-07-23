@@ -128,10 +128,14 @@ def _client_address() -> str:
     return request.remote_addr or "unknown"
 
 
-def rate_limit(limit: int, window_seconds: int):
+def rate_limit(limit: int, window_seconds: int, methods: set[str] | None = None):
+    """Per-IP fixed-window limit. With `methods`, only those verbs count, so a
+    GET+POST route can limit uploads without throttling page views."""
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
+            if methods is not None and request.method not in methods:
+                return view(*args, **kwargs)
             key = (request.endpoint or view.__name__, _client_address())
             now = time.monotonic()
             with _rate_limit_lock:

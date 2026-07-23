@@ -1,8 +1,11 @@
 import logging
+import smtplib
+from email.message import EmailMessage
+import os
 import secrets
 
 from bokeh.resources import CDN
-from flask import Flask, render_template, jsonify, redirect, request, url_for
+from flask import Flask, abort, render_template, jsonify, redirect, request, url_for
 from werkzeug.exceptions import HTTPException
 from flask_login import (
     LoginManager,
@@ -35,6 +38,14 @@ from security import (
 from settings import (
     DEMO_BYPASS_LOGIN,
     DEMO_USER_EMAIL,
+    CONTACT_EMAIL,
+    CONTACT_FROM_EMAIL,
+    CONTACT_MAX_MESSAGE_LENGTH,
+    SMTP_HOST,
+    SMTP_PASSWORD,
+    SMTP_PORT,
+    SMTP_USERNAME,
+    SMTP_USE_TLS,
     FLASK_DEBUG,
     FLASK_HOST,
     FLASK_PORT,
@@ -44,6 +55,12 @@ from settings import (
 )
 from site_routes import site_bp
 
+# Same format as panel_server.py; without this, module loggers fall back to the
+# bare stderr handler and INFO-level lines are silently dropped under gunicorn.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -61,6 +78,7 @@ app.config.update(
 )
 app.jinja_env.globals["csrf_token"] = csrf_token
 app.jinja_env.globals["demo_bypass_login"] = DEMO_BYPASS_LOGIN
+app.jinja_env.globals["contact_email"] = CONTACT_EMAIL
 app.jinja_env.globals["bokeh_js_files"] = [
     f"/{js_file}" if js_file.startswith("static/extensions/panel/") else js_file
     for js_file in CDN.js_files
@@ -138,6 +156,106 @@ def home():
     return render_template("index.html")
 
 
+
+
+def _smtp_configured():
+    return bool(SMTP_HOST and CONTACT_EMAIL and CONTACT_EMAIL != "demo@example.com")
+
+
+def _send_contact_email(name, email, message):
+    subject_name = " ".join(name.split())
+    msg = EmailMessage()
+    msg["Subject"] = f"CAST contact request from {subject_name}"
+    msg["From"] = CONTACT_FROM_EMAIL
+    msg["To"] = CONTACT_EMAIL
+    msg["Reply-To"] = email
+    msg.set_content(
+        f"Name: {name}\n"
+        f"Email: {email}\n\n"
+        f"Message:\n{message}\n"
+    )
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as smtp:
+        if SMTP_USE_TLS:
+            smtp.starttls()
+        if SMTP_USERNAME or SMTP_PASSWORD:
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+        smtp.send_message(msg)
+
+@app.route("/health")
+def health():
+    # Liveness + DB reachability, for Docker healthchecks and uptime monitors.
+    # A DB outage raises mysql Error -> handle_database_error -> 503.
+    get_db_connection().close()
+    return ("", 204)
+
+
+
+# Per-model "About" pages (description + governing equation). Public, like the
+# old CAST documentation pages -- no login required.
+MODEL_ABOUT_TEMPLATES = {
+    "liedl": "about_liedl.html",
+    "liedl3d": "about_liedl3d.html",
+    "chu": "about_chu.html",
+    "ham": "about_ham.html",
+    "bioscreen": "about_bioscreen.html",
+    "cirpka": "about_cirpka.html",
+    "maier": "about_maier.html",
+    "birla": "about_birla.html",
+    "numerical": "about_numerical.html",
+}
+
+
+@app.route("/models/<slug>/about")
+def model_about(slug):
+    template = MODEL_ABOUT_TEMPLATES.get(slug)
+    if template is None:
+        abort(404)
+    return render_template(template)
+
+
+
+@app.route("/contact", methods=["POST"])
+@rate_limit(limit=5, window_seconds=300)
+@csrf_protect
+def contact():
+    data = json_object_or_400()
+    name, email, message = required_text_fields(data, "name", "email", "message")
+
+    if len(name) > MAX_USERNAME_LENGTH:
+        return jsonify({"success": False, "message": "Name is too long."}), 400
+    if not is_valid_email(email):
+        return jsonify({"success": False, "message": "Please enter a valid email address."}), 400
+    if len(message) > CONTACT_MAX_MESSAGE_LENGTH:
+        return jsonify({"success": False, "message": "Message is too long."}), 400
+
+    if not _smtp_configured():
+        logger.info(
+            "Contact form submission received while email delivery is not configured: name=%r email=%r message=%r",
+            name,
+            email,
+            message,
+        )
+        return jsonify(
+            {
+                "success": True,
+                "message": "Thanks. Your message has been received.",
+            }
+        )
+
+    try:
+        _send_contact_email(name, email, message)
+    except Exception:
+        logger.exception("Unable to send contact form email")
+        return jsonify(
+            {
+                "success": False,
+                "message": "Message could not be sent. Please try again later.",
+            }
+        ), 503
+
+    return jsonify({"success": True, "message": "Thanks. Your message has been sent."})
+
 @app.route("/login", methods=["GET"])
 def login_page():
     return render_template("login.html")
@@ -205,6 +323,22 @@ def auth_check():
     # The reverse proxy copies this header into the upstream Panel request as the
     # trusted X-Auth-Email, so Panel never has to trust a client-supplied identity.
     return ("", 204, {"X-User-Email": current_user.email})
+
+
+@app.route("/me")
+def me():
+    # JSON twin of /auth/check for the frontend: 401 + JSON (not a redirect)
+    # so fetch() callers can branch on authentication state.
+    if not current_user.is_authenticated:
+        return jsonify({"authenticated": False}), 401
+    return jsonify(
+        {
+            "authenticated": True,
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+        }
+    )
 
 
 @app.route("/register", methods=["POST"])

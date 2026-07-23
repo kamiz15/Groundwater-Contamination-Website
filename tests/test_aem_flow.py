@@ -1,4 +1,6 @@
 from contextlib import ExitStack
+import csv
+import io
 import json
 import re
 import subprocess
@@ -20,7 +22,9 @@ VALID_CONFIG = {
     "dom_xmin": 0.0, "dom_xmax": 300.0, "dom_ymin": -20.0,
     "dom_ymax": 20.0, "dom_inc": 1.0, "num_cp": 40, "num_terms": 5,
     "orientation": "vertical",
-    "elements": [{"kind": "circle", "x": 0.1, "y": 1.0, "c": 10.0, "r": 0.02}],
+    # Authored directly below the water table (y <= 0): the new physical-coordinate
+    # model no longer shifts vertical sources, so they must start below y=0.
+    "elements": [{"kind": "circle", "x": 0.1, "y": -0.5, "c": 10.0, "r": 0.02}],
 }
 
 
@@ -65,6 +69,10 @@ def test_panel_server_keeps_non_aem_apps_and_has_no_aem_registration():
 
 def test_native_client_contract_covers_csrf_import_export_and_axis_rendering():
     source = Path("static/aem.js").read_text(encoding="utf-8")
+    result_templates = (
+        Path("templates/aem_forward.html").read_text(encoding="utf-8")
+        + Path("templates/aem_inverse.html").read_text(encoding="utf-8")
+    )
 
     assert '"X-CSRF-Token": root.dataset.csrf' in source
     assert 'id="aem-import"' in Path("templates/aem_designer.html").read_text(encoding="utf-8")
@@ -72,12 +80,15 @@ def test_native_client_contract_covers_csrf_import_export_and_axis_rendering():
     assert 'link.download = "source_config.json"' in source
     assert "Math.min(rect.width / xspan, rect.height / yspan)" in source
     assert '"Full simulation domain"' in source
-    assert "result.xaxis[0]" in source and "result.yaxis[0]" in source
-    assert "(1 - py / (bufH - 1 || 1)) * (rows - 1)" in source   # bottom-up field flip
+    assert "xs[0]" in source and "ys[0]" in source                # result axis extents
+    assert "contourf(" in source and "eachTriangle" in source   # marching-triangle contour fill
+    assert result_templates.count('id="aem-download-csv"') == 2
+    assert result_templates.count('id="aem-open-workbench"') == 2
+    assert "completed.workbench_url" in source
     assert 'ctx.fillText("x (m)"' in source                       # matplotlib-style axis label
     assert "DONOR_BANDS" in source                                # discrete contour bands
     assert "drawing.push(snapDrawPoint(point))" in source
-    assert "selected = match ? {p: selected.p, c: match.index} : null" in source
+    assert 'selected = match ? {type: "poly", p: selected.p, c: match.index} : null' in source
 
 
 def _run_aem_js(expression):
@@ -105,6 +116,14 @@ def test_native_draw_snaps_and_clamps_like_reference(point, expected):
 
 def test_native_exact_negative_halves_use_python_even_parity_before_clamp():
     assert _run_aem_js("[h.roundHalfEven(-1.5),h.roundHalfEven(-2.5)]") == [-2, -2]
+
+
+@pytest.mark.parametrize(("value", "expected"), [
+    (2, "2"), (2.5, "2.5"), (3.5, "3.5"), (0.2, "0.2"),
+    (2.456, "2.46"), (2.999, "3"), (40, "40"), (-0.5, "-0.5"), (0, "0"),
+])
+def test_display_formatter_caps_at_two_decimals_and_drops_whole_number_zeros(value, expected):
+    assert _run_aem_js(f"h.fmt2({value})") == expected
 
 
 def test_repack_reselects_changed_circle_after_earlier_neighbor_removed():
@@ -178,10 +197,10 @@ def test_design_validation_and_owner_bound_token(aem_client):
     assert body["forward_url"].endswith(body["design"])
     expected = {
         "alpha_l": 2.0, "alpha_t": 0.2, "ca": 8.0, "gamma": 3.5,
-        "dom_xmin": -1.92, "dom_xmax": 150.1, "dom_ymin": -5.19,
+        "dom_xmin": -1.92, "dom_xmax": 25.1, "dom_ymin": -5.52,
         "dom_ymax": 0.0, "dom_inc": 1.0, "num_cp": 40, "num_terms": 5,
         "orientation": "vertical", "plot_aspect": "",
-        "elements": [{"kind": "circle", "x": 0.1, "y": -0.17,
+        "elements": [{"kind": "circle", "x": 0.1, "y": -0.5,
                       "c": 10.0, "r": 0.02, "id": "source_0"}],
     }
     assert load_aem_design(body["design"], "user@example.com") == expected
@@ -202,6 +221,30 @@ def test_design_rejects_missing_elements_and_oversized_payload(aem_client):
     assert invalid.status_code == 400
     assert "grid exceeds" in excessive_grid.get_json()["message"]
     assert oversized.status_code == 400
+
+
+def test_settings_panel_is_editable_in_designer_html():
+    html = Path("templates/aem_designer.html").read_text(encoding="utf-8")
+
+    assert "Simulation Settings" in html
+    assert 'id="aem-orientation"' in html
+    # Every reference SettingsPanel field is an editable input, not a fixed hidden one.
+    for name in ("alpha_l", "alpha_t", "ca", "gamma", "dom_inc",
+                 "num_cp", "num_terms", "ws", "plot_aspect"):
+        assert re.search(rf'<input[^>]*name="{name}"', html)
+        assert f'type="hidden" name="{name}"' not in html
+
+
+def test_vertical_config_rejects_sources_above_water_table():
+    raw = VALID_CONFIG | {"elements": [{"kind": "circle", "x": 0.1, "y": 0.0, "c": 10.0, "r": 0.02}]}
+
+    with pytest.raises(ValueError, match="water table"):
+        aem_routes._validated_config(raw)
+
+
+def test_config_rejects_num_cp_below_num_terms():
+    with pytest.raises(ValueError, match="num_terms"):
+        aem_routes._validated_config(VALID_CONFIG | {"num_cp": 4, "num_terms": 5})
 
 
 @pytest.mark.parametrize("vertices", [
@@ -256,7 +299,9 @@ def test_forward_submission_uses_owner_design_and_existing_queue(aem_client, mon
 
     assert response.status_code == 202
     assert saved["kind"] == "aem_forward"
-    assert saved["params"] == {"config_json": VALID_CONFIG}
+    # The forward path re-derives the domain at run time (idempotent re-validation),
+    # so the queued config is the validated form, not the raw stored bounds.
+    assert saved["params"] == {"config_json": aem_routes._validated_config(VALID_CONFIG)}
     assert saved["meta"] == {"email": "user@example.com", "kind": "aem_forward"}
 
 
@@ -301,9 +346,78 @@ def test_owned_job_status_cancel_and_result(aem_client, monkeypatch):
     assert payload["L_max"] == 12.0
 
 
+def test_completed_aem_grid_exposes_csv_and_workbench_links(aem_client, monkeypatch):
+    meta = {"email": "user@example.com", "kind": "aem_forward"}
+    result = SimpleNamespace(
+        result=[[1.0, 2.0], [3.0, 4.0]],
+        xaxis=[0.0, 1.0], yaxis=[-1.0, 0.0], L_max=12.0,
+        ca=8.0, gamma=3.5, orientation="vertical", num_elements=1,
+        interface_length=None, validation_passed=True,
+    )
+    monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: meta)
+    monkeypatch.setattr(aem_routes, "job_status", lambda _job_id: {"status": "done"})
+    monkeypatch.setattr(aem_routes, "fetch_result", lambda _job_id: result)
+
+    body = aem_client.get("/aem/jobs/job-1/result").get_json()
+
+    assert body["csv_url"] == "/aem/jobs/job-1/result.csv"
+    assert body["workbench_url"] == "/data_analysis?aem_job=job-1"
+
+    download = aem_client.get(body["csv_url"])
+    rows = list(csv.DictReader(io.StringIO(download.get_data(as_text=True))))
+    assert download.status_code == 200
+    assert download.mimetype == "text/csv"
+    assert list(rows[0]) == ["x [m]", "z [m]", "concentration [mg/L]"]
+    assert [row["concentration [mg/L]"] for row in rows] == ["1.0", "2.0", "3.0", "4.0"]
+
+
+def test_inverse_aem_grid_uses_the_same_handoff(aem_client, monkeypatch):
+    meta = {"email": "user@example.com", "kind": "aem_inverse"}
+    result = SimpleNamespace(
+        result=[[1.0, 2.0], [3.0, 4.0]],
+        xaxis=[0.0, 1.0], yaxis=[0.0, 1.0],
+        estimate_param="alpha_t", recovered_value=0.2,
+        target_L_max=10.0, achieved_L_max=10.1,
+        lower_bound=0.1, upper_bound=0.3, converged=True,
+        ca=8.0, gamma=3.5, orientation="horizontal",
+    )
+    monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: meta)
+    monkeypatch.setattr(aem_routes, "job_status", lambda _job_id: {"status": "done"})
+    monkeypatch.setattr(aem_routes, "fetch_result", lambda _job_id: result)
+
+    body = aem_client.get("/aem/jobs/job-2/result").get_json()
+    download = aem_client.get(body["csv_url"])
+
+    assert body["workbench_url"] == "/data_analysis?aem_job=job-2"
+    assert list(csv.DictReader(io.StringIO(download.get_data(as_text=True))))[0]["y [m]"] == "0.0"
+    assert "aem_inverse_job2.csv" in download.headers["Content-Disposition"]
+
+
+def test_aem_csv_leaves_nonfinite_cells_blank(aem_client, monkeypatch):
+    meta = {"email": "user@example.com", "kind": "aem_forward"}
+    result = SimpleNamespace(
+        result=[[1.0, float("nan")], [3.0, 4.0]],
+        xaxis=[0.0, 1.0], yaxis=[0.0, 1.0], L_max=12.0,
+        ca=8.0, gamma=3.5, orientation="horizontal", num_elements=1,
+        interface_length=None, validation_passed=True,
+    )
+    monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: meta)
+    monkeypatch.setattr(aem_routes, "job_status", lambda _job_id: {"status": "done"})
+    monkeypatch.setattr(aem_routes, "fetch_result", lambda _job_id: result)
+
+    body = aem_client.get("/aem/jobs/job-1/result").get_json()
+    rows = list(csv.DictReader(io.StringIO(
+        aem_client.get(body["csv_url"]).get_data(as_text=True)
+    )))
+
+    assert "workbench_url" not in body
+    assert rows[1]["concentration [mg/L]"] == ""
+
+
 def test_job_endpoints_enforce_owner(aem_client, monkeypatch):
     monkeypatch.setattr(aem_routes, "load_job_meta", lambda _job_id: {"email": "other@example.com", "kind": "aem_forward"})
 
     assert aem_client.get("/aem/jobs/job-1").status_code == 404
     assert aem_client.get("/aem/jobs/job-1/result").status_code == 404
+    assert aem_client.get("/aem/jobs/job-1/result.csv").status_code == 404
     assert _post(aem_client, "/aem/jobs/job-1/cancel", json={}).status_code == 404
