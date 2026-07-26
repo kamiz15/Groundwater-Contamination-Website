@@ -26,13 +26,13 @@ vertical dispersivity, source and aquifer geometry, and reaction stoichiometry.<
     <msub><mi>L</mi><mi>max</mi></msub>
     <mo>=</mo>
     <mn>0.5</mn>
-    <mfrac><msup><mi>M</mi><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mfrac>
+    <mfrac><msup><msub><mi>T</mi><mi>A</mi></msub><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mfrac>
     <msup>
       <mrow>
         <mo>(</mo>
         <mfrac>
-          <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub></mrow>
-          <msub><mi>C</mi><mi>A</mi></msub>
+          <mrow><mi>γ</mi><msub><mi>C</mi><mi>r</mi></msub></mrow>
+          <msub><mi>C</mi><mi>c</mi></msub>
         </mfrac>
         <mo>)</mo>
       </mrow>
@@ -43,11 +43,11 @@ vertical dispersivity, source and aquifer geometry, and reaction stoichiometry.<
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>M</mi></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
+<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
 <dt><math><mi>γ</mi></math></dt><dd>Stoichiometry coefficient [-]</dd>
-<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Reactant concentration [mg/L]</dd>
-<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Contaminant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>r</mi></msub></math></dt><dd>Partner reactant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>c</mi></msub></math></dt><dd>General contaminant concentration [mg/L]</dd>
 {% endblock %}
 
 {% block about_assumptions %}

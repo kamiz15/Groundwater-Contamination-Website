@@ -107,3 +107,27 @@ def test_site_table_displays_compact_user_ids_but_deletes_by_primary_key(site_cl
     assert "Delete site #2 (Brand)?" in page
     assert "Delete site #3 (Metlen)?" in page
     assert "/sites/1579/delete" in page
+
+
+def test_site_database_typesets_shared_parameter_labels(site_client):
+    client, patches = site_client
+    rows = [{
+        "id": 7,
+        "site_unit": "Demo",
+        "compound": "BTEX",
+        "aquifer_thickness": 10.0,
+        "alpha_tv": 0.1,
+        "cthres": 0.5,
+        "extra_data": {},
+    }]
+    patches.enter_context(patch.object(site_routes, "get_user_sites_rows", return_value=rows))
+
+    page = client.get("/sites").get_data(as_text=True)
+
+    assert "Aquifer Thickness <i>T</i><sub>A</sub> [m]" in page
+    assert "Vertical Transverse Dispersivity &alpha;<sub>Tv</sub> [m]" in page
+    assert "Threshold Concentration <i>C</i><sub>thres</sub> [mg/L]" in page
+    assert 'name="electron_acceptor_no3"' in page
+    assert 'aria-label="Recognized CSV columns"' in page
+    assert "Plume Width <i>W</i><sub>p</sub> [m]" in page
+    assert "<code>site_unit, compound" not in page

@@ -17,6 +17,9 @@ here (and add the matching column in data_queries.SCHEMA / ensure_schema), and
 the upload reader, the input table, and per-model autofill all follow.
 """
 
+from html import escape
+import re
+
 from numerical_input_validation import (
     DB_K_M_PER_S_TO_NUMERICAL_HK_M_PER_D,
     SECONDS_PER_DAY,
@@ -28,13 +31,13 @@ SYMBOL_REGISTRY = {
     # --- Geometric parameters ---
     "M": {
         "db": "aquifer_thickness",
-        "ui": "Aquifer Thickness M [m]",
+        "ui": "Aquifer Thickness T_A [m]",
         "unit": "m",
         "models": ["liedl", "liedl3d", "ham", "maier", "birla", "bioscreen", "numerical"],
     },
     "S_w": {
         "db": "plume_width",
-        "ui": "Source Width Sw [m]",
+        "ui": "Plume Width W_p [m]",
         "unit": "m",
         "models": ["chu", "cirpka", "liedl3d", "bioscreen", "numerical"],
     },
@@ -42,25 +45,25 @@ SYMBOL_REGISTRY = {
         # Observed plume length. Stored and displayed; not a model input
         # (models compute Lmax), so models is empty.
         "db": "plume_length",
-        "ui": "Plume Length [m]",
+        "ui": "Plume Length L_p [m]",
         "unit": "m",
         "models": [],
     },
     "S_T": {
         "db": "source_thickness",
-        "ui": "Source Thickness ST [m]",
+        "ui": "Source Thickness S_T [m]",
         "unit": "m",
         "models": ["numerical"],
     },
     "S_Ta": {
         "db": "source_buffer_above",
-        "ui": "Buffer Above STa [m]",
+        "ui": "Buffer Above S_Ta [m]",
         "unit": "m",
         "models": ["numerical"],
     },
     "S_Tb": {
         "db": "source_buffer_below",
-        "ui": "Buffer Below STb [m]",
+        "ui": "Buffer Below S_Tb [m]",
         "unit": "m",
         "models": ["numerical"],
     },
@@ -68,19 +71,19 @@ SYMBOL_REGISTRY = {
     # --- Transport parameters ---
     "alpha_Tv": {
         "db": "alpha_tv",
-        "ui": "Transverse Dispersivity αTv [m]",
+        "ui": "Vertical Transverse Dispersivity \u03b1_Tv [m]",
         "unit": "m",
         "models": ["liedl", "liedl3d", "maier", "birla", "numerical"],
     },
     "alpha_Th": {
         "db": "alpha_th",
-        "ui": "Horizontal Transverse Dispersivity αTh [m]",
+        "ui": "Horizontal Transverse Dispersivity \u03b1_Th [m]",
         "unit": "m",
         "models": ["chu", "liedl3d", "cirpka", "numerical"],
     },
     "alpha_T": {
         "db": "alpha_t",
-        "ui": "Transverse Dispersivity αT [m]",
+        "ui": "Transverse Dispersivity \u03b1_T [m]",
         "unit": "m",
         "models": ["ham"],
     },
@@ -106,20 +109,20 @@ SYMBOL_REGISTRY = {
     # --- Concentration parameters ---
     "C_D": {
         "db": "electron_donor",
-        "ui": "Electron Donor CD [mg/L]",
+        "ui": "Donor Concentration C_D [mg/L]",
         "unit": "mg/L",
         "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "maier", "birla", "bioscreen", "numerical"],
     },
     "C_A": {
         "db": "electron_acceptor_o2",
-        "ui": "Electron Acceptor CA [mg/L]",
+        "ui": "Acceptor Concentration C_A [mg/L]",
         "unit": "mg/L",
         "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "maier", "birla", "bioscreen", "numerical"],
     },
     "C_A_NO3": {
         # Nitrate acceptor. Stored and displayed; no model consumes it yet.
         "db": "electron_acceptor_no3",
-        "ui": "Electron Acceptor NO₃ [mg/L]",
+        "ui": "Acceptor Concentration C_A (NO\u2083) [mg/L]",
         "unit": "mg/L",
         "models": [],
     },
@@ -127,7 +130,7 @@ SYMBOL_REGISTRY = {
     # --- Stoichiometric / reaction ---
     "gamma": {
         "db": "gamma",
-        "ui": "Stoichiometric Ratio γ [-]",
+        "ui": "Stoichiometry Ratio γ [-]",
         "unit": "-",
         "models": ["liedl", "liedl3d", "chu", "ham", "cirpka", "maier", "birla", "numerical"],
     },
@@ -139,17 +142,50 @@ SYMBOL_REGISTRY = {
     },
     "Cthres": {
         "db": "cthres",
-        "ui": "Threshold Concentration Cthres [mg/L]",
+        "ui": "Threshold Concentration C_thres [mg/L]",
         "unit": "mg/L",
         "models": ["liedl3d"],
     },
     "R": {
         "db": "birla_r",
-        "ui": "Recharge Rate R [m/yr]",
+        "ui": "Recharge Rate R_c [m/yr]",
         "unit": "m/yr",
         "models": ["birla"],
     },
 }
+
+
+_UI_SYMBOL_MARKUP = {
+    "T_A": "<i>T</i><sub>A</sub>",
+    "W_p": "<i>W</i><sub>p</sub>",
+    "L_p": "<i>L</i><sub>p</sub>",
+    "S_Ta": "<i>S</i><sub>Ta</sub>",
+    "S_Tb": "<i>S</i><sub>Tb</sub>",
+    "S_T": "<i>S</i><sub>T</sub>",
+    "\u03b1_Tv": "&alpha;<sub>Tv</sub>",
+    "\u03b1_Th": "&alpha;<sub>Th</sub>",
+    "\u03b1_T": "&alpha;<sub>T</sub>",
+    "K_v": "<i>K</i><sub>v</sub>",
+    "C_D": "<i>C</i><sub>D</sub>",
+    "C_A": "<i>C</i><sub>A</sub>",
+    "\u03b3": "&gamma;",
+    "\u03b5": "&epsilon;",
+    "C_thres": "<i>C</i><sub>thres</sub>",
+    "R_c": "<i>R</i><sub>c</sub>",
+    "K": "<i>K</i>",
+    "Q": "<i>Q</i>",
+}
+_UI_SYMBOL_PATTERN = re.compile(
+    rf"(?<!\w)({'|'.join(re.escape(symbol) for symbol in sorted(_UI_SYMBOL_MARKUP, key=len, reverse=True))})(?!\w)"
+)
+
+
+def ui_label_markup(label: str) -> str:
+    """Return trusted registry label text with mathematical symbols typeset."""
+    rendered = escape(str(label))
+    return _UI_SYMBOL_PATTERN.sub(
+        lambda match: _UI_SYMBOL_MARKUP[match.group(1)], rendered
+    )
 
 
 # Identity / text columns. Not model inputs, but part of the site table and the

@@ -24,16 +24,15 @@
   <div class="card-like">
     <h3>Upload Site Data (CSV)</h3>
     <p class="small">
-      Upload multiple sites at once. Any CSV works &mdash; column headers are read on upload and
-      matched to known model parameters, so each model&rsquo;s inputs are picked up automatically.
-      The table below forms its columns from whatever your file provides; recognized parameters get
-      their own typed column and autofill the model pages, while any unrecognized columns are kept
-      under their original names in &ldquo;Additional fields&rdquo;. Recognized headers (any
-      reasonable spelling/units, e.g. <code>Plume width[m]</code>):<br>
-      <code>site_unit, compound, aquifer_thickness, plume_length, plume_width, hydraulic_conductivity,
-      electron_donor, electron_acceptor_o2, electron_acceptor_no3, alpha_Tv, alpha_Th, alpha_T,
-      gamma, epsilon, Cthres, R, Q, K_v, source_thickness</code>
+      Upload multiple sites at once. Column headers are matched to known model parameters, and
+      common alternate spellings are accepted. Recognized columns are displayed with the canonical
+      CAST notation below; unrecognized columns keep their original names as additional fields.
     </p>
+    <div class="upload-notation-list" aria-label="Recognized CSV columns">
+      {% for label, label_markup in upload_field_defs %}
+        <span title="{{ label }}">{{ label_markup|safe }}</span>
+      {% endfor %}
+    </div>
     <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="upload_csv">
@@ -55,13 +54,12 @@
       <input type="text" name="compound" placeholder="Compound" required>
 
       <div class="site-form-grid">
-        <input type="number" step="any" name="aquifer_thickness" placeholder="Aquifer Thickness (m)">
-        <input type="number" step="any" name="plume_length" placeholder="Plume Length (m)">
-        <input type="number" step="any" name="plume_width" placeholder="Plume Width (m)">
-        <input type="number" step="any" name="hydraulic_conductivity" placeholder="Hydraulic Conductivity K [m/s]">
-        <input type="number" step="any" name="electron_donor" placeholder="Electron Donor (mg/l)">
-        <input type="number" step="any" name="electron_acceptor_o2" placeholder="O₂ (mg/l)">
-        <input type="number" step="any" name="electron_acceptor_no3" placeholder="NO₃ (mg/l)">
+        {% for field, label, label_markup in manual_field_defs %}
+          <label class="site-field-label">
+            <span>{{ label_markup|safe }}</span>
+            <input type="number" step="any" name="{{ field }}" placeholder="Enter value">
+          </label>
+        {% endfor %}
       </div>
 
       <button type="submit" class="primary-btn">Add Site</button>
@@ -102,7 +100,7 @@
           <thead>
             <tr>
               {% for field, label in table_field_defs %}
-                <th>{{ label }}</th>
+                <th>{{ table_field_markup.get(label, label)|safe }}</th>
               {% endfor %}
               {% for key in extra_field_keys %}
                 <th title="Extra column from your file (not a recognized model parameter)">{{ key }}</th>

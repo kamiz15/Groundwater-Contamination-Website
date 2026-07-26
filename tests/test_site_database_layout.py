@@ -15,3 +15,5 @@ def test_site_database_uses_compact_responsive_table_layout():
     assert "table-layout: fixed" in styles
     assert ".site-table-wrapper" in styles
     assert "overflow-x: visible" in styles
+    assert "upload-notation-list" in template
+    assert ".upload-notation-list" in styles

@@ -8,6 +8,7 @@ from panel_analytical_common import (
     comparison_plot, error_card, info_card, query_float, query_int, summary_card,
 )
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -23,7 +24,7 @@ def cirpka_multiple_app():
         }
     ])
 
-    table = pn.widgets.Tabulator(init_df, height=300, sizing_mode="stretch_width", name="Cirpka scenarios")
+    table = pn.widgets.Tabulator(init_df, titles=table_titles(init_df.columns), height=300, sizing_mode="stretch_width", name="Cirpka scenarios")
     run_btn = pn.widgets.Button(name="Run Cirpka scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Add rows and click Run to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
@@ -60,8 +61,8 @@ def cirpka_multiple_app():
             result_pane.object = summary_card(
                 [
                     ("Successful runs", str(len(lmax_vals))),
-                    ("Max plume length", f"{max(lmax_vals):.2f} m"),
-                    ("Min plume length", f"{min(lmax_vals):.2f} m"),
+                    ("Maximum Plume Length L_max", f"{max(lmax_vals):.2f} m"),
+                    ("Minimum Maximum-Plume Length L_max", f"{min(lmax_vals):.2f} m"),
                 ],
                 title="Cirpka et al. (2005) Summary",
             )
@@ -78,10 +79,10 @@ def cirpka_multiple_app():
                 "parameters": [{"symbol": f"Sc.{i+1}", "name": f"Scenario {i+1}", "value": f"L={v:.2f}", "unit": "m"} for i, v in enumerate(lmax_vals)],
                 "outputs": [
                     {"label": "Scenarios run", "value": str(len(lmax_vals)), "unit": ""},
-                    {"label": "Max plume length", "value": f"{max(lmax_vals):.2f}", "unit": "m"},
-                    {"label": "Min plume length", "value": f"{min(lmax_vals):.2f}", "unit": "m"},
+                    {"label": "Maximum Plume Length L_max", "value": f"{max(lmax_vals):.2f}", "unit": "m"},
+                    {"label": "Minimum Maximum-Plume Length L_max", "value": f"{min(lmax_vals):.2f}", "unit": "m"},
                 ],
-                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lmax_vals))], "values": lmax_vals, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Cirpka et al. (2005)"},
+                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lmax_vals))], "values": lmax_vals, "ylabel": "Maximum Plume Length L_max [m]", "title": "Scenario Comparison — Cirpka et al. (2005)"},
             })
             report_bridge.object = report_bridge_html(
                 "Cirpka et al. (2005) — Multiple Simulation", "Cirpka Analytical",

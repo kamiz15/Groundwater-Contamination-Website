@@ -36,6 +36,38 @@ UNIT_MAP = {
     "pct": r"\%", "percent": r"\%",
 }
 
+# Database-backed workbench columns are already human-readable and include a
+# canonical symbol, e.g. ``Plume Length L_p [m]``. Parse that form separately
+# so underscores remain mathematical subscripts instead of becoming spaces.
+_DISPLAY_LABEL_RE = re.compile(
+    r"^(?P<title>.+?)\s+(?P<symbol>\S+?)(?:\s+\([^)]*\))?\s+\[(?P<unit>[^\]]+)\]$"
+)
+_DISPLAY_UNIT_LATEX = {
+    "m": r"m",
+    "m/s": r"m\,s^{-1}",
+    "m/d": r"m\,d^{-1}",
+    "m/yr": r"m\,yr^{-1}",
+    "mg/L": r"mg\,L^{-1}",
+}
+_DISPLAY_GREEK = {"\u03b1", "\u03b3", "\u03b5", "\u03b7", "\u03bb", "\u0393", "\u0394"}
+
+
+def _display_label_parts(name: str) -> tuple[str, str] | None:
+    """Return ``(symbol, unit)`` for a canonical human-readable UI label."""
+    match = _DISPLAY_LABEL_RE.fullmatch(str(name).strip())
+    if not match:
+        return None
+    symbol = match.group("symbol")
+    looks_like_symbol = (
+        "_" in symbol
+        or "^" in symbol
+        or symbol in _DISPLAY_GREEK
+        or (len(symbol) <= 2 and any(ch.isupper() for ch in symbol))
+    )
+    if not looks_like_symbol:
+        return None
+    return symbol, match.group("unit")
+
 # Single-character unit tokens are ambiguous with variable names, so they are
 # only stripped when something else remains in front of them.
 _GREEK = {
@@ -46,11 +78,16 @@ _GREEK = {
 
 # Domain terms that have a conventional single-symbol form.
 KNOWN_SYMBOLS = {
-    "concentration": "C", "conc": "C",
-    "head": "h", "hydraulic_head": "h",
+    "concentration": r"C_{c}", "conc": r"C_{c}",
+    "head": "H", "hydraulic_head": "H",
     "time": "t", "temperature": "T",
-    "porosity": r"\theta", "velocity": "v",
+    "porosity": r"\eta", "effective_porosity": r"\eta_{e}", "velocity": "v",
     "discharge": "q", "distance": "x", "depth": "z",
+    "aquifer_thickness": r"T_{A}",
+    "domain_length": r"L_{D}", "domain_width": r"W_{D}", "domain_thickness": r"T_{D}",
+    "plume_length": r"L_{p}", "plume_width": r"W_{p}",
+    "max_plume_length": r"L_{max}", "max_plume_width": r"W_{max}",
+    "recharge_rate": r"R_{c}",
 }
 
 
@@ -126,8 +163,16 @@ def latex_label(name: str, scale: str = "linear") -> str:
     Logarithms of a dimensional quantity are written as a ratio to the unit
     (``\\ln(L/\\mathrm{m})``) so the argument is properly dimensionless.
     """
-    tokens, unit = split_unit(name)
-    base = base_latex(tokens)
+    display_parts = _display_label_parts(name)
+    if display_parts:
+        symbol, display_unit = display_parts
+        base = base_latex(_tokens(symbol))
+        dimensionless = display_unit == "-"
+        unit = None if dimensionless else _DISPLAY_UNIT_LATEX.get(display_unit, display_unit)
+    else:
+        tokens, unit = split_unit(name)
+        base = base_latex(tokens)
+        dimensionless = False
     if not base:
         return f"$${name}$$"
 
@@ -136,7 +181,10 @@ def latex_label(name: str, scale: str = "linear") -> str:
     compound = bool(unit) and ("\\," in unit or "^" in unit)
 
     if scale == "linear":
-        body = f"{base}\\ [\\mathrm{{{unit}}}]" if unit else base
+        if dimensionless:
+            body = f"{base}\\ [-]"
+        else:
+            body = f"{base}\\ [\\mathrm{{{unit}}}]" if unit else base
     elif scale in ("ln", "log10"):
         op = r"\ln" if scale == "ln" else r"\log_{10}"
         if unit:
@@ -217,6 +265,12 @@ def _join_subscript(symbol: str, qualifier: str) -> str:
 
 def _plain_symbol(latex_symbol: str) -> str:
     """Convert a LaTeX symbol from KNOWN_SYMBOLS to its plain form."""
+    subscripted = re.fullmatch(r"(\\?[A-Za-z]+)_\{([^{}]+)\}", latex_symbol)
+    if subscripted:
+        base = subscripted.group(1)
+        if base.startswith(chr(92)):
+            base = _GREEK_UNICODE.get(base[1:], base)
+        return _join_subscript(base, subscripted.group(2))
     if latex_symbol.startswith("\\"):
         return _GREEK_UNICODE.get(latex_symbol[1:], latex_symbol)
     return latex_symbol
@@ -229,6 +283,21 @@ def plain_label(name: str, scale: str = "linear") -> str:
     keep their subscripts and are never sentence-capitalised, while descriptive
     names are.
     """
+    display_parts = _display_label_parts(name)
+    if display_parts:
+        symbol, unit = display_parts
+        if scale == "linear":
+            return str(name).strip()
+        dimensionless = unit == "-"
+        unit_bracketed = f"({unit})" if "/" in unit else unit
+        if scale in ("ln", "log10"):
+            op = "ln" if scale == "ln" else "log\u2081\u2080"
+            inner = symbol if dimensionless else f"{symbol}/{unit_bracketed}"
+            return f"{op}({inner})"
+        if scale == "inverse":
+            return f"1/{symbol}" if dimensionless else f"1/{symbol} [1/{unit_bracketed}]"
+        raise ValueError(f"Unknown scale '{scale}'.")
+
     tokens, unit = split_unit(name)
     if not tokens:
         return str(name)

@@ -12,11 +12,11 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def liedl_single_app():
-    m = pn.widgets.FloatInput(name="M (mass per unit width)", value=query_float("M", 2.0), step=0.1)
-    alpha_tv = pn.widgets.FloatInput(name="alpha_Tv (transverse dispersivity)", value=query_float("alpha_Tv", 0.001), step=0.0001)
-    gamma = pn.widgets.FloatInput(name="gamma (stoichiometric factor)", value=query_float("gamma", 3.5), step=0.1)
-    c_ea0 = pn.widgets.FloatInput(name="C_EA0 (acceptor) [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
-    c_ed0 = pn.widgets.FloatInput(name="C_ED0 (donor) [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
+    m = pn.widgets.FloatInput(name="Aquifer Thickness T_A [m]", value=query_float("M", 2.0), step=0.1)
+    alpha_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("alpha_Tv", 0.001), step=0.0001)
+    gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
+    c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
+    c_ed0 = pn.widgets.FloatInput(name="Donor Concentration at Source C_D^0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
     run_btn = pn.widgets.Button(name="Run Liedl simulation", button_type="primary", sizing_mode="stretch_width")
 
     result_pane = pn.pane.HTML(info_card("Run the Liedl model to compute plume length."), sizing_mode="stretch_width")
@@ -41,7 +41,7 @@ def liedl_single_app():
     def _run(_=None):
         try:
             lmax = liedl_lmax(m.value, alpha_tv.value, gamma.value, c_ea0.value, c_ed0.value)
-            result_pane.object = metric_card("Plume length", f"{lmax:.2f}")
+            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
             plot_pane.object = comparison_plot(
                 "Liedl et al. (2005)", "Liedl model plume length",
@@ -50,11 +50,11 @@ def liedl_single_app():
             field_x, field_y = load_field_points(email) if selected_site_id > 0 else ([], [])
             _state.update({
                 "parameters": [
-                    {"symbol": "M", "name": "Aquifer Thickness", "value": m.value, "unit": "m"},
-                    {"symbol": "\u03b1Tv", "name": "Transverse Dispersivity", "value": alpha_tv.value, "unit": "m"},
-                    {"symbol": "\u03b3", "name": "Stoichiometric Factor", "value": gamma.value, "unit": "-"},
-                    {"symbol": "C_EA0", "name": "Electron Acceptor", "value": c_ea0.value, "unit": "mg/L"},
-                    {"symbol": "C_ED0", "name": "Electron Donor", "value": c_ed0.value, "unit": "mg/L"},
+                    {"symbol": "T_A", "name": "Aquifer Thickness", "value": m.value, "unit": "m"},
+                    {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv.value, "unit": "m"},
+                    {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": gamma.value, "unit": "-"},
+                    {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
+                    {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
                 "plot_data": {

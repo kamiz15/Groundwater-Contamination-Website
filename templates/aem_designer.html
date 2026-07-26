@@ -24,8 +24,8 @@
             <div class="aem-field-grid">
               <label>Long. dispersivity &alpha;<sub>L</sub><span class="param-help" tabindex="0" role="note" aria-label="Longitudinal dispersivity — plume spreading along the flow direction [m].">i<span class="param-help__tip" role="tooltip">Longitudinal dispersivity — plume spreading along the flow direction [m].</span></span><input type="number" name="alpha_l" value="2" step="any" min="0"></label>
               <label>Trans. dispersivity &alpha;<sub>T</sub><span class="param-help" tabindex="0" role="note" aria-label="Transverse dispersivity — plume spreading across the flow direction [m].">i<span class="param-help__tip" role="tooltip">Transverse dispersivity — plume spreading across the flow direction [m].</span></span><input type="number" name="alpha_t" value="0.2" step="any" min="0"></label>
-              <label>Acceptor conc. <i>c</i><sub>A</sub><span class="param-help" tabindex="0" role="note" aria-label="Background electron-acceptor concentration [mg/L].">i<span class="param-help__tip" role="tooltip">Background electron-acceptor concentration [mg/L].</span></span><input type="number" name="ca" value="8" step="any"></label>
-              <label>Stoich. ratio &gamma;<span class="param-help" tabindex="0" role="note" aria-label="Donor : acceptor stoichiometric mass ratio (dimensionless).">i<span class="param-help__tip" role="tooltip">Donor : acceptor stoichiometric mass ratio (dimensionless).</span></span><input type="number" name="gamma" value="3.5" step="any" min="0"></label>
+              <label>Acceptor Concentration <i>C</i><sub>A</sub> [mg/L]<span class="param-help" tabindex="0" role="note" aria-label="Background acceptor concentration [mg/L].">i<span class="param-help__tip" role="tooltip">Background acceptor concentration [mg/L].</span></span><input type="number" name="ca" value="8" step="any"></label>
+              <label>Stoichiometry Ratio &gamma; [-]<span class="param-help" tabindex="0" role="note" aria-label="Donor : acceptor stoichiometry mass ratio (dimensionless).">i<span class="param-help__tip" role="tooltip">Donor : acceptor stoichiometry mass ratio (dimensionless).</span></span><input type="number" name="gamma" value="3.5" step="any" min="0"></label>
               <label>Source width <i>W</i><sub>s</sub><span class="param-help" tabindex="0" role="note" aria-label="Source-zone width guide [m] — the x-extent shown by the gold lines.">i<span class="param-help__tip" role="tooltip">Source-zone width guide [m] — the x-extent shown by the gold lines.</span></span><input type="number" name="ws" value="0.5" step="any" min="0"></label>
             </div>
             <button id="aem-orientation" type="button" class="aem-btn">Orientation: vertical</button>
@@ -56,7 +56,7 @@
             <button id="aem-import-trigger" type="button" class="aem-btn">Import JSON</button>
             <input id="aem-import" class="aem-file-input" type="file" accept="application/json,.json" aria-label="Import AEM JSON">
           </div>
-          <button type="submit" class="aem-btn aem-btn--submit">Continue and Run Simulation</button>
+          <button type="submit" class="aem-btn aem-btn--submit">Run Simulation</button>
         </form>
       </aside>
       <main class="aem-designer-stage">

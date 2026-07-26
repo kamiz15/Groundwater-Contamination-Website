@@ -10,11 +10,36 @@ import io
 import numpy as np
 import pandas as pd
 
-from symbol_registry import SITE_COLUMN_DEFS, TEXT_COLUMN_DEFS
+from symbol_registry import SITE_COLUMN_DEFS, TEXT_COLUMN_DEFS, header_to_site_column
 
 # Try a few encodings in order. utf-8-sig transparently strips a BOM, which
 # spreadsheets on Windows frequently add.
 _ENCODINGS = ("utf-8-sig", "utf-8", "latin-1")
+
+_CANONICAL_SITE_LABELS = {
+    **{field: meta["ui"] for field, meta in TEXT_COLUMN_DEFS.items()},
+    **{field: label for field, label, _unit in SITE_COLUMN_DEFS},
+}
+
+
+def _canonical_workbench_columns(columns) -> list[str]:
+    """Normalize recognized site headers; preserve unknown CSV columns verbatim."""
+    normalized = []
+    used = set()
+    for raw_column in columns:
+        original = str(raw_column).strip()
+        site_field = header_to_site_column(original)
+        candidate = _CANONICAL_SITE_LABELS.get(site_field, original)
+        if candidate in used:
+            base = f"{candidate} (additional)"
+            candidate = base
+            suffix = 2
+            while candidate in used:
+                candidate = f"{base} {suffix}"
+                suffix += 1
+        normalized.append(candidate)
+        used.add(candidate)
+    return normalized
 
 
 def _has_value(value) -> bool:
@@ -114,7 +139,7 @@ def load_csv(raw: bytes) -> pd.DataFrame:
 
     # Column labels come in as whatever the header row held; make them strings
     # so downstream Select widgets always get hashable, displayable options.
-    df.columns = [str(c).strip() for c in df.columns]
+    df.columns = _canonical_workbench_columns(df.columns)
     return df
 
 

@@ -94,4 +94,4 @@ def test_pdf_report_formats_symbols_for_input_table():
     assert CASTReport._symbol_markup("alpha_Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup(chr(945) + "Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup(chr(206) + chr(177) + "Tv") == "&#945;<sub>Tv</sub>"
-    assert CASTReport._symbol_markup("C_EA0") == "<i>C</i><sub>EA0</sub>"
+    assert CASTReport._symbol_markup("C_EA0") == "<i>C</i><sub>A</sub><super>0</super>"

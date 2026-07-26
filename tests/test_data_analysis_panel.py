@@ -38,8 +38,14 @@ def test_workbench_loads_authenticated_users_database_by_default(monkeypatch):
     assert calls == ["user@example.com"]
     assert list(preview.value["Site Number"]) == [1]
     assert list(preview.value["Site unit"]) == ["Current Site"]
-    assert uni_col.value == "Plume Length [m]"
+    assert uni_col.value == "Plume Length L_p [m]"
     assert biv_x.value == "Site Number"
+    assert preview.layout == "fit_columns"
+    status_cards = app.objects[0].select(pn.pane.HTML)
+    assert len(status_cards) == 1
+    assert "Data source:</b> Site database" in str(status_cards[0].object)
+    assert "1 rows" in str(status_cards[0].object)
+    assert "CSV notation:" not in str(status_cards[0].object)
     assert not any(
         "Data Analysis Workbench" in str(pane.object)
         for pane in app.select(pn.pane.Markdown)
@@ -74,8 +80,9 @@ def test_temporary_csv_does_not_replace_the_saved_database(monkeypatch):
 
     file_input.param.update(
         filename="temporary.csv",
-        value=b"Temporary value,Group\n99,A\n",
+        value=b"Plume length[m],Temporary value,Group\n25,99,A\n",
     )
+    assert list(preview.value["Plume Length L_p [m]"]) == [25]
     assert list(preview.value["Temporary value"]) == [99]
 
     refresh.clicks += 1
@@ -89,11 +96,14 @@ def test_workbench_keeps_upload_prompt_when_site_database_is_empty(monkeypatch):
 
     app = workbench.data_analysis_app()
     preview = _named_widget(app, pn.widgets.Tabulator, "Data preview")
-    html = " ".join(str(pane.object) for pane in app.select(pn.pane.HTML))
+    status_cards = app.objects[0].select(pn.pane.HTML)
+    html = " ".join(str(pane.object) for pane in status_cards)
 
     assert preview.value.empty
+    assert len(status_cards) == 1
     assert "No uploaded site data is available" in html
     assert "Upload a CSV file" in html
+    assert "CSV notation:" in html
 
 
 def test_workbench_opens_an_aem_grid_on_the_scientific_tab(monkeypatch):

@@ -639,7 +639,7 @@
       cb.fillStyle = "#444"; cb.font = "10px sans-serif";
       cb.textBaseline = "bottom";
       cb.textAlign = "left"; cb.fillText("0", 1, h);
-      cb.textAlign = "center"; cb.fillText("Electron donor concentration [mg/l]", w / 2, h);
+      cb.textAlign = "center"; cb.fillText("Donor Concentration C_D [mg/L]", w / 2, h);
       cb.textAlign = "right"; cb.fillText(fmt2(CONC_MAX), w - 1, h);
     };
 
@@ -650,7 +650,7 @@
         : e.kind === "ellipse" ? `a = ${fmt2(e.a)}, b = ${fmt2(e.b)} m`
         : `l = ${fmt2(e.l)} m, θ = ${fmt2(e.theta || 0)}°`;
       const label = selected.type === "source" ? e.kind : "circle";
-      setInfo(`${label}  |  ${size}  |  c = ${fmt2(e.c)} mg/l  |  pos = (${fmt2(e.x)}, ${fmt2(e.y)})`);
+      setInfo(`${label}  |  ${size}  |  C_D^0 = ${fmt2(e.c)} mg/L  |  pos = (${fmt2(e.x)}, ${fmt2(e.y)})`);
     };
 
     // Resize backing store to displayed box (DPR-aware) and redraw.
@@ -1024,7 +1024,7 @@
 
   const renderSummary = (result) => {
     const summary = document.getElementById("aem-summary"); summary.innerHTML = "";
-    Object.entries(result).filter(([key, value]) => !["field", "xaxis", "yaxis"].includes(key) && value !== null)
+    Object.entries(result).filter(([key, value]) => !["field", "xaxis", "yaxis", "validation_passed"].includes(key) && value !== null)
       .forEach(([key, value]) => { const dt = document.createElement("dt"); dt.textContent = key.replaceAll("_", " ");
         const dd = document.createElement("dd"); dd.textContent = typeof value === "number" ? fmt2(value) : String(value); summary.append(dt, dd); });
   };
@@ -1225,13 +1225,13 @@
       (b) => sampleStops(BLUES_STOPS, 1 - (b + 0.5) / ACC_BANDS),
       sampleStops(BLUES_STOPS, 1), "min",
       (i) => fmt2(Math.abs(minAcc) * (1 - i / ACC_BANDS)),
-      "Electron acceptor concentration [mg/l]");
+      "Acceptor Concentration C_A [mg/L]");
     // Donor bar (lower): white (0) on the left, deepening to dark red (max).
     drawCbar(plotBottom + 110 * s, DONOR_BANDS,
       (b) => sampleStops(REDS_STOPS, (b + 0.5) / DONOR_BANDS),
       sampleStops(REDS_STOPS, 1), "max",
       (i) => fmt2(i * maxDonor / DONOR_BANDS),
-      "Electron donor concentration [mg/l]");
+      "Donor Concentration C_D [mg/L]");
 
     // Full-height dashed L_max marker + upper-right legend, matching the reference
     // (source_designer.py: ax.axvline(L_max, navy, dashed) + legend "upper right").
@@ -1261,25 +1261,31 @@
   };
   async function runJob(endpoint, payload) {
     const cancel = document.getElementById("aem-cancel");
+    const cancelActions = document.getElementById("aem-cancel-actions");
     const actions = document.getElementById("aem-result-actions");
     const csvLink = document.getElementById("aem-download-csv");
     const workbenchLink = document.getElementById("aem-open-workbench");
+    const setCancelVisible = (visible) => {
+      cancel.hidden = !visible;
+      if (cancelActions) cancelActions.hidden = !visible;
+    };
     if (actions) actions.hidden = true;
+    setCancelVisible(false);
     try {
-      const submitted = await post(endpoint, payload); cancel.hidden = false;
+      const submitted = await post(endpoint, payload); setCancelVisible(true);
       cancel.onclick = () => post(submitted.cancel_url, {}).then(() => show("Job cancelled."));
       while (true) {
         const status = await json(submitted.status_url); show(`Simulation ${status.status}${status.queue_position ? ` (queue position ${status.queue_position})` : ""}...`);
         if (status.status === "done") break; if (["failed", "cancelled"].includes(status.status)) throw new Error(status.error || `Job ${status.status}.`);
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
-      const completed = await json(submitted.result_url); cancel.hidden = true; show("Simulation complete."); renderSummary(completed.result); renderField(completed.result);
+      const completed = await json(submitted.result_url); setCancelVisible(false); show("Simulation complete."); renderSummary(completed.result); renderField(completed.result);
       if (csvLink) csvLink.hidden = !completed.csv_url;
       if (workbenchLink) workbenchLink.hidden = !completed.workbench_url;
       if (completed.csv_url && csvLink) csvLink.href = completed.csv_url;
       if (completed.workbench_url && workbenchLink) workbenchLink.href = completed.workbench_url;
       if (actions) actions.hidden = !(completed.csv_url || completed.workbench_url);
-    } catch (error) { cancel.hidden = true; show(error.message, true); }
+    } catch (error) { setCancelVisible(false); show(error.message, true); }
   }
   if (root.dataset.aemPage === "designer") designer();
   if (root.dataset.aemPage === "forward") runJob("/aem/api/forward", {design: root.dataset.designToken});

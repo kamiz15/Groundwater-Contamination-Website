@@ -8,6 +8,7 @@ from panel_auth import authenticated_email
 from analytical_models import chu_lmax, compute_chu_multiple
 from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, summary_card
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 from pdf_report import CASTReport
 
 pn.extension("tabulator", sizing_mode="stretch_width")
@@ -15,11 +16,11 @@ pn.extension("tabulator", sizing_mode="stretch_width")
 
 def chu_single_app():
     w = pn.widgets.FloatInput(name="Source width W [m]", value=query_float("W", 2.0), step=0.1)
-    alpha_th = pn.widgets.FloatInput(name="Horizontal transverse dispersivity alpha_Th [m]", value=query_float("alpha_Th", 0.01), step=0.001)
-    gamma = pn.widgets.FloatInput(name="Stoichiometric ratio gamma [-]", value=query_float("gamma", 1.5), step=0.1)
-    c_ea0 = pn.widgets.FloatInput(name="Acceptor concentration C_EA0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
-    c_ed0 = pn.widgets.FloatInput(name="Donor concentration C_ED0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
-    epsilon = pn.widgets.FloatInput(name="Biological factor epsilon [mg/L]", value=query_float("epsilon", 0.0), step=0.01)
+    alpha_th = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("alpha_Th", 0.01), step=0.001)
+    gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 1.5), step=0.1)
+    c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
+    c_ed0 = pn.widgets.FloatInput(name="Donor Concentration at Source C_D^0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
+    epsilon = pn.widgets.FloatInput(name="Biological Factor \u03b5 [mg/L]", value=query_float("epsilon", 0.0), step=0.01)
     run_btn = pn.widgets.Button(name="Run Chu simulation", button_type="primary", sizing_mode="stretch_width")
 
     result_pane = pn.pane.HTML(info_card("Run the Chu model to compute plume length."), sizing_mode="stretch_width")
@@ -44,7 +45,7 @@ def chu_single_app():
     def _run(_=None):
         try:
             lmax = chu_lmax(w.value, alpha_th.value, gamma.value, c_ea0.value, c_ed0.value, epsilon.value)
-            result_pane.object = metric_card("Plume length", f"{lmax:.2f}")
+            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
             plot_pane.object = comparison_plot("Chu et al.", "Chu model plume length", user_x, [lmax], selected_site_id, email, "Run Number")
             _state.update({
@@ -52,8 +53,8 @@ def chu_single_app():
                     {"symbol": "W", "name": "Source Width", "value": w.value, "unit": "m"},
                     {"symbol": "\u03b1Th", "name": "Horiz. Trans. Dispersivity", "value": alpha_th.value, "unit": "m"},
                     {"symbol": "\u03b3", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                    {"symbol": "C_EA0", "name": "Electron Acceptor", "value": c_ea0.value, "unit": "mg/L"},
-                    {"symbol": "C_ED0", "name": "Electron Donor", "value": c_ed0.value, "unit": "mg/L"},
+                    {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
+                    {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
                     {"symbol": "\u03b5", "name": "Biological Factor", "value": epsilon.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
@@ -88,7 +89,7 @@ def chu_multiple_app():
         "C_ED0": query_float("C_ED0", 5.0), "epsilon": query_float("epsilon", 0.0),
     }])
 
-    table = pn.widgets.Tabulator(default_df, height=300, sizing_mode="stretch_width", name="Chu scenarios")
+    table = pn.widgets.Tabulator(default_df, titles=table_titles(default_df.columns), height=300, sizing_mode="stretch_width", name="Chu scenarios")
     run_btn = pn.widgets.Button(name="Run Chu scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Chu scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
@@ -108,7 +109,7 @@ def chu_multiple_app():
                 raise ValueError("No scenarios available.")
             entries = [[float(row.get(k, 0)) for k in ("W", "alpha_Th", "gamma", "C_EA0", "C_ED0", "epsilon")] for _, row in df.iterrows()]
             l_vals = compute_chu_multiple(entries)
-            result_pane.object = summary_card([("Successful runs", str(len(l_vals))), ("Max plume length", f"{max(l_vals):.2f} m")])
+            result_pane.object = summary_card([("Successful runs", str(len(l_vals))), ("Maximum Plume Length L_max", f"{max(l_vals):.2f} m")])
             plot_pane.object = comparison_plot("Chu et al.", "Chu model plume length", list(range(1, len(l_vals) + 1)), l_vals, selected_site_id, email, "Scenario Number")
             _state.update({
                 "parameters": [{"symbol": f"Sc.{i+1}", "name": f"Scenario {i+1}", "value": f"L={v:.2f}", "unit": "m"} for i, v in enumerate(l_vals)],

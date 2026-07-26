@@ -50,6 +50,7 @@ from data_analysis.stats import DISTRIBUTIONS
 from data_queries import get_user_sites_rows
 from numerical_jobs import fetch_result, job_status, load_job_meta
 from panel_auth import authenticated_email
+from symbol_registry import SITE_COLUMN_DEFS, ui_label_markup
 
 try:
     # Reuse the site's card styling when available (running inside the app).
@@ -67,6 +68,15 @@ pn.extension("tabulator", "mathjax", sizing_mode="stretch_width")
 
 _UPLOAD_PROMPT = "Upload a CSV file to begin exploring your data."
 _DATABASE_EMPTY_PROMPT = "No uploaded site data is available. Upload a CSV file to begin."
+_UPLOAD_CANONICAL_LABELS = [
+    label for field, label, _unit in SITE_COLUMN_DEFS
+    if field in {"aquifer_thickness", "plume_length", "plume_width", "hydraulic_conductivity", "electron_donor", "electron_acceptor_o2"}
+]
+_UPLOAD_HELP = (
+    "<b>CSV notation:</b> recognized headers are normalized to "
+    + ", ".join(ui_label_markup(label) for label in _UPLOAD_CANONICAL_LABELS)
+    + ". Custom columns keep their original names."
+)
 logger = logging.getLogger(__name__)
 
 
@@ -140,11 +150,12 @@ def data_analysis_app():
     file_input = pn.widgets.FileInput(
         name="Upload another CSV", accept=".csv", multiple=False,
     )
-    source_pane = pn.pane.HTML(info_card("Loading your site database..."))
-    summary_pane = pn.pane.HTML(info_card(_UPLOAD_PROMPT))
+    status_pane = pn.pane.HTML(
+        info_card("Loading your site database..."), sizing_mode="stretch_width"
+    )
     preview = pn.widgets.Tabulator(
         pd.DataFrame(), height=220, disabled=True, show_index=False,
-        layout="fit_data_stretch", name="Data preview",
+        layout="fit_columns", name="Data preview", sizing_mode="stretch_width",
     )
 
     # Column selectors shared across tabs (populated on upload).
@@ -187,11 +198,9 @@ def data_analysis_app():
         # Preview shows two decimals like the rest of the tool; the download
         # and every computation still use the full-precision values.
         preview.value = fmt_mod.format_frame(df.head(10))
-        source_pane.object = info_card(
-            f"<b>Data source:</b> {html.escape(source_name)}"
-        )
-        numeric_txt = ", ".join(summary["numeric_cols"]) or "none"
-        summary_pane.object = info_card(
+        numeric_txt = html.escape(", ".join(summary["numeric_cols"]) or "none")
+        status_pane.object = info_card(
+            f"<b>Data source:</b> {html.escape(source_name)}<br>"
             f"<b>{summary['rows']} rows × {summary['cols']} columns.</b><br>"
             f"Numeric columns: {numeric_txt}.<br>"
             f"Missing cells: {summary['missing_cells']}."
@@ -212,8 +221,9 @@ def data_analysis_app():
         err_col.options = ["(none)"]
         err_col.value = "(none)"
         preview.value = pd.DataFrame()
-        source_pane.object = info_card(message)
-        summary_pane.object = info_card(_UPLOAD_PROMPT)
+        status_pane.object = info_card(
+            f"{html.escape(message)}<br>{_UPLOAD_HELP}"
+        )
         sci_type.disabled = True
         grid_status.object = info_card(_GRID_PROMPT)
         data_version.value += 1
@@ -225,7 +235,7 @@ def data_analysis_app():
             frame = datasets.site_rows_frame(rows)
         except Exception:
             logger.exception("Could not load the site database into the Data Workbench")
-            source_pane.object = error_card("Could not load your site database.")
+            status_pane.object = error_card("Could not load your site database.")
             return
         if frame.empty:
             _clear_dataframe(_DATABASE_EMPTY_PROMPT)
@@ -238,7 +248,7 @@ def data_analysis_app():
         try:
             df = datasets.load_csv(file_input.value)
         except Exception as exc:
-            summary_pane.object = error_card(exc)
+            status_pane.object = error_card(exc)
             return
         filename = file_input.filename or "Uploaded CSV"
         _apply_dataframe(df, f"Temporary CSV - {filename}")
@@ -478,7 +488,7 @@ def data_analysis_app():
             # Displayed to two decimals; the CSV download keeps full precision.
             return pn.widgets.Tabulator(
                 fmt_mod.format_frame(table), disabled=True,
-                layout="fit_data_stretch", height=340, sizing_mode="stretch_width",
+                layout="fit_columns", height=340, sizing_mode="stretch_width",
             )
         except Exception as exc:
             return _error_pane(exc)
@@ -521,7 +531,7 @@ def data_analysis_app():
     intake = pn.Column(
         "### 1. Data source",
         pn.Row(database_btn, file_input),
-        source_pane, summary_pane, preview,
+        status_pane, preview,
         data_version, grid_version,
         sizing_mode="stretch_width",
     )
@@ -548,7 +558,7 @@ def data_analysis_app():
         except Exception:
             logger.exception("Could not load the requested AEM result into the Data Workbench")
             _clear_dataframe("The requested AEM result could not be loaded.")
-            source_pane.object = error_card("The requested AEM result could not be loaded.")
+            status_pane.object = error_card("The requested AEM result could not be loaded.")
     else:
         _load_database()
 

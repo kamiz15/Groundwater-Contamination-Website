@@ -27,11 +27,11 @@ shortens the steady-state plume length
     <mo>=</mo>
     <mrow>
       <mo>(</mo>
-      <mn>1</mn><mo>−</mo><mn>0.047</mn><msup><mi>M</mi><mn>0.404</mn></msup><msup><mi>R</mi><mn>1.883</mn></msup>
+      <mn>1</mn><mo>−</mo><mn>0.047</mn><msup><msub><mi>T</mi><mi>A</mi></msub><mn>0.404</mn></msup><msup><msub><mi>R</mi><mi>c</mi></msub><mn>1.883</mn></msup>
       <mo>)</mo>
     </mrow>
     <mfrac>
-      <mrow><mn>4</mn><msup><mi>M</mi><mn>2</mn></msup></mrow>
+      <mrow><mn>4</mn><msup><msub><mi>T</mi><mi>A</mi></msub><mn>2</mn></msup></mrow>
       <mrow><msup><mi>π</mi><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mrow>
     </mfrac>
     <mi>ln</mi><mo>&#8289;</mo>
@@ -39,8 +39,8 @@ shortens the steady-state plume length
       <mo>(</mo>
       <mfrac><mn>4</mn><mi>π</mi></mfrac>
       <mfrac>
-        <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub><mo>+</mo><msub><mi>C</mi><mi>A</mi></msub></mrow>
-        <msub><mi>C</mi><mi>A</mi></msub>
+        <mrow><mi>γ</mi><msub><mi>C</mi><mi>r</mi></msub><mo>+</mo><msub><mi>C</mi><mi>c</mi></msub></mrow>
+        <msub><mi>C</mi><mi>c</mi></msub>
       </mfrac>
       <mo>)</mo>
     </mrow>
@@ -49,12 +49,12 @@ shortens the steady-state plume length
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>M</mi></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
+<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
-<dt><math><mi>R</mi></math></dt><dd>Recharge rate [m/yr]</dd>
+<dt><math><msub><mi>R</mi><mi>c</mi></msub></math></dt><dd>Recharge rate [m/yr]</dd>
 <dt><math><mi>γ</mi></math></dt><dd>Stoichiometry coefficient [-]</dd>
-<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Reactant concentration [mg/L]</dd>
-<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Contaminant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>r</mi></msub></math></dt><dd>Partner reactant concentration [mg/L]</dd>
+<dt><math><msub><mi>C</mi><mi>c</mi></msub></math></dt><dd>General contaminant concentration [mg/L]</dd>
 {% endblock %}
 
 {% block about_assumptions %}

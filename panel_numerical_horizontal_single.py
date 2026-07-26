@@ -39,20 +39,20 @@ def _loading_status_card(items, title):
 
 def numerical_horizontal_single_app():
     # Input (user / database)
-    source = pn.widgets.FloatInput(name="Source Thickness Sw [m]", value=query_float("source_thickness", query_float("source", query_float("Sw", 5.0))), step=0.1)
-    grid_size = pn.widgets.FloatInput(name="Grid Size dx=dy [m]", value=query_float("grid_size", 1.0), step=0.1)
-    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity aL [m]", value=query_float("al", 1.0), step=0.1)
-    at = pn.widgets.FloatInput(name="Transverse Dispersivity aT [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
-    gamma = pn.widgets.FloatInput(name="Stoichiometric Ratio gamma [-]", value=query_float("gamma", 3.5), step=0.1)
-    cd = pn.widgets.FloatInput(name="Electron Donor Cd [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
-    ca = pn.widgets.FloatInput(name="Electron Acceptor Ca [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
+    source = pn.widgets.FloatInput(name="Source Thickness S_w [m]", value=query_float("source_thickness", query_float("source", query_float("Sw", 5.0))), step=0.1)
+    grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394y [m]", value=query_float("grid_size", 1.0), step=0.1)
+    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
+    at = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
+    gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
+    cd = pn.widgets.FloatInput(name="Donor Concentration C_D [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
+    ca = pn.widgets.FloatInput(name="Acceptor Concentration C_A [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
     # Standard (modifiable defaults; analytical L_D / width are derived in the model)
-    prsity = pn.widgets.FloatInput(name="Porosity n [-]", value=query_float("prsity", 0.3), step=0.01)
+    prsity = pn.widgets.FloatInput(name="Porosity \u03b7 [-]", value=query_float("prsity", 0.3), step=0.01)
     hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 8.64), step=0.1)
     gradient = pn.widgets.FloatInput(name="Hydraulic Gradient i [-]", value=query_float("gradient", 0.0125), step=0.001)
     # Analytical column (computed, read-only; filled after a run)
     ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
-    dw_out = pn.widgets.StaticText(name="Domain Width [m]", value="\u2014")
+    dw_out = pn.widgets.StaticText(name="Domain Width W_D [m]", value="\u2014")
     for _w in (source, grid_size, alpha_l, at, gamma, cd, ca, prsity, hk, gradient, ld_out, dw_out):
         _w.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
 
@@ -88,7 +88,7 @@ def numerical_horizontal_single_app():
         stop_growth(anim.get("holder"))
         footer_meta = (
             f"L_D = {result.domain_length:.2f} m  |  Δx=Δy = {grid_size.value:.2f} m  |  "
-            f"porosity = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
+            f"η = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
             f"gradient = {gradient.value:.4f}  |  Péclet = {getattr(result, 'peclet', 0.0):.2f}  |  "
             "Courant target = 5"
         )
@@ -111,9 +111,9 @@ def numerical_horizontal_single_app():
         logger.info("Horizontal single graph_pane.object assigned")
         comparison_pane.object = None
         _rows = [
-            ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-            ("Domain Length LD", f"{result.domain_length:.2f} m"),
-            ("Domain Width", f"{result.domain_width:.2f} m"),
+            ("Maximum Plume Length L_max", f"{result.plume_length:.2f} m"),
+            ("Domain Length L_D", f"{result.domain_length:.2f} m"),
+            ("Domain Width W_D", f"{result.domain_width:.2f} m"),
             ("Peclet", f"{result.peclet:.2f}"),
         ]
         if getattr(result, "k_warning", ""):
@@ -123,29 +123,29 @@ def numerical_horizontal_single_app():
             "parameters": [
                 {"symbol": "Sw", "name": "Source Thickness", "value": source.value, "unit": "m"},
                 {"symbol": "dx", "name": "Grid Size", "value": grid_size.value, "unit": "m"},
-                {"symbol": "aL", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                {"symbol": "aT", "name": "Transverse Dispersivity", "value": at.value, "unit": "m"},
-                {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                {"symbol": "Cd", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
-                {"symbol": "Ca", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
-                {"symbol": "n", "name": "Porosity", "value": prsity.value, "unit": "-"},
+                {"symbol": "alpha_L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
+                {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": at.value, "unit": "m"},
+                {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": gamma.value, "unit": "-"},
+                {"symbol": "C_D", "name": "Donor Concentration", "value": cd.value, "unit": "mg/L"},
+                {"symbol": "C_A", "name": "Acceptor Concentration", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "prsity", "name": "Porosity", "value": prsity.value, "unit": "-"},
                 {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
                 {"symbol": "i", "name": "Hydraulic Gradient", "value": gradient.value, "unit": "-"},
-                {"symbol": "LD", "name": "Domain Length (analytical)", "value": result.domain_length, "unit": "m"},
-                {"symbol": "DW", "name": "Domain Width", "value": result.domain_width, "unit": "m"},
+                {"symbol": "L_D", "name": "Domain Length (analytical)", "value": result.domain_length, "unit": "m"},
+                {"symbol": "W_D", "name": "Domain Width", "value": result.domain_width, "unit": "m"},
                 {"symbol": "Pe", "name": "Peclet Number", "value": result.peclet, "unit": "-"},
             ],
             "outputs": [
-                {"label": "Horizontal Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                {"label": "Domain Length LD", "value": f"{result.domain_length:.2f}", "unit": "m"},
-                {"label": "Domain Width", "value": f"{result.domain_width:.2f}", "unit": "m"},
+                {"label": "Maximum Plume Length L_max", "value": f"{result.plume_length:.2f}", "unit": "m"},
+                {"label": "Domain Length L_D", "value": f"{result.domain_length:.2f}", "unit": "m"},
+                {"label": "Domain Width W_D", "value": f"{result.domain_width:.2f}", "unit": "m"},
                 {"label": "Peclet", "value": f"{result.peclet:.2f}", "unit": "-"},
                 {"label": "Courant Target", "value": f"{result.courant:.2f}", "unit": "-"},
             ],
             "plot_data": {
                 "labels": ["Horizontal numerical"],
                 "values": [result.plume_length],
-                "ylabel": "Plume Length (m)",
+                "ylabel": "Maximum Plume Length L_max [m]",
                 "title": "Horizontal Numerical",
             },
             "plot_images": [

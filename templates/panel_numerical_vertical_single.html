@@ -11,7 +11,7 @@
   <h3>Conceptual Model</h3>
   <img
     src="{{ url_for('static', filename='images/conceptual_numerical_vertical.png') }}"
-    alt="Vertical numerical model cross-section showing x-z spreading, aquifer thickness, source thickness, and vertical transverse dispersivity alpha Tv"
+    alt="Vertical numerical model cross-section showing x-z spreading, aquifer thickness T_A, source thickness, and vertical transverse dispersivity alpha_Tv"
     class="conceptual-img"
     loading="eager"
   />
@@ -28,10 +28,10 @@
       {% endfor %}
     </dl>
     {% endif %}
-    <p class="small">The simulation domain is sized from the analytical solution, so you never enter it. The maximum plume length is <i>L</i><sub>max</sub> = (4&nbsp;<i>M</i>²) / (π²&nbsp;α<sub>Tv</sub>)&nbsp;·&nbsp;ln[(4γ<i>c</i><sub>D</sub>&nbsp;+&nbsp;<i>c</i><sub>A</sub>) / (π&nbsp;<i>c</i><sub>A</sub>)] (vertical Liedl-type solution, using aquifer thickness <i>M</i>, vertical transverse dispersivity α<sub>Tv</sub>, donor/acceptor concentrations and γ). <b>Domain Length</b> = 1.5&nbsp;·&nbsp;<i>L</i><sub>max</sub> (a 50% downstream margin).</p>
+    <p class="small">The simulation domain is sized from the analytical solution, so you never enter it. The maximum plume length is <i>L</i><sub>max</sub> = (4&nbsp;<i>T</i><sub>A</sub>²) / (π²&nbsp;α<sub>Tv</sub>)&nbsp;·&nbsp;ln[(4γ<i>C</i><sub>D</sub>&nbsp;+&nbsp;<i>C</i><sub>A</sub>) / (π&nbsp;<i>C</i><sub>A</sub>)] (vertical Liedl-type solution, using aquifer thickness <i>T</i><sub>A</sub>, vertical transverse dispersivity α<sub>Tv</sub>, donor/acceptor concentrations and γ). <b>Domain Length <i>L</i><sub>D</sub></b> = 1.5&nbsp;·&nbsp;<i>L</i><sub>max</sub> (a 50% downstream margin).</p>
   </div>
   {% endif %}
-  <p class="small conceptual-note">Vertical configuration: cross-section (x, z) with aquifer thickness M, source thickness ST, and vertical transverse dispersivity alpha Tv.</p>
+  <p class="small conceptual-note">Vertical configuration: cross-section (<i>x</i>, <i>z</i>) with aquifer thickness <i>T</i><sub>A</sub>, source thickness <i>S</i><sub>T</sub>, and vertical transverse dispersivity α<sub>Tv</sub>.</p>
   </div>
 </div>
 {% endblock %}

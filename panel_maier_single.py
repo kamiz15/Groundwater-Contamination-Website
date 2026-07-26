@@ -12,11 +12,11 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def maier_single_app():
-    w_M = pn.widgets.FloatInput(name="Aquifer thickness M", value=query_float("M", 5.0), step=0.1)
-    w_tv = pn.widgets.FloatInput(name="Vertical transverse dispersivity tv", value=query_float("tv", 0.01), step=0.001)
-    w_g = pn.widgets.FloatInput(name="Stoichiometry coefficient g", value=query_float("g", 3.5), step=0.1)
-    w_Ca = pn.widgets.FloatInput(name="Contaminant concentration Ca", value=query_float("Ca", 8.0), step=0.5)
-    w_Cd = pn.widgets.FloatInput(name="Reactant concentration Cd", value=query_float("Cd", 5.0), step=0.5)
+    w_M = pn.widgets.FloatInput(name="Aquifer Thickness T_A [m]", value=query_float("M", 5.0), step=0.1)
+    w_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("tv", 0.01), step=0.001)
+    w_g = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("g", 3.5), step=0.1)
+    w_Ca = pn.widgets.FloatInput(name="Contaminant Concentration C_c [mg/L]", value=query_float("Ca", 8.0), step=0.5)
+    w_Cd = pn.widgets.FloatInput(name="Partner Reactant Concentration C_r [mg/L]", value=query_float("Cd", 5.0), step=0.5)
     run_btn = pn.widgets.Button(name="Run Maier simulation", button_type="primary", sizing_mode="stretch_width")
 
     result_pane = pn.pane.HTML(info_card("Run the Maier & Grathwohl model to compute plume length."), sizing_mode="stretch_width")
@@ -41,16 +41,16 @@ def maier_single_app():
     def _run(_=None):
         try:
             lmax_current = maier_lmax(w_M.value, w_tv.value, w_g.value, w_Ca.value, w_Cd.value)
-            result_pane.object = metric_card("Plume length", f"{lmax_current:.2f}")
+            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax_current:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
             plot_pane.object = comparison_plot("Maier and Grathwohl (2005)", "Maier model plume length", user_x, [lmax_current], selected_site_id, email, "Run Number")
             _state.update({
                 "parameters": [
-                    {"symbol": "M", "name": "Aquifer Thickness", "value": w_M.value, "unit": "m"},
-                    {"symbol": "tv", "name": "Vert. Trans. Dispersivity", "value": w_tv.value, "unit": "m"},
-                    {"symbol": "g", "name": "Stoichiometry Coefficient", "value": w_g.value, "unit": "-"},
-                    {"symbol": "Ca", "name": "Contaminant Concentration", "value": w_Ca.value, "unit": "mg/L"},
-                    {"symbol": "Cd", "name": "Reactant Concentration", "value": w_Cd.value, "unit": "mg/L"},
+                    {"symbol": "T_A", "name": "Aquifer Thickness", "value": w_M.value, "unit": "m"},
+                    {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": w_tv.value, "unit": "m"},
+                    {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": w_g.value, "unit": "-"},
+                    {"symbol": "C_c", "name": "Contaminant Concentration", "value": w_Ca.value, "unit": "mg/L"},
+                    {"symbol": "C_r", "name": "Partner Reactant Concentration", "value": w_Cd.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax_current:.2f}", "unit": "m"}],
                 "plot_data": {"labels": ["Lmax"], "values": [lmax_current], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Maier & Grathwohl"},

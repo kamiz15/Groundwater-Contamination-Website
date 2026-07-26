@@ -11,6 +11,7 @@ from numerical_jobs import fetch_result, job_status, submit_job
 from panel_analytical_common import comparison_plot, error_card, info_card, query_float, query_int, query_str, summary_card
 from panel_auth import authenticated_email
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 from symbol_registry import db_to_model
 
 pn.extension("tabulator", sizing_mode="stretch_width")
@@ -252,6 +253,7 @@ def numerical_horizontal_multiple_app():
                 "C_A": query_float("C_A", 8.0),
             }
         ], columns=SCENARIO_COLUMNS),
+        titles=table_titles(SCENARIO_COLUMNS),
         height=160,
         sizing_mode="stretch_width",
         name="Horizontal numerical scenarios",
@@ -310,7 +312,7 @@ def numerical_horizontal_multiple_app():
         labels = [row.get("label", f"Run {idx + 1}") for idx, row in enumerate(rows)]
         values = [float(result.plume_length) for result in results]
         outputs = [
-            {"label": f"{labels[idx]} Lmax", "value": f"{value:.2f}", "unit": "m"}
+            {"label": f"{labels[idx]} L_max", "value": f"{value:.2f}", "unit": "m"}
             for idx, value in enumerate(values)
         ]
         result_pane.object = summary_card(
@@ -319,8 +321,8 @@ def numerical_horizontal_multiple_app():
         )
 
         plot_pane.object = comparison_plot(
-            "Horizontal Numerical - Lmax by scenario / site",
-            "Numerical Lmax",
+            "Horizontal Numerical - L_max by scenario / site",
+            "Numerical L_max",
             list(range(1, len(values) + 1)),
             values,
             0,
@@ -335,8 +337,8 @@ def numerical_horizontal_multiple_app():
             "plot_data": {
                 "labels": labels,
                 "values": values,
-                "ylabel": "Plume Length (m)",
-                "title": "Horizontal Numerical - Lmax Comparison",
+                "ylabel": "Maximum Plume Length L_max [m]",
+                "title": "Horizontal Numerical - L_max Comparison",
             },
         })
         report_bridge.object = report_bridge_html(
@@ -446,7 +448,7 @@ def numerical_horizontal_multiple_app():
         elif query_int("run", 0):
             _run()
         else:
-            result_pane.object = info_card("Run horizontal scenarios to display the Lmax comparison.")
+            result_pane.object = info_card("Run horizontal scenarios to display the L_max comparison.")
         return pn.Column(result_pane, plot_pane, report_bridge, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     return pn.Column(

@@ -25,7 +25,13 @@ from pdf_report import CASTReport
 from plot_functions import create_bargraph, create_histogram, create_boxplot
 from security import csrf_protect, form_data_or_400, json_object_or_400, rate_limit
 from settings import PANEL_PUBLIC_BASE
-from symbol_registry import SITE_COLUMN_DEFS, TEXT_COLUMN_DEFS, header_match, header_to_site_column
+from symbol_registry import (
+    SITE_COLUMN_DEFS,
+    TEXT_COLUMN_DEFS,
+    header_match,
+    header_to_site_column,
+    ui_label_markup,
+)
 
 site_bp = Blueprint("site_bp", __name__)
 logger = logging.getLogger(__name__)
@@ -39,13 +45,13 @@ COLUMN_DEFS = [
     ("ID", 0),
     ("Site unit", 1),
     ("Compound", 2),
-    ("Aquifer thickness [m]", 3),
-    ("Plume length [m]", 4),
-    ("Plume width [m]", 5),
-    ("Hydraulic conductivity [m/s]", 6),
-    ("Electron donor [mg/L]", 7),
-    ("Electron acceptor O₂ [mg/L]", 8),
-    ("Electron acceptor NO₃ [mg/L]", 9),
+    ("Aquifer Thickness T_A [m]", 3),
+    ("Plume Length L_p [m]", 4),
+    ("Plume Width W_p [m]", 5),
+    ("Hydraulic Conductivity K [m/s]", 6),
+    ("Donor Concentration C_D [mg/L]", 7),
+    ("Acceptor Concentration C_A (O\u2082) [mg/L]", 8),
+    ("Acceptor Concentration C_A (NO\u2083) [mg/L]", 9),
 ]
 
 # Full ordered (field, label) list for the input table, derived from the
@@ -60,6 +66,27 @@ ALL_FIELD_DEFS = (
 _ALL_FIELD_KEYS = {field for field, _label in ALL_FIELD_DEFS}
 # Identity columns are always shown even when empty so every row is identifiable.
 _ALWAYS_SHOWN = {"id", *TEXT_SITE_FIELDS}
+
+_MANUAL_SITE_FIELDS = {
+    "aquifer_thickness",
+    "plume_length",
+    "plume_width",
+    "hydraulic_conductivity",
+    "electron_donor",
+    "electron_acceptor_o2",
+    "electron_acceptor_no3",
+}
+MANUAL_FIELD_DEFS = [
+    (field, label, ui_label_markup(label))
+    for field, label, _unit in SITE_COLUMN_DEFS
+    if field in _MANUAL_SITE_FIELDS
+]
+UPLOAD_FIELD_DEFS = [
+    (TEXT_COLUMN_DEFS[field]["ui"], TEXT_COLUMN_DEFS[field]["ui"])
+    for field in TEXT_SITE_FIELDS
+] + [
+    (label, ui_label_markup(label)) for _field, label, _unit in SITE_COLUMN_DEFS
+]
 
 
 def _visible_field_defs(rows):
@@ -359,6 +386,9 @@ def site_database():
     # row populates is shown (identity columns always), so different models'
     # uploads surface their own parameters.
     table_field_defs = _visible_field_defs(sites)
+    table_field_markup = {
+        label: ui_label_markup(label) for _field, label in table_field_defs
+    }
     # Unrecognized uploaded columns each become their own column too, so the
     # whole file is shown (not collapsed into one "Additional fields" cell).
     extra_field_keys = _extra_field_keys(sites)
@@ -370,6 +400,9 @@ def site_database():
         "site_database.html",
         sites=filtered_sites,
         table_field_defs=table_field_defs,
+        table_field_markup=table_field_markup,
+        manual_field_defs=MANUAL_FIELD_DEFS,
+        upload_field_defs=UPLOAD_FIELD_DEFS,
         extra_field_keys=extra_field_keys,
         active_filters=active_filters,
         sort_field=sort_field,
@@ -447,10 +480,10 @@ def plot_bar():
 def plot_hist():
     """
     Endpoint used in base.html: url_for('site_bp.plot_hist')
-    Shows a histogram for a default parameter (Plume length [m]).
+    Shows a histogram for a default parameter (Plume Length L_p [m]).
     """
     table_data = get_user_sites(_current_email())
-    parameter = "Plume length [m]"
+    parameter = "Plume Length L_p [m]"
     idx = _get_column_index(parameter)
     script, div = create_histogram("Gaussian", table_data, idx, parameter)
     return render_template(
@@ -466,10 +499,10 @@ def plot_hist():
 def plot_box():
     """
     Endpoint used in base.html: url_for('site_bp.plot_box')
-    Shows a boxplot for a default parameter (Plume length [m]).
+    Shows a boxplot for a default parameter (Plume Length L_p [m]).
     """
     table_data = get_user_sites(_current_email())
-    parameter = "Plume length [m]"
+    parameter = "Plume Length L_p [m]"
     idx = _get_column_index(parameter)
     script, div = create_boxplot(parameter, table_data, idx)
     return render_template(

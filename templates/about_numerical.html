@@ -10,10 +10,10 @@
 (2014). It follows the same assumptions as Liedl et al. (2005) &mdash;
 homogeneous, isotropic, steady-state, bi-component instantaneous reaction
 between the electron donor
-(<math><msub><mi>C</mi><mi>ED</mi></msub></math>) and the electron acceptor
-(<math><msub><mi>C</mi><mi>EA</mi></msub></math>). The MODFLOW 6 GWF/GWT
+(<math><msub><mi>C</mi><mi>D</mi></msub></math>) and the electron acceptor
+(<math><msub><mi>C</mi><mi>A</mi></msub></math>). The MODFLOW 6 GWF/GWT
 simulation produces a transformed concentration
-<math><mi>C</mi><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo></math>
+<math><msub><mi>C</mi><mi>c</mi></msub><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo></math>
 that lets the reactive system be simulated as a conservative one. CAST runs the
 model in both a horizontal (<math><mi>x</mi></math>,&#8202;<math><mi>y</mi></math>)
 and a vertical (<math><mi>x</mi></math>,&#8202;<math><mi>z</mi></math>)
@@ -42,7 +42,7 @@ orientation.</p>
     <mrow>
       <mo>{</mo>
       <mi>x</mi><mo>:</mo>
-      <mi>C</mi><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo>
+      <msub><mi>C</mi><mi>c</mi></msub><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mi>z</mi><mo>)</mo>
       <mo>=</mo>
       <msub><mi>C</mi><mi>thres</mi></msub>
       <mo>}</mo>
@@ -55,15 +55,15 @@ orientation.</p>
 <p class="about-note">There is no closed form. The maximum plume length is
 read from the simulated transformed-concentration field as the largest distance
 along the <math><mi>x</mi></math>-axis at which the chosen threshold
-concentration (e.g. <math><mi>C</mi><mo>=</mo><mn>0</mn></math>) is reached.</p>
+concentration (e.g. <math><msub><mi>C</mi><mi>c</mi></msub><mo>=</mo><mn>0</mn></math>) is reached.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>M</mi></math></dt><dd>Source / aquifer thickness (vertical domain) [m]</dd>
+<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (vertical domain) [m]</dd>
 <dt><math><msub><mi>α</mi><mi>L</mi></msub></math></dt><dd>Longitudinal dispersivity [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Th</mi></msub></math>, <math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Horizontal- and vertical-transverse dispersivity [m]</dd>
 <dt><math><mi>K</mi></math></dt><dd>Hydraulic conductivity [m/yr]</dd>
-<dt><math><mi>n</mi></math></dt><dd>Porosity [-]</dd>
+<dt><math><mi>η</mi></math></dt><dd>Porosity [-]</dd>
 <dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
 <dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
 <dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>

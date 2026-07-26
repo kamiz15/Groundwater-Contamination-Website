@@ -1590,7 +1590,7 @@ class ATSimulation:
                                           norm=mpl.colors.Normalize(0, max_conc))
             sm_d.set_array([])
             cb_d = fig.colorbar(sm_d, ax=[ax_src, ax_dom], ticks=donor_levels,
-                                label="Electron donor concentration [mg/l]",
+                                label="Donor Concentration C_D [mg/L]",
                                 location="bottom", pad=0.02, aspect=60)
             cb_d.ax.tick_params(labelsize=11)
 
@@ -1600,7 +1600,7 @@ class ATSimulation:
                                       norm=mpl.colors.Normalize(-abs_min, 0))
         sm_a.set_array([])
         cb_a = fig.colorbar(sm_a, ax=[ax_src, ax_dom], ticks=acc_levels,
-                            label="Electron acceptor concentration [mg/l]",
+                            label="Acceptor Concentration C_A [mg/L]",
                             location="bottom",
                             pad=0.10 if has_donor else 0.02, aspect=60)
         cb_a.set_ticklabels([f"{abs(t):.0f}" for t in acc_levels])
@@ -1693,13 +1693,13 @@ class ATSimulation:
 
         cbar_donor = fig.colorbar(
             donor, ticks=donor_levels,
-            label='Electron donor concentration [mg/l]',
+            label='Donor Concentration C_D [mg/L]',
             location='bottom', pad=0.02, aspect=75)
         cbar_donor.ax.tick_params(labelsize=14)
 
         cbar_acceptor = fig.colorbar(
             acceptor, ticks=acceptor_levels,
-            label='Electron acceptor concentration [mg/l]',
+            label='Acceptor Concentration C_A [mg/L]',
             location='bottom', pad=0.12, aspect=75)
         cbar_acceptor.set_ticklabels([f"{abs(t):.0f}" for t in acceptor_levels])
         cbar_acceptor.ax.tick_params(labelsize=14)

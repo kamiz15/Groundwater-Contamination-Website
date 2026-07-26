@@ -84,7 +84,7 @@ def _numerical_analytical_fields(orientation, input_fields):
                                Cd=float(vals["C_D"]), Ga=float(vals["gamma"]))
             return [
                 {"label": "Domain Length L_D [m]", "value": 1.5 * lmax},
-                {"label": "Domain Width [m]", "value": 10.0 * sw},
+                {"label": "Domain Width W_D [m]", "value": 10.0 * sw},
             ]
         import numpy as _np
         lz = float(vals["Lz"])
@@ -495,13 +495,13 @@ def numerical_job_report(job_id):
             "caption": meta["plot_image_caption"],
             "max_height_mm": 52,
         })
-    cross_label = "Domain Width" if hasattr(result, "domain_width") else "Aquifer Thickness"
+    cross_label = "Domain Width W_D" if hasattr(result, "domain_width") else "Aquifer Thickness T_A"
     cross_value = getattr(result, "domain_width", getattr(result, "aquifer_thickness", 0.0))
     return _simulation_pdf(
         meta["parameters"],
         [
             {"label": meta["lmax_label"], "value": f"{result.plume_length:.2f}", "unit": "m"},
-            {"label": "Domain Length LD", "value": f"{getattr(result, 'domain_length', 0.0):.2f}", "unit": "m"},
+            {"label": "Domain Length L_D", "value": f"{getattr(result, 'domain_length', 0.0):.2f}", "unit": "m"},
             {"label": cross_label, "value": f"{cross_value:.2f}", "unit": "m"},
             {"label": "Peclet Number", "value": f"{getattr(result, 'peclet', 0.0):.2f}", "unit": "-"},
             {"label": "Courant Target", "value": f"{getattr(result, 'courant', 5.0):.2f}", "unit": "-"},
@@ -509,7 +509,7 @@ def numerical_job_report(job_id):
         {
             "labels": [meta["plot_label"]],
             "values": [result.plume_length],
-            "ylabel": "Plume Length (m)",
+            "ylabel": "Maximum Plume Length L_max [m]",
             "title": meta["plot_title"],
         },
         meta["title"],

@@ -6,6 +6,7 @@ from panel_auth import authenticated_email
 from empirical_models import birla_lmax
 from panel_empirical_common import comparison_plot, error_card, info_card, query_float, query_int, summary_card
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -22,7 +23,7 @@ def birla_multiple_app():
         }
     ])
 
-    table = pn.widgets.Tabulator(default_df, height=300, sizing_mode="stretch_width", name="Birla scenarios")
+    table = pn.widgets.Tabulator(default_df, titles=table_titles(default_df.columns, "birla"), height=300, sizing_mode="stretch_width", name="Birla scenarios")
     run_btn = pn.widgets.Button(name="Run Birla scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Birla scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
@@ -56,7 +57,7 @@ def birla_multiple_app():
 
             result_pane.object = summary_card([
                 ("Successful runs", str(len(lengths))),
-                ("Max plume length", f"{max(lengths):.2f} m"),
+                ("Maximum Plume Length L_max", f"{max(lengths):.2f} m"),
             ])
             plot_pane.object = comparison_plot(
                 "Birla et al. (2020)",
@@ -74,7 +75,7 @@ def birla_multiple_app():
                     {"label": "Max plume length", "value": f"{max(lengths):.2f}", "unit": "m"},
                     {"label": "Min plume length", "value": f"{min(lengths):.2f}", "unit": "m"},
                 ],
-                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lengths))], "values": lengths, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Birla et al. (2020)"},
+                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lengths))], "values": lengths, "ylabel": "Maximum Plume Length L_max [m]", "title": "Scenario Comparison — Birla et al. (2020)"},
             })
             report_bridge.object = report_bridge_html(
                 "Birla et al. — Multiple Simulation", "Birla Empirical",

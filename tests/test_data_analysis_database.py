@@ -50,8 +50,8 @@ def test_site_rows_frame_keeps_only_populated_database_columns():
         }
     ])
 
-    assert "Plume Length [m]" in frame.columns
-    assert "Aquifer Thickness M [m]" not in frame.columns
+    assert "Plume Length L_p [m]" in frame.columns
+    assert "Aquifer Thickness T_A [m]" not in frame.columns
     assert "Empty custom" not in frame.columns
 
 

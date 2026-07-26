@@ -12,11 +12,11 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def ham_single_app():
-    q = pn.widgets.FloatInput(name="Q", value=query_float("Q", 5.0), step=0.1)
-    alpha_t = pn.widgets.FloatInput(name="alpha_T", value=query_float("alpha_T", 0.01), step=0.001)
-    gamma = pn.widgets.FloatInput(name="gamma", value=query_float("gamma", 3.5), step=0.1)
-    c_ea0 = pn.widgets.FloatInput(name="EA0 (Electron Acceptor)", value=query_float("C_EA0", 8.0), step=0.1)
-    c_ed0 = pn.widgets.FloatInput(name="ED0 (Electron Donor)", value=query_float("C_ED0", 5.0), step=0.1)
+    q = pn.widgets.FloatInput(name="Source Flux Q [m\u00b2/yr]", value=query_float("Q", 5.0), step=0.1)
+    alpha_t = pn.widgets.FloatInput(name="Transverse Dispersivity \u03b1_T [m]", value=query_float("alpha_T", 0.01), step=0.001)
+    gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
+    c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
+    c_ed0 = pn.widgets.FloatInput(name="Donor Concentration at Source C_D^0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
     run_btn = pn.widgets.Button(name="Run Ham simulation", button_type="primary", sizing_mode="stretch_width")
 
     result_pane = pn.pane.HTML(info_card("Run the Ham model to compute plume length."), sizing_mode="stretch_width")
@@ -41,7 +41,7 @@ def ham_single_app():
     def _run(_=None):
         try:
             lmax = ham_lmax(q.value, alpha_t.value, gamma.value, c_ea0.value, c_ed0.value)
-            result_pane.object = metric_card("Plume length", f"{lmax:.2f}")
+            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
             plot_pane.object = comparison_plot("Ham et al.", "Ham model plume length", user_x, [lmax], selected_site_id, email, "Run Number")
             _state.update({
@@ -49,8 +49,8 @@ def ham_single_app():
                     {"symbol": "Q", "name": "Source flux Q", "value": q.value, "unit": "m\u00b2/yr"},
                     {"symbol": "\u03b1T", "name": "Transverse Dispersivity", "value": alpha_t.value, "unit": "m"},
                     {"symbol": "\u03b3", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                    {"symbol": "C_EA0", "name": "Electron Acceptor", "value": c_ea0.value, "unit": "mg/L"},
-                    {"symbol": "C_ED0", "name": "Electron Donor", "value": c_ed0.value, "unit": "mg/L"},
+                    {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
+                    {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
                 "plot_data": {"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Ham et al."},

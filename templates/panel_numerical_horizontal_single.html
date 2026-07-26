@@ -11,7 +11,7 @@
   <h3>Conceptual Model</h3>
   <img
     src="{{ url_for('static', filename='images/conceptual_numerical_horizontal.png') }}"
-    alt="Plan-view horizontal numerical model diagram showing x-y spreading, source width Sw, and horizontal transverse dispersivity alpha Th"
+    alt="Plan-view horizontal numerical model diagram showing x-y spreading, source width S_w, and horizontal transverse dispersivity alpha_Th"
     class="conceptual-img"
     loading="eager"
   />
@@ -28,10 +28,10 @@
       {% endfor %}
     </dl>
     {% endif %}
-    <p class="small">The simulation domain is sized from the analytical solution, so you never enter it. The maximum plume length <i>L</i><sub>max</sub> is computed with the Cirpka et&nbsp;al. (2005) horizontal model from the source width, horizontal transverse dispersivity α<sub>Th</sub>, electron acceptor/donor concentrations and the stoichiometric ratio γ. <b>Domain Length</b> = 1.5&nbsp;·&nbsp;<i>L</i><sub>max</sub> (a 50% downstream margin) and <b>Domain Width</b> = 10&nbsp;·&nbsp;source width.</p>
+    <p class="small">The simulation domain is sized from the analytical solution, so you never enter it. The maximum plume length <i>L</i><sub>max</sub> is computed with the Cirpka et&nbsp;al. (2005) horizontal model from the source width, horizontal transverse dispersivity α<sub>Th</sub>, acceptor/donor concentrations and the stoichiometry ratio γ. <b>Domain Length <i>L</i><sub>D</sub></b> = 1.5&nbsp;·&nbsp;<i>L</i><sub>max</sub> (a 50% downstream margin) and <b>Domain Width <i>W</i><sub>D</sub></b> = 10&nbsp;·&nbsp;source width.</p>
   </div>
   {% endif %}
-  <p class="small conceptual-note">Horizontal configuration: plan-view (x, y) with source width Sw and horizontal transverse dispersivity alpha Th.</p>
+  <p class="small conceptual-note">Horizontal configuration: plan-view (<i>x</i>, <i>y</i>) with source width <i>S</i><sub>w</sub> and horizontal transverse dispersivity α<sub>Th</sub>.</p>
   </div>
 </div>
 {% endblock %}

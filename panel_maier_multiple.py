@@ -6,6 +6,7 @@ from panel_auth import authenticated_email
 from empirical_models import maier_lmax
 from panel_empirical_common import comparison_plot, error_card, info_card, query_float, query_int, summary_card
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -17,7 +18,7 @@ def maier_multiple_app():
         "Cd": query_float("Cd", 5.0),
     }])
 
-    table = pn.widgets.Tabulator(default_df, height=300, sizing_mode="stretch_width", name="Maier scenarios")
+    table = pn.widgets.Tabulator(default_df, titles=table_titles(default_df.columns), height=300, sizing_mode="stretch_width", name="Maier scenarios")
     run_btn = pn.widgets.Button(name="Run Maier scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Maier scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
@@ -36,7 +37,7 @@ def maier_multiple_app():
             if df.empty:
                 raise ValueError("No scenarios available.")
             lengths = [maier_lmax(float(row.get("M", 0)), float(row.get("tv", 0)), float(row.get("g", 0)), float(row.get("Ca", 0)), float(row.get("Cd", 0))) for _, row in df.iterrows()]
-            result_pane.object = summary_card([("Successful runs", str(len(lengths))), ("Max plume length", f"{max(lengths):.2f} m")])
+            result_pane.object = summary_card([("Successful runs", str(len(lengths))), ("Maximum Plume Length L_max", f"{max(lengths):.2f} m")])
             plot_pane.object = comparison_plot("Maier and Grathwohl (2005)", "Maier model plume length", list(range(1, len(lengths) + 1)), lengths, selected_site_id, email, "Scenario Number")
             _state.update({
                 "parameters": [{"symbol": f"Sc.{i+1}", "name": f"Scenario {i+1}", "value": f"L={v:.2f}", "unit": "m"} for i, v in enumerate(lengths)],
@@ -45,7 +46,7 @@ def maier_multiple_app():
                     {"label": "Max plume length", "value": f"{max(lengths):.2f}", "unit": "m"},
                     {"label": "Min plume length", "value": f"{min(lengths):.2f}", "unit": "m"},
                 ],
-                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lengths))], "values": lengths, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Maier & Grathwohl"},
+                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(lengths))], "values": lengths, "ylabel": "Maximum Plume Length L_max [m]", "title": "Scenario Comparison — Maier & Grathwohl"},
             })
             report_bridge.object = report_bridge_html(
                 "Maier & Grathwohl — Multiple Simulation", "Maier Empirical",

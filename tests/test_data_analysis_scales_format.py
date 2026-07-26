@@ -49,14 +49,14 @@ def test_transform_lenient_blanks_instead_of_raising():
 
 def test_axis_labels_are_typeset():
     # axis_label delegates to notation, so it returns LaTeX for Bokeh.
-    assert scales.axis_label("conc", "linear") == "$$C$$"
+    assert scales.axis_label("conc", "linear") == "$$C_{c}$$"
     assert r"\ln" in scales.axis_label("conc", "ln")
-    assert scales.axis_label("conc", "inverse") == "$$1/C$$"
+    assert scales.axis_label("conc", "inverse") == "$$1/C_{c}$$"
 
 
 def test_plain_axis_labels_for_legends():
-    assert scales.plain_axis_label("conc", "linear") == "C"
-    assert scales.plain_axis_label("plume_length_m", "linear") == "Plume length [m]"
+    assert scales.plain_axis_label("conc", "linear") == "Cc"
+    assert scales.plain_axis_label("plume_length_m", "linear") == "L\u209a [m]"
 
 
 def test_unknown_scale_raises():

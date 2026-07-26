@@ -38,7 +38,7 @@ reaction confined to the plume fringe.</p>
     <msub title="Maximum steady-state plume length [m]"><mi>L</mi><mi>max</mi></msub>
     <mo>=</mo>
     <mfrac>
-      <mrow><mn>4</mn><msup><mi title="Aquifer thickness, equal to source thickness [m]">M</mi><mn>2</mn></msup></mrow>
+      <mrow><mn>4</mn><msup><msub title="Aquifer thickness, equal to source thickness [m]"><mi>T</mi><mi>A</mi></msub><mn>2</mn></msup></mrow>
       <mrow><msup><mi>π</mi><mn>2</mn></msup><msub title="Vertical transverse dispersivity [m]"><mi>α</mi><mi>Tv</mi></msub></mrow>
     </mfrac>
     <mi>ln</mi><mo>&#8289;</mo>
@@ -46,8 +46,8 @@ reaction confined to the plume fringe.</p>
       <mo>(</mo>
       <mfrac><mn>4</mn><mi>π</mi></mfrac>
       <mfrac>
-        <mrow><mi title="Reaction stoichiometric ratio [-]">γ</mi><msubsup title="Electron donor (contaminant) concentration [mg/L]"><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup><mo>+</mo><msubsup title="Electron acceptor (partner reactant) concentration [mg/L]"><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></mrow>
-        <msubsup title="Electron acceptor (partner reactant) concentration [mg/L]"><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup>
+        <mrow><mi title="Reaction stoichiometric ratio [-]">γ</mi><msubsup title="Donor concentration at source [mg/L]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup title="Acceptor concentration at source [mg/L]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+        <msubsup title="Acceptor concentration at source [mg/L]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup>
       </mfrac>
       <mo>)</mo>
     </mrow>
@@ -56,11 +56,11 @@ reaction confined to the plume fringe.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>M</mi></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
+<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
 <dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
-<dt><math><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [mg/L]</dd>
 {% endblock %}
 
 {% block about_assumptions_class %} about-assumptions--check{% endblock %}

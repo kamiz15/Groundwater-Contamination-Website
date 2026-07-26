@@ -13,7 +13,7 @@ from data_analysis import notation
 
 @pytest.mark.parametrize("column,expected", [
     ("x_m", r"$$x\ [\mathrm{m}]$$"),
-    ("plume_length_m", r"$$\mathrm{Plume\ length}\ [\mathrm{m}]$$"),
+    ("plume_length_m", r"$$L_{p}\ [\mathrm{m}]$$"),
     ("alpha_Tv", r"$$\alpha_{Tv}$$"),
     ("L_max", r"$$L_{max}$$"),
     ("aquifer_type", r"$$\mathrm{Aquifer\ type}$$"),
@@ -23,8 +23,20 @@ def test_latex_labels(column, expected):
 
 
 def test_known_symbol_and_unit():
-    # "concentration" collapses to C, mgL becomes a proper inverse-litre unit.
-    assert notation.latex_label("concentration_mgL") == r"$$C\ [\mathrm{mg\,L^{-1}}]$$"
+    # General contaminant concentration follows the site-wide C_c notation.
+    assert notation.latex_label("concentration_mgL") == r"$$C_{c}\ [\mathrm{mg\,L^{-1}}]$$"
+
+
+@pytest.mark.parametrize("label,expected", [
+    ("Aquifer Thickness T_A [m]", r"$$T_{A}\ [\mathrm{m}]$$"),
+    ("Plume Length L_p [m]", r"$$L_{p}\ [\mathrm{m}]$$"),
+    ("Donor Concentration C_D [mg/L]", r"$$C_{D}\ [\mathrm{mg\,L^{-1}}]$$"),
+    ("Recharge Rate R_c [m/yr]", r"$$R_{c}\ [\mathrm{m\,yr^{-1}}]$$"),
+    ("Stoichiometry Ratio \u03b3 [-]", "$$\u03b3\\ [-]$$"),
+])
+def test_database_display_labels_keep_their_mathematical_symbols(label, expected):
+    assert notation.latex_label(label) == expected
+    assert notation.plain_label(label) == label
 
 
 def test_numeric_subscript():
@@ -109,7 +121,7 @@ def test_plain_labels_have_no_latex():
 
 
 def test_plain_compound_unit_is_bracketed():
-    assert notation.plain_label("concentration_mgL", "ln") == "ln(C/(mg/L))"
+    assert notation.plain_label("concentration_mgL", "ln") == "ln(Cc/(mg/L))"
 
 
 def test_unknown_scale_raises():

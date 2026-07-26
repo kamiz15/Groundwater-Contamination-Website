@@ -289,7 +289,7 @@ def test_vertical_single_run_button_sits_under_conceptual_model(authenticated_wr
     page = authenticated_wrapper_client.get("/numerical/vertical/single").get_data(as_text=True)
 
     assert page.count(">Run Model<") == 1
-    assert page.index('class="conceptual-img"') < page.index('form="model-input-form"')
+    assert page.index('class="conceptual-img"') < page.index('id="model-input-form"')
 
 
 @pytest.mark.parametrize(

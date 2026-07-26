@@ -134,6 +134,22 @@ def test_load_csv_and_typing():
     assert datasets.categorical_columns(df) == ["label"]
 
 
+def test_load_csv_normalizes_recognized_site_headers_only():
+    raw = (
+        b"Aquifer thickness[m],Plume length[m],Electron donor[mg/l],Custom note\n"
+        b"10,25,5,review\n"
+    )
+
+    df = datasets.load_csv(raw)
+
+    assert list(df.columns) == [
+        "Aquifer Thickness T_A [m]",
+        "Plume Length L_p [m]",
+        "Donor Concentration C_D [mg/L]",
+        "Custom note",
+    ]
+
+
 def test_load_csv_empty_raises():
     with pytest.raises(ValueError, match="empty"):
         datasets.load_csv(b"")

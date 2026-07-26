@@ -34,20 +34,20 @@ def cirpka_single_app():
     else:
         try:
             if sw <= 0:
-                raise ValueError("Source width Sw must be positive.")
+                raise ValueError("Source Width S_w must be positive.")
             if alpha_th <= 0:
-                raise ValueError("Dispersivity alpha Th must be positive.")
+                raise ValueError("Horizontal Transverse Dispersivity \u03b1_Th must be positive.")
             if ca <= 0:
-                raise ValueError("Electron acceptor CA must be positive.")
+                raise ValueError("Acceptor Concentration C_A must be positive.")
             if cd <= 0:
-                raise ValueError("Electron donor CD must be positive.")
+                raise ValueError("Donor Concentration C_D must be positive.")
 
             lmax = cirpka_lmax(sw, alpha_th, gamma, ca, cd)
             ld = cirpka_domain_length(lmax)
             result_pane.object = summary_card(
                 [
-                    ("Maximum Plume Length Lmax", f"{lmax:.2f} m"),
-                    ("Domain Length LD", f"{ld:.2f} m"),
+                    ("Maximum Plume Length L_max", f"{lmax:.2f} m"),
+                    ("Domain Length L_D", f"{ld:.2f} m"),
                 ],
                 title="Cirpka et al. (2005) Result",
             )

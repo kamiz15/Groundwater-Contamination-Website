@@ -6,9 +6,9 @@
   <p class="small">The validated source design is running through the existing AEM solver.</p>
   <div id="aem-message" class="aem-message" role="status" aria-live="polite">Submitting simulation...</div>
   <div class="card-like aem-result-card">
-    <div class="model-input-actions"><button id="aem-cancel" type="button" class="secondary-btn" hidden>Cancel job</button></div>
+    <div id="aem-cancel-actions" class="model-input-actions" hidden><button id="aem-cancel" type="button" class="primary-btn" hidden>Cancel job</button></div>
     <div id="aem-result-actions" class="model-input-actions aem-result-actions" hidden>
-      <a id="aem-download-csv" class="ghost-btn" href="#" download>Download results CSV</a>
+      <a id="aem-download-csv" class="primary-btn" href="#" download>Download results CSV</a>
       <a id="aem-open-workbench" class="primary-btn" href="#">Explore in Data Workbench</a>
     </div>
     <div class="aem-result-layout">
@@ -17,5 +17,5 @@
     </div>
   </div>
 </section>
-<script src="{{ url_for('static', filename='aem.js') }}"></script>
+<script src="{{ url_for('static', filename='aem.js') }}?v=20260725b"></script>
 {% endblock %}

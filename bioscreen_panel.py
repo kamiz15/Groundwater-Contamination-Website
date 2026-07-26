@@ -15,23 +15,23 @@ pn.extension("tabulator", sizing_mode="stretch_width")
 
 
 def _base_widgets():
-    cthres = pn.widgets.FloatInput(name="Threshold concentration Cthres (mg/L)", value=query_float("Cthres", 5e-5), step=1e-5, start=1e-8)
-    time = pn.widgets.IntInput(name="Time (years)", value=query_int("time", 20), start=1, end=1000)
+    cthres = pn.widgets.FloatInput(name="Threshold Contaminant Concentration C_thres [mg/L]", value=query_float("Cthres", 5e-5), step=1e-5, start=1e-8)
+    time = pn.widgets.IntInput(name="Time t [a]", value=query_int("time", 20), start=1, end=1000)
     h = pn.widgets.FloatSlider(name="Source thickness H (m)", value=query_float("H", 6.1), start=0.1, end=50, step=0.1)
-    c0 = pn.widgets.FloatSlider(name="Source concentration c0 (mg/L)", value=query_float("c0", 106.35), start=0.1, end=1000, step=1)
+    c0 = pn.widgets.FloatSlider(name="General Contaminant Concentration C_c [mg/L]", value=query_float("c0", 106.35), start=0.1, end=1000, step=1)
     w = pn.widgets.FloatSlider(name="Source width W (m)", value=query_float("W", 20), start=0.1, end=1000, step=0.1)
-    v = pn.widgets.FloatInput(name="Avg. linear groundwater velocity v (m/yr)", value=query_float("v", 292), start=10, end=1000)
-    ax = pn.widgets.FloatSlider(name="Longitudinal dispersivity ax (m)", value=query_float("ax", 10.7), start=1, end=100, step=0.5)
-    ay = pn.widgets.FloatInput(name="Horizontal transverse dispersivity ay (m)", value=query_float("ay", 1.1), start=0.1, end=10)
-    az = pn.widgets.FloatInput(name="Vertical transverse dispersivity az (m)", value=query_float("az", 0.11), start=0.01, end=1)
-    df = pn.widgets.FloatInput(name="Effective diffusion coefficient Df (m2/yr)", value=query_float("Df", 0.0), start=0.0, end=0.1)
-    r = pn.widgets.FloatInput(name="Retardation factor R (-)", value=query_float("R", 1.0), start=0.01)
-    gamma = pn.widgets.FloatInput(name="Source decay gamma (1/yr)", value=query_float("gamma", 0.0), start=0.0, end=1.0)
-    lam = pn.widgets.FloatSlider(name="Effective first-order decay lam (1/yr)", value=query_float("lam", 0.445), start=0.0, end=1.0, step=0.01)
+    v = pn.widgets.FloatInput(name="Groundwater Velocity v [m/a]", value=query_float("v", 292), start=10, end=1000)
+    ax = pn.widgets.FloatSlider(name="Longitudinal Dispersivity α_L [m]", value=query_float("ax", 10.7), start=1, end=100, step=0.5)
+    ay = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity α_Th [m]", value=query_float("ay", 1.1), start=0.1, end=10)
+    az = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity α_Tv [m]", value=query_float("az", 0.11), start=0.01, end=1)
+    df = pn.widgets.FloatInput(name="Diffusion Coefficient D_f [m²/a]", value=query_float("Df", 0.0), start=0.0, end=0.1)
+    r = pn.widgets.FloatInput(name="Retardation Factor R [-]", value=query_float("R", 1.0), start=0.01)
+    gamma = pn.widgets.FloatInput(name="Source Decay Coefficient Γ [1/a]", value=query_float("gamma", 0.0), start=0.0, end=1.0)
+    lam = pn.widgets.FloatSlider(name="First-order Decay Coefficient λ_e [1/a]", value=query_float("lam", 0.445), start=0.0, end=1.0, step=0.01)
     ng_default = query_int("ng", 60)
     if ng_default not in [4, 5, 6, 10, 15, 20, 60, 104, 256]:
         ng_default = 60
-    ng = pn.widgets.Select(name="Number of Gauss points", value=ng_default, options=[4, 5, 6, 10, 15, 20, 60, 104, 256])
+    ng = pn.widgets.Select(name="Number of Gauss Points n_g [-]", value=ng_default, options=[4, 5, 6, 10, 15, 20, 60, 104, 256])
     return cthres, time, h, c0, w, v, ax, ay, az, df, r, gamma, lam, ng
 
 
@@ -60,7 +60,7 @@ def bioscreen_single_app():
     def _run(_=None):
         try:
             lmax = float(bio(cthres.value, time.value, h.value, c0.value, w.value, v.value, ax.value, ay.value, az.value, df.value, r.value, gamma.value, lam.value, int(ng.value)))
-            result_pane.object = metric_card("Plume length", f"{lmax:.2f}")
+            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
             plot_pane.object = comparison_plot(
                 "BioScreen",
@@ -116,7 +116,12 @@ def bioscreen_multiple_app():
     w_times = pn.widgets.TextInput(name="Times for sweep (comma-separated years)", value=f"{max(1, time.value // 2)},{time.value},{time.value * 2}")
     run_btn = pn.widgets.Button(name="Run BIOSCREEN scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the BIOSCREEN sweep to compare plume lengths over time."), sizing_mode="stretch_width")
-    table = pn.widgets.Tabulator(pd.DataFrame(columns=["time_years", "lmax_m"]), height=240, sizing_mode="stretch_width")
+    table = pn.widgets.Tabulator(
+        pd.DataFrame(columns=["time_years", "lmax_m"]),
+        titles={"time_years": "Time t [a]", "lmax_m": "Maximum Plume Length L_max [m]"},
+        height=240,
+        sizing_mode="stretch_width",
+    )
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
     email = authenticated_email()
     selected_site_id = query_int("site_id", 0)
@@ -141,7 +146,7 @@ def bioscreen_multiple_app():
             l_vals = df_out["lmax_m"].tolist()
             result_pane.object = summary_card([
                 ("Successful runs", str(len(l_vals))),
-                ("Max plume length", f"{max(l_vals):.2f} m"),
+                ("Maximum Plume Length L_max", f"{max(l_vals):.2f} m"),
             ])
             plot_pane.object = comparison_plot(
                 "BioScreen",
@@ -159,7 +164,7 @@ def bioscreen_multiple_app():
                     {"label": "Max plume length", "value": f"{max(l_vals):.2f}", "unit": "m"},
                     {"label": "Min plume length", "value": f"{min(l_vals):.2f}", "unit": "m"},
                 ],
-                "plot_data": {"labels": [f"t={r['time_years']:.0f}yr" for r in rows], "values": [r["lmax_m"] for r in rows], "ylabel": "Plume Length (m)", "title": "Plume Length Over Time — BIOSCREEN-AT"},
+                "plot_data": {"labels": [f"t={r['time_years']:.0f}yr" for r in rows], "values": [r["lmax_m"] for r in rows], "ylabel": "Maximum Plume Length L_max [m]", "title": "Maximum Plume Length Over Time — BIOSCREEN-AT"},
             })
             report_bridge.object = report_bridge_html(
                 "BIOSCREEN-AT — Multiple Simulation", "BIOSCREEN Analytical",

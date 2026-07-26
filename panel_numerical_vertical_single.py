@@ -39,20 +39,20 @@ def _loading_status_card(items, title):
 
 def numerical_vertical_single_app():
     # Input (user / database)
-    lz = pn.widgets.FloatInput(name="Aquifer Thickness Lz [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
-    grid_size = pn.widgets.FloatInput(name="Grid Size dx=dz [m]", value=query_float("grid_size", 1.0), step=0.1)
-    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity aL [m]", value=query_float("al", 1.0), step=0.1)
-    atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity aTv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
-    gamma = pn.widgets.FloatInput(name="Stoichiometric Ratio gamma [-]", value=query_float("gamma", 3.5), step=0.1)
-    cd = pn.widgets.FloatInput(name="Electron Donor Cd [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
-    ca = pn.widgets.FloatInput(name="Electron Acceptor Ca [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
+    lz = pn.widgets.FloatInput(name="Aquifer Thickness T_A [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
+    grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394z [m]", value=query_float("grid_size", 1.0), step=0.1)
+    alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
+    atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
+    gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
+    cd = pn.widgets.FloatInput(name="Donor Concentration C_D [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
+    ca = pn.widgets.FloatInput(name="Acceptor Concentration C_A [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
     # Standard (modifiable defaults; analytical L_D / thickness derived in the model)
-    prsity = pn.widgets.FloatInput(name="Porosity n [-]", value=query_float("prsity", 0.3), step=0.01)
+    prsity = pn.widgets.FloatInput(name="Porosity \u03b7 [-]", value=query_float("prsity", 0.3), step=0.01)
     hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 8.64), step=0.1)
     gradient = pn.widgets.FloatInput(name="Hydraulic Gradient i [-]", value=query_float("gradient", 0.0125), step=0.001)
     # Analytical column (computed, read-only; filled after a run)
     ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
-    at_out = pn.widgets.StaticText(name="Aquifer Thickness Lz [m]", value="\u2014")
+    at_out = pn.widgets.StaticText(name="Aquifer Thickness T_A [m]", value="\u2014")
     for _w in (lz, grid_size, alpha_l, atv, gamma, cd, ca, prsity, hk, gradient, ld_out, at_out):
         _w.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
 
@@ -88,7 +88,7 @@ def numerical_vertical_single_app():
         stop_growth(anim.get("holder"))
         footer_meta = (
             f"L_D = {result.domain_length:.2f} m  |  Δx=Δz = {grid_size.value:.2f} m  |  "
-            f"porosity = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
+            f"η = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
             f"gradient = {gradient.value:.4f}  |  Péclet = {getattr(result, 'peclet', 0.0):.2f}  |  "
             "Courant target = 5"
         )
@@ -110,9 +110,9 @@ def numerical_vertical_single_app():
         logger.info("Vertical single graph_pane.object assigned")
         comparison_pane.object = None
         _rows = [
-            ("Numerical Lmax", f"{result.plume_length:.2f} m"),
-            ("Domain Length LD", f"{result.domain_length:.2f} m"),
-            ("Aquifer Thickness", f"{result.aquifer_thickness:.2f} m"),
+            ("Maximum Plume Length L_max", f"{result.plume_length:.2f} m"),
+            ("Domain Length L_D", f"{result.domain_length:.2f} m"),
+            ("Aquifer Thickness T_A", f"{result.aquifer_thickness:.2f} m"),
             ("Peclet", f"{result.peclet:.2f}"),
         ]
         if getattr(result, "k_warning", ""):
@@ -122,29 +122,29 @@ def numerical_vertical_single_app():
             "parameters": [
                 {"symbol": "Lz", "name": "Aquifer Thickness", "value": lz.value, "unit": "m"},
                 {"symbol": "dx", "name": "Grid Size", "value": grid_size.value, "unit": "m"},
-                {"symbol": "aL", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
-                {"symbol": "aTv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
-                {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
-                {"symbol": "Cd", "name": "Electron Donor", "value": cd.value, "unit": "mg/L"},
-                {"symbol": "Ca", "name": "Electron Acceptor", "value": ca.value, "unit": "mg/L"},
-                {"symbol": "n", "name": "Porosity", "value": prsity.value, "unit": "-"},
+                {"symbol": "alpha_L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
+                {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
+                {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": gamma.value, "unit": "-"},
+                {"symbol": "C_D", "name": "Donor Concentration", "value": cd.value, "unit": "mg/L"},
+                {"symbol": "C_A", "name": "Acceptor Concentration", "value": ca.value, "unit": "mg/L"},
+                {"symbol": "prsity", "name": "Porosity", "value": prsity.value, "unit": "-"},
                 {"symbol": "K", "name": "Hydraulic Conductivity", "value": hk.value, "unit": "m/d"},
                 {"symbol": "i", "name": "Hydraulic Gradient", "value": gradient.value, "unit": "-"},
-                {"symbol": "LD", "name": "Domain Length (analytical)", "value": result.domain_length, "unit": "m"},
+                {"symbol": "L_D", "name": "Domain Length (analytical)", "value": result.domain_length, "unit": "m"},
                 {"symbol": "Lz", "name": "Aquifer Thickness (analytical)", "value": result.aquifer_thickness, "unit": "m"},
                 {"symbol": "Pe", "name": "Peclet Number", "value": result.peclet, "unit": "-"},
             ],
             "outputs": [
-                {"label": "Vertical Numerical Lmax", "value": f"{result.plume_length:.2f}", "unit": "m"},
-                {"label": "Domain Length LD", "value": f"{result.domain_length:.2f}", "unit": "m"},
-                {"label": "Aquifer Thickness", "value": f"{result.aquifer_thickness:.2f}", "unit": "m"},
+                {"label": "Maximum Plume Length L_max", "value": f"{result.plume_length:.2f}", "unit": "m"},
+                {"label": "Domain Length L_D", "value": f"{result.domain_length:.2f}", "unit": "m"},
+                {"label": "Aquifer Thickness T_A", "value": f"{result.aquifer_thickness:.2f}", "unit": "m"},
                 {"label": "Peclet", "value": f"{result.peclet:.2f}", "unit": "-"},
                 {"label": "Courant Target", "value": f"{result.courant:.2f}", "unit": "-"},
             ],
             "plot_data": {
                 "labels": ["Vertical numerical"],
                 "values": [result.plume_length],
-                "ylabel": "Plume Length (m)",
+                "ylabel": "Maximum Plume Length L_max [m]",
                 "title": "Vertical Numerical",
             },
             "plot_images": [

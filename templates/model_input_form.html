@@ -6,12 +6,12 @@
 {% macro render_model_input(field) -%}
 <label>
   <span class="input-label-row">
-    {# Label format: "<name> <symbol> [<unit>]". The symbol follows the name, and a
-       dimensionless "[-]" unit is dropped (no brackets when there is no real unit). #}
+    {# Label format: "<name> <symbol> [<unit>]". The symbol follows the name.
+       Dimensionless quantities retain "[-]" as required by the CAST convention. #}
     {%- set _has_unit = ' [' in field.label -%}
     {%- set _name = field.label.split(' [')[0] if _has_unit else field.label -%}
     {%- set _unit = field.label.split(' [')[1]|replace(']', '') if _has_unit else '' -%}
-    <span>{{ _name }}{% if field.symbol %} <span class="param-symbol">{{ field.symbol|safe }}</span>{% endif %}{% if _unit and _unit != '-' %} [{{ _unit }}]{% endif %}{% if field.description %} <span class="param-help" tabindex="0" role="note" aria-label="{{ field.description }}">i<span class="param-help__tip" role="tooltip">{{ field.description }}</span></span>{% endif %}</span>
+    <span>{{ _name }}{% if field.symbol %} <span class="param-symbol">{{ field.symbol|safe }}</span>{% endif %}{% if _unit %} [{{ _unit }}]{% endif %}{% if field.description %} <span class="param-help" tabindex="0" role="note" aria-label="{{ field.description }}">i<span class="param-help__tip" role="tooltip">{{ field.description }}</span></span>{% endif %}</span>
     {# Only flag a positive source: DB when a value was loaded from the database,
        Override for advanced fields. Plain manual inputs carry no per-field badge
        (the column header already says "User / DB" / "Editable"). #}

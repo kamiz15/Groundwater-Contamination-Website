@@ -11,7 +11,7 @@ def single_comparison_plot(title, analytical_label, numerical_label, analytical_
     p = figure(
         title=title,
         x_range=labels,
-        y_axis_label="Plume Length Lmax [m]",
+        y_axis_label="Maximum Plume Length L_max [m]",
         height=340,
         sizing_mode="stretch_width",
         tools="pan,wheel_zoom,box_zoom,reset,save",
@@ -33,7 +33,7 @@ def multiple_comparison_plot(title, analytical_label, numerical_label, analytica
     p = figure(
         title=title,
         x_range=scenarios,
-        y_axis_label="Plume Length Lmax [m]",
+        y_axis_label="Maximum Plume Length L_max [m]",
         x_axis_label="Scenario",
         height=360,
         sizing_mode="stretch_width",

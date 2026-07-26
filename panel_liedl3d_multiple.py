@@ -6,6 +6,7 @@ from panel_auth import authenticated_email
 from analytical_models import compute_liedl3d_multiple
 from panel_analytical_common import comparison_plot, error_card, info_card, query_float, query_int, summary_card
 from panel_theme import report_bridge_html
+from param_meta import table_titles
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -18,7 +19,7 @@ def liedl3d_multiple_app():
         "C_ED0": query_float("C_ED0", 5.0), "gamma": query_float("gamma", 3.0),
     }])
 
-    table = pn.widgets.Tabulator(init_df, height=300, sizing_mode="stretch_width", name="Liedl 3D scenarios")
+    table = pn.widgets.Tabulator(init_df, titles=table_titles(init_df.columns), height=300, sizing_mode="stretch_width", name="Liedl 3D scenarios")
     run_btn = pn.widgets.Button(name="Run Liedl 3D scenarios", button_type="primary", sizing_mode="stretch_width")
     result_pane = pn.pane.HTML(info_card("Run the Liedl 3D scenarios to compare plume lengths."), sizing_mode="stretch_width")
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
@@ -38,7 +39,7 @@ def liedl3d_multiple_app():
                 raise ValueError("No scenarios available.")
             entries = [[float(row.get(k, 0)) for k in ("M", "alpha_Th", "alpha_Tv", "W", "Cthres", "C_EA0", "C_ED0", "gamma")] for _, row in df.iterrows()]
             l_vals = compute_liedl3d_multiple(entries)
-            result_pane.object = summary_card([("Successful runs", str(len(l_vals))), ("Max plume length", f"{max(l_vals):.2f} m")])
+            result_pane.object = summary_card([("Successful runs", str(len(l_vals))), ("Maximum Plume Length L_max", f"{max(l_vals):.2f} m")])
             plot_pane.object = comparison_plot("Liedl 3D", "Liedl 3D model plume length", list(range(1, len(l_vals) + 1)), l_vals, selected_site_id, email, "Scenario Number")
             _state.update({
                 "parameters": [{"symbol": f"Sc.{i+1}", "name": f"Scenario {i+1}", "value": f"L={v:.2f}", "unit": "m"} for i, v in enumerate(l_vals)],
@@ -47,7 +48,7 @@ def liedl3d_multiple_app():
                     {"label": "Max plume length", "value": f"{max(l_vals):.2f}", "unit": "m"},
                     {"label": "Min plume length", "value": f"{min(l_vals):.2f}", "unit": "m"},
                 ],
-                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(l_vals))], "values": l_vals, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Liedl 3D"},
+                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(l_vals))], "values": l_vals, "ylabel": "Maximum Plume Length L_max [m]", "title": "Scenario Comparison — Liedl 3D"},
             })
             report_bridge.object = report_bridge_html(
                 "Liedl 3D — Multiple Simulation", "Liedl 3D Analytical",

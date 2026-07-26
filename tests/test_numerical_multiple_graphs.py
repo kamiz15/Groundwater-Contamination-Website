@@ -120,7 +120,7 @@ def test_vertical_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch):
     plot_pane = app.objects[1]
 
     assert plot_pane.object is not None
-    assert "Lmax" in plot_pane.object.title.text
+    assert "L_max" in plot_pane.object.title.text
 
 
 def test_vertical_multiple_output_mode_renders_posted_jobs(monkeypatch):
@@ -235,7 +235,7 @@ def test_horizontal_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch
     plot_pane = app.objects[1]
 
     assert plot_pane.object is not None
-    assert "Lmax" in plot_pane.object.title.text
+    assert "L_max" in plot_pane.object.title.text
 
 
 def test_horizontal_multiple_input_mode_lists_site_picker(monkeypatch):

@@ -116,7 +116,7 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb
         threshold_level = float(C[z_idx, x_idx])
         if np.isfinite(threshold_level) and float(np.nanmin(finite)) < threshold_level < float(np.nanmax(finite)):
             ax.contour(x_grid, z_grid, C, levels=[threshold_level], colors="purple", linewidths=2.5)
-        fig.colorbar(contourf_obj, ax=ax, label="Concentration [mg/L]")
+        fig.colorbar(contourf_obj, ax=ax, label="Contaminant Concentration C_c [mg/L]")
 
     # Source zone rectangles — width = delta_x (first grid column only)
     sw = float(delta_x)
@@ -158,7 +158,7 @@ def plot_vertical_plume_contour(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, R_Tb
     ax.set_xlim(0, L_D)
     ax.set_ylim(0, A_T)
     ax.set_xlabel("Distance Lx [m]")
-    ax.set_ylabel("Aquifer Thickness [m]")
+    ax.set_ylabel("Aquifer Thickness T_A [m]")
     ax.set_title("Contaminant Plume - Vertical Model")
     ax.legend(loc="upper right", fontsize=8)
     fig.tight_layout()
@@ -179,7 +179,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
     p = figure(
         title="Contaminant Plume - Vertical Model",
         x_axis_label="Distance Lx [m]",
-        y_axis_label="Aquifer Thickness [m]",
+        y_axis_label="Aquifer Thickness T_A [m]",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         toolbar_location="above",
         active_drag="pan",
@@ -200,7 +200,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
         color_mapper=mapper,
         alpha=0.95,
     )
-    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Concentration [mg/L]"), "right")
+    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Contaminant Concentration C_c [mg/L]"), "right")
     p.add_tools(
         HoverTool(
             renderers=[image_renderer],
@@ -237,7 +237,7 @@ def plot_vertical_plume_interactive(C, x_grid, z_grid, L_max_n, L_D, S_T, R_Ta, 
                             txs.append(segment[:, 0].tolist())
                             tys.append(segment[:, 1].tolist())
                 if txs:
-                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="Plume boundary (C0)")
+                    p.multi_line(txs, tys, color="purple", line_width=3.0, alpha=0.95, legend_label="Plume boundary (C_c = 0)")
         finally:
             plt.close(contour_fig)
 
@@ -310,7 +310,7 @@ def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W, 
         x=0, y=0, dw=L_D, dh=A_W,
         color_mapper=mapper, alpha=0.95,
     )
-    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Concentration [mg/L]"), "right")
+    p.add_layout(ColorBar(color_mapper=mapper, label_standoff=8, title="Contaminant Concentration C_c [mg/L]"), "right")
     p.add_tools(HoverTool(
         renderers=[img_renderer],
         tooltips=[("Distance", "$x{0.0} m"), ("Width", "$y{0.00} m")],
@@ -345,7 +345,7 @@ def plot_horizontal_plume_interactive(C, x_grid, y_grid, L_max_h, L_D, Sw, A_W, 
                         bys.append(seg[:, 1].tolist())
             if bxs:
                 p.multi_line(bxs, bys, color="purple", line_width=3.0, alpha=0.95,
-                             legend_label="Plume boundary (C0)")
+                             legend_label="Plume boundary (C_c = 0)")
         finally:
             plt.close(bfig)
 
@@ -694,7 +694,7 @@ def plot_concentration_profile_interactive(C, x_grid, cross_grid, *, cross_axis_
     p = figure(
         title=f"{title} - Mean Concentration Profile",
         x_axis_label="Distance Lx [m]",
-        y_axis_label="Mean Concentration [mg/L]",
+        y_axis_label="Mean Contaminant Concentration C_c [mg/L]",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         toolbar_location="above",
         active_drag="pan",
@@ -793,7 +793,7 @@ def plot_numerical_vs_cirpka_comparison(
         x_range=labels,
         title="Model Comparison \u2014 Plume Length L_max",
         x_axis_label="Model",
-        y_axis_label="Plume Length [m]",
+        y_axis_label="Plume Length L_p [m]",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         sizing_mode="stretch_width",
         height=400,
@@ -1149,7 +1149,7 @@ def create_liedl_multiple_plot(rows, selected_ids):
         height=450,
         sizing_mode="stretch_both",
         x_axis_label="Scenario ID",
-        y_axis_label="Plume Length Lmax (m)",
+        y_axis_label="Maximum Plume Length L_max [m]",
         title="Liedl et al. (2005) – Multiple Simulation",
         tools="pan,wheel_zoom,box_zoom,reset,save",
         toolbar_location="above",

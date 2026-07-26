@@ -548,7 +548,7 @@ def run_numerical_model_horizontal(
                         lw=1.2,
                         ls="--",
                         zorder=6,
-                        label=f"Plume length = {plume_length:.1f} m",
+                        label=f"Maximum Plume Length L_max = {plume_length:.1f} m",
                     )
                     ax.text(plume_length - (ncol * delr) * 0.006, (nrow * delc) * 0.5,
                             f"$L^n_{{max}}$ = {plume_length:.2f} m", color="k",

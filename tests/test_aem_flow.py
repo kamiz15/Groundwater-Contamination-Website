@@ -235,6 +235,40 @@ def test_settings_panel_is_editable_in_designer_html():
         assert f'type="hidden" name="{name}"' not in html
 
 
+def test_designer_mobile_layout_keeps_settings_visible():
+    styles = Path("static/styles.css").read_text(encoding="utf-8")
+
+    assert re.search(
+        r"@media \(max-width: 760px\) \{\s*"
+        r"\.aem-designer-app \{\s*height: auto;\s*min-height: 0;\s*\}.*?"
+        r"\.aem-designer-layout \{\s*flex: none;\s*"
+        r"grid-template-columns: 1fr;\s*\}\s*\}",
+        styles,
+        re.DOTALL,
+    )
+    assert re.search(
+        r"@media \(max-width: 620px\) \{\s*"
+        r"\.aem-designer-form \.aem-field-grid \{ grid-template-columns: 1fr; \}\s*\}",
+        styles,
+    )
+
+
+def test_aem_action_labels_and_forward_summary_fields():
+    designer = Path("templates/aem_designer.html").read_text(encoding="utf-8")
+    forward = Path("templates/aem_forward.html").read_text(encoding="utf-8")
+    script = Path("static/aem.js").read_text(encoding="utf-8")
+    styles = Path("static/styles.css").read_text(encoding="utf-8")
+
+    assert ">Run Simulation</button>" in designer
+    assert "Continue and Run Simulation" not in designer
+    for element_id in ("aem-cancel", "aem-download-csv", "aem-open-workbench"):
+        assert re.search(rf'id="{element_id}"[^>]*class="primary-btn"', forward)
+    assert re.search(r'id="aem-cancel-actions"[^>]*hidden', forward)
+    assert ".aem-result-card .primary-btn {" in styles
+    assert "setCancelVisible(false); show(\"Simulation complete.\")" in script
+    assert '["field", "xaxis", "yaxis", "validation_passed"]' in script
+
+
 def test_vertical_config_rejects_sources_above_water_table():
     raw = VALID_CONFIG | {"elements": [{"kind": "circle", "x": 0.1, "y": 0.0, "c": 10.0, "r": 0.02}]}
 

@@ -38,7 +38,7 @@ any chosen contour along the <math><mi>x</mi></math>-axis.</p>
       <mrow>
         <mo>−</mo><msub><mi>α</mi><mi>Tv</mi></msub><msub><mi>L</mi><mi>max</mi></msub>
         <msup>
-          <mrow><mo>(</mo><mfrac><mi>π</mi><mrow><mn>2</mn><mi>M</mi></mrow></mfrac><mo>)</mo></mrow>
+          <mrow><mo>(</mo><mfrac><mi>π</mi><mrow><mn>2</mn><msub><mi>T</mi><mi>A</mi></msub></mrow></mfrac><mo>)</mo></mrow>
           <mn>2</mn>
         </msup>
       </mrow>
@@ -46,8 +46,8 @@ any chosen contour along the <math><mi>x</mi></math>-axis.</p>
     <mo>=</mo>
     <mfrac><mi>π</mi><mn>4</mn></mfrac>
     <mfrac>
-      <mrow><mi>γ</mi><msub><mi>C</mi><mi>thres</mi></msub><mo>+</mo><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></mrow>
-      <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></mrow>
+      <mrow><mi>γ</mi><msub><mi>C</mi><mi>thres</mi></msub><mo>+</mo><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+      <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
     </mfrac>
   </mrow>
 </math>
@@ -60,14 +60,14 @@ Newton's method.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>M</mi></math></dt><dd>Source thickness (equal to aquifer thickness) [m]</dd>
+<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
 <dt><math><mi>W</mi></math></dt><dd>Source width [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
 <dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
 <dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
 <dt><math><msub><mi>C</mi><mi>thres</mi></msub></math></dt><dd>Threshold contaminant concentration [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>ED</mi><mo>∘</mo></msubsup></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>EA</mi><mo>∘</mo></msubsup></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [mg/L]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [mg/L]</dd>
 {% endblock %}
 
 {% block about_assumptions %}

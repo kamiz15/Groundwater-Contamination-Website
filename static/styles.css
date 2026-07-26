@@ -938,6 +938,35 @@ input::placeholder {
   margin: 0.5rem 0 0.75rem;
 }
 
+.site-field-label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.site-field-label input {
+  margin-bottom: 0;
+  font-weight: 400;
+}
+
+.upload-notation-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.35rem 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.upload-notation-list > span {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
 .table-filter-grid { margin-top: 0.75rem; }
 
 .table-header-row {
@@ -2031,6 +2060,13 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .aem-summary dt { font-weight: 700; text-transform: capitalize; }
 .aem-summary dd { margin: 0; }
 .aem-result-actions { gap: 0.75rem; flex-wrap: wrap; margin: 0 0 1rem; }
+.aem-result-card .primary-btn {
+  appearance: none;
+  font-family: inherit;
+  line-height: 1.55;
+  text-decoration: none;
+  cursor: pointer;
+}
 /* Forward result: graph and its values side by side (no white space below). */
 .aem-result-layout { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; }
 .aem-result-layout > #aem-result-canvas { flex: 1 1 560px; min-width: 0; }
@@ -2235,7 +2271,18 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
   min-height: 16px;
 }
 @media (max-width: 760px) {
-  .aem-designer-layout { grid-template-columns: 1fr; }
+  .aem-designer-app {
+    height: auto;
+    min-height: 0;
+  }
+  .aem-designer-layout {
+    flex: none;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .aem-designer-form .aem-field-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
