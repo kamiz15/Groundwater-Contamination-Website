@@ -1265,6 +1265,16 @@
     const actions = document.getElementById("aem-result-actions");
     const csvLink = document.getElementById("aem-download-csv");
     const workbenchLink = document.getElementById("aem-open-workbench");
+    // The .npz sibling is cloned from the CSV link so it inherits that page's
+    // button class without either result template having to change.
+    let npzLink = document.getElementById("aem-download-npz");
+    if (!npzLink && csvLink) {
+      npzLink = csvLink.cloneNode(false);
+      npzLink.id = "aem-download-npz";
+      npzLink.textContent = "Download results NPZ";
+      npzLink.hidden = true;
+      csvLink.after(npzLink);
+    }
     const setCancelVisible = (visible) => {
       cancel.hidden = !visible;
       if (cancelActions) cancelActions.hidden = !visible;
@@ -1281,10 +1291,12 @@
       }
       const completed = await json(submitted.result_url); setCancelVisible(false); show("Simulation complete."); renderSummary(completed.result); renderField(completed.result);
       if (csvLink) csvLink.hidden = !completed.csv_url;
+      if (npzLink) npzLink.hidden = !completed.npz_url;
       if (workbenchLink) workbenchLink.hidden = !completed.workbench_url;
       if (completed.csv_url && csvLink) csvLink.href = completed.csv_url;
+      if (completed.npz_url && npzLink) npzLink.href = completed.npz_url;
       if (completed.workbench_url && workbenchLink) workbenchLink.href = completed.workbench_url;
-      if (actions) actions.hidden = !(completed.csv_url || completed.workbench_url);
+      if (actions) actions.hidden = !(completed.csv_url || completed.npz_url || completed.workbench_url);
     } catch (error) { setCancelVisible(false); show(error.message, true); }
   }
   if (root.dataset.aemPage === "designer") designer();

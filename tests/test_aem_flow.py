@@ -335,7 +335,9 @@ def test_forward_submission_uses_owner_design_and_existing_queue(aem_client, mon
     assert saved["kind"] == "aem_forward"
     # The forward path re-derives the domain at run time (idempotent re-validation),
     # so the queued config is the validated form, not the raw stored bounds.
-    assert saved["params"] == {"config_json": aem_routes._validated_config(VALID_CONFIG)}
+    # "email" rides along so the worker can key its per-user .npz grid export.
+    assert saved["params"] == {"config_json": aem_routes._validated_config(VALID_CONFIG),
+                               "email": "user@example.com"}
     assert saved["meta"] == {"email": "user@example.com", "kind": "aem_forward"}
 
 

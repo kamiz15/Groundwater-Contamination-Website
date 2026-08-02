@@ -11,6 +11,7 @@ arrays and scalars so it round-trips cleanly through the job queue.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import json
 import re
@@ -22,6 +23,8 @@ from typing import Any
 
 import numpy as np
 
+from settings import AEM_EXPORT_DIR
+
 
 # Directory holding the sample designer exports bundled with the project.
 DESIGNER_EXPORTS_DIR = Path(__file__).resolve().parent / "aem" / "designer_exports"
@@ -31,6 +34,17 @@ DESIGNER_EXPORTS_DIR = Path(__file__).resolve().parent / "aem" / "designer_expor
 DEFAULT_SAMPLE = "source_config_horizontal.json"
 _DESIGN_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32,64}$")
 DESIGN_TTL_SECONDS = 24 * 60 * 60
+
+
+def user_export_stem(email: str) -> str:
+    """Path STEM (no extension) of one user's latest AEM grid export.
+
+    Keyed by user, never one global path: two concurrent runs would otherwise
+    clobber each other's file. The model appends ``.npz`` and writes
+    atomically, so a new run replaces the previous export in one step.
+    """
+    token = hashlib.sha256(email.encode()).hexdigest()[:16]
+    return os.path.join(AEM_EXPORT_DIR, token)
 
 
 def _design_root() -> Path:
@@ -154,6 +168,14 @@ def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
     the recovered value (and matched field) can be returned to the job queue.
     """
     from aem import at_inverse_model as inv
+    from aem.at_inverse_config import InverseConfiguration
+
+    # Upstream moved the solver constants out of at_inverse_model into
+    # InverseConfiguration; the defaults are the same values this job used
+    # before. estimate_parameter_scanned now requires it positionally (it reads
+    # max_stagnation_default and passes it to compute_lmax_general, which builds
+    # the base ATConfiguration from it — so None would crash).
+    inv_cfg = InverseConfiguration()
 
     estimate_param = str(params.get("estimate_param", "alpha_t"))
     if estimate_param not in INVERSE_PARAMS:
@@ -175,16 +197,16 @@ def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
     alpha_l_in = None if alpha_l_in in (None, "") else float(alpha_l_in)
 
     tolerance = params.get("tolerance")
-    L_tol = (float(inv.L_TOLERANCE_DEFAULT) if tolerance in (None, "")
+    L_tol = (float(inv_cfg.l_tolerance_default) if tolerance in (None, "")
              else float(tolerance))
     max_stagnation = params.get("max_stagnation")
-    max_stagnation = (int(inv.MAX_STAGNATION_DEFAULT) if max_stagnation in (None, "")
+    max_stagnation = (int(inv_cfg.max_stagnation_default) if max_stagnation in (None, "")
                       else int(max_stagnation))
 
     r_eff = r if estimate_param == "r" else r * source_thickness_modifier
 
-    # Resolve search bounds (explicit override else PARAM_SEARCH_DEFAULTS).
-    pdefs = inv.PARAM_SEARCH_DEFAULTS.get(estimate_param, {})
+    # Resolve search bounds (explicit override else the per-parameter defaults).
+    pdefs = inv_cfg.param_search_defaults.get(estimate_param, {})
     lb = params.get("lower_bound")
     ub = params.get("upper_bound")
     lb = None if lb in (None, "") else float(lb)
@@ -215,17 +237,17 @@ def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
     # Fixed parameters, mirroring process_input_file_with_logging.
     fixed = {"r": r_eff, "C0": C0, "ca": ca, "gamma": gamma}
     if estimate_param == "alpha_t":
-        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else inv.FIXED_ALPHA_L
+        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else inv_cfg.fixed_alpha_l
     elif estimate_param == "alpha_l":
-        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else inv.FIXED_ALPHA_T
+        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else inv_cfg.fixed_alpha_t
     else:
         fixed["alpha_t"] = (alpha_t_in if alpha_t_in is not None
-                            else inv.ALPHA_T_WHEN_ESTIMATING_OTHERS)
+                            else inv_cfg.alpha_t_when_estimating_others)
         fixed["alpha_l"] = (alpha_l_in if alpha_l_in is not None
-                            else inv.ALPHA_L_WHEN_ESTIMATING_OTHERS)
+                            else inv_cfg.alpha_l_when_estimating_others)
 
     p_hat, L, sim = inv.estimate_parameter_scanned(
-        estimate_param, lb, ub, fixed, target,
+        estimate_param, lb, ub, fixed, target, inv_cfg,
         orientation=orientation, elem_kind=elem_kind,
         L_tolerance=L_tol, param_defaults=pdefs, max_stagnation=max_stagnation,
     )
@@ -302,6 +324,15 @@ def build_config(params: dict[str, Any]):
             setattr(config, key, float(params[key]))
     # beta is derived from alpha_l (matches ATConfiguration.from_json).
     config.beta = 1.0 / (2.0 * config.alpha_l)
+
+    # Per-user .npz grid export for the Data Workbench's "load my last AEM run".
+    # This MUST happen here, in the worker, because run() writes the file: the
+    # live ATSimulation never crosses the job queue's pickle boundary
+    # (numerical_jobs.mark_done), so the route cannot do it.
+    email = params.get("email")
+    if email:
+        config.concentration_output = "npz"
+        config.export_path = user_export_stem(str(email))
     return config
 
 

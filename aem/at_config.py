@@ -1,5 +1,5 @@
-# Written by Willi Kappler, willi.kappler@uni-tuebingen.de
-# Based on code from Anton Köhler
+# Written by Alvin Yadav
+# Based on code from Willi Kappler and Anton Köhler
 
 # Python std library:
 import json
@@ -30,6 +30,42 @@ class ATConfiguration:
         self.elements: list = []
         self.orientation: str = "horizontal"
         self.plot_aspect: str = "scaled"
+        # Show figures in the IDE/interactive window in addition to writing PDFs.
+        self.show_plots: bool = False
+        # Extend dom_xmax automatically when the plume reaches the boundary.
+        self.dynamic_domain: bool = True
+        # Seed dom_xmax from the learned predictor (xmax_predictor.py) instead
+        # of using the value in this config. Off by default so a run stays
+        # reproducible from the config file alone; dynamic_domain remains the
+        # correctness guarantee either way.
+        self.use_xmax_predictor: bool = False
+        # Allow the decoupled iterative solver as a fallback for ill-conditioned
+        # systems. When False the coupled result is always used (a warning is
+        # still emitted so the ill-conditioned regime stays visible).
+        self.allow_decoupling: bool = True
+        # Debugging aid: [[x, y], ...] points at which the concentration is
+        # evaluated and reported after the solve. Not intended for normal use.
+        self.probe_points: list = []
+        # Which concentration-grid file(s) to write at the end of a run:
+        #   "none" (default) — write nothing, so a run is unchanged
+        #   "csv"            — long-form CSV, for spreadsheets / other tools
+        #   "npz"            — compact native grid, for the analysis workbench
+        #   "both"           — both files
+        self.concentration_output: str = "none"
+        # Keep every n-th point on both axes when exporting. 1 = every point.
+        # Only worth raising for a coarse overview of a very fine grid; the
+        # full field is what makes the export worth having.
+        self.export_step: int = 1
+        # Output path STEM (no extension) — the format adds .csv / .npz, so
+        # "both" can write two files from one setting. Empty means "grid"
+        # inside this run's own directory. Setting it pins every run to one
+        # stem, which is how a caller keeps a single always-current export
+        # (each write replaces the previous atomically) instead of
+        # accumulating run folders.
+        self.export_path: str = ""
+        # Store the .npz concentration as float32 (~7 sig figs, ~half the
+        # bytes) instead of full float64. CSV is unaffected.
+        self.export_npz_float32: bool = False
 
     @staticmethod
     def from_dict(data: dict) -> "ATConfiguration":
@@ -54,6 +90,24 @@ class ATConfiguration:
         config.num_terms = data.get("num_terms", config.num_terms)
         config.orientation = data.get("orientation", config.orientation)
         config.plot_aspect = data.get("plot_aspect", config.plot_aspect)
+        config.show_plots = data.get("show_plots", config.show_plots)
+        config.dynamic_domain = data.get("dynamic_domain", config.dynamic_domain)
+        config.use_xmax_predictor = data.get("use_xmax_predictor", config.use_xmax_predictor)
+        config.allow_decoupling = data.get("allow_decoupling", config.allow_decoupling)
+        config.probe_points = data.get("probe_points", config.probe_points)
+        config.concentration_output = data.get("concentration_output", config.concentration_output)
+        config.export_step = data.get("export_step", config.export_step)
+        config.export_path = data.get("export_path", config.export_path)
+        config.export_npz_float32 = data.get("export_npz_float32", config.export_npz_float32)
+
+        # Fail loud on a misspelled format — silently treating it as "none"
+        # would drop a website run's export with no clue why.
+        allowed = {"none", "csv", "npz", "both"}
+        if config.concentration_output not in allowed:
+            raise ValueError(
+                f"concentration_output must be one of {sorted(allowed)}, "
+                f"got {config.concentration_output!r}."
+            )
 
         for i, elem_data in enumerate(data.get("elements", [])):
             kind = elem_data["kind"].lower()
@@ -72,25 +126,23 @@ class ATConfiguration:
                     x=elem_data['x'],
                     y=elem_data['y'],
                     c=elem_data['c'],
-                    r=elem_data['l']/2.0,  #radius
-                    theta=math.radians(theta_deg)  # default vertical
+                    r=elem_data['l'] / 2.0,
+                    theta=math.radians(theta_deg)
                 )
             elif kind == "ellipse":
-                # Ellipse element expects semi-axes a (semi-major) and b (semi-minor), and optional theta in degrees.
                 theta_deg = elem_data.get("theta", 0)
                 a = elem_data.get("a", None)
                 b = elem_data.get("b", None)
                 if a is None or b is None:
                     raise ValueError("Ellipse requires 'a' and 'b' (semi-axes) in the config.")
-
                 elem = ATElement(
                     kind=ATElementType.Ellipse,
                     x=float(elem_data['x']),
                     y=float(elem_data['y']),
                     c=float(elem_data['c']),
-                    r=float(a),  # map 'a' → r (semi-major)
-                    theta=math.radians(float(theta_deg)),  # degrees → radians
-                    b=float(b)  # semi-minor
+                    r=float(a),
+                    theta=math.radians(float(theta_deg)),
+                    b=float(b)
                 )
             else:
                 raise ValueError(f"Unknown element kind: {elem_data['kind']}")

@@ -36,13 +36,14 @@ panel-temp/
 # Local runtime artifacts
 .numerical_runs/
 .numerical_jobs/
-tmpclaude-*/
+.aem_exports/
+# AEM run outputs (the synced model writes here instead of the old Results/)
+sim_runs/
+tmp*/
 .modflow_bin/
 # Linux MODFLOW solver binaries (re-fetch with:
 # python -m flopy.utils.get_modflow --subset mf6 solvers/)
 solvers/*
 !solvers/.gitkeep
 
-tmpclaude-06ad-cwd
-
-tmpclaude-4453-cwd
+tmp*-cwd

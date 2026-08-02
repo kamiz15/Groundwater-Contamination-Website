@@ -30,9 +30,11 @@ dict in ``panel_server.py``::
 """
 from __future__ import annotations
 
+import datetime as dt
 import html
 import io
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -47,6 +49,7 @@ from data_analysis.kde import BANDWIDTHS, KERNELS
 from data_analysis.plots import COLORMAPS, DEFAULT_COLORMAP, profile_line_options
 from data_analysis.scales import SCALES
 from data_analysis.stats import DISTRIBUTIONS
+from aem_jobs import user_export_stem
 from data_queries import get_user_sites_rows
 from numerical_jobs import fetch_result, job_status, load_job_meta
 from panel_auth import authenticated_email
@@ -147,6 +150,9 @@ def data_analysis_app():
     database_btn = pn.widgets.Button(
         name="Refresh site database", button_type="primary", width=190,
     )
+    aem_btn = pn.widgets.Button(
+        name="Load my last AEM run", button_type="default", width=190,
+    )
     file_input = pn.widgets.FileInput(
         name="Upload another CSV or NPZ", accept=".csv,.npz", multiple=False,
     )
@@ -242,6 +248,29 @@ def data_analysis_app():
             return
         _apply_dataframe(frame, "Site database")
 
+    def _load_last_aem(_=None):
+        """Open the .npz an AEM forward run wrote for this user (one per user)."""
+        email = authenticated_email()
+        path = user_export_stem(email) + ".npz" if email else ""
+        try:
+            with open(path, "rb") as handle:
+                raw = handle.read()
+            when = dt.datetime.fromtimestamp(os.path.getmtime(path))
+        except OSError:
+            status_pane.object = info_card(
+                "No AEM export yet. Run an AEM forward simulation and it will "
+                "show up here — each run replaces the previous one."
+            )
+            return
+        try:
+            df = datasets.load_npz(raw)
+        except Exception as exc:
+            status_pane.object = error_card(exc)
+            return
+        # _apply_dataframe prints the row × column count; the timestamp here is
+        # what tells the user *which* run they are looking at.
+        _apply_dataframe(df, f"Last AEM run ({when:%Y-%m-%d %H:%M})")
+
     def _on_upload(_=None):
         if not file_input.value:
             return
@@ -258,6 +287,7 @@ def data_analysis_app():
 
     file_input.param.watch(_on_upload, "value")
     database_btn.on_click(_load_database)
+    aem_btn.on_click(_load_last_aem)
 
     # ===================================================================== #
     # Tab 1 — Univariate
@@ -550,7 +580,7 @@ def data_analysis_app():
 
     intake = pn.Column(
         "### 1. Data source",
-        pn.Row(database_btn, file_input),
+        pn.Row(database_btn, aem_btn, file_input),
         status_pane, preview,
         data_version, grid_version,
         sizing_mode="stretch_width",
