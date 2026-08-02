@@ -789,7 +789,7 @@ cast_landing_demo/
 | `.modflow_bin/` | Ignored local solver binaries including `mf6.exe`. |
 | `.numerical_runs/` | Ignored FloPy workspaces. Normally temporary; interrupted runs can leave directories behind. |
 | `__pycache__/` | Ignored Python bytecode cache. |
-| `tmpclaude-*` | Ignored local temporary artifacts. |
+| `tmp*` | Ignored local temporary artifacts. |
 
 ## Known Limitations
 
