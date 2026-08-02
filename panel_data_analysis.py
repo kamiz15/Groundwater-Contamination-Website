@@ -148,7 +148,7 @@ def data_analysis_app():
         name="Refresh site database", button_type="primary", width=190,
     )
     file_input = pn.widgets.FileInput(
-        name="Upload another CSV", accept=".csv", multiple=False,
+        name="Upload another CSV or NPZ", accept=".csv,.npz", multiple=False,
     )
     status_pane = pn.pane.HTML(
         info_card("Loading your site database..."), sizing_mode="stretch_width"
@@ -245,13 +245,16 @@ def data_analysis_app():
     def _on_upload(_=None):
         if not file_input.value:
             return
+        name = (file_input.filename or "").lower()
+        is_npz = name.endswith(".npz") or file_input.value[:4] == b"PK\x03\x04"  # npz is a zip
         try:
-            df = datasets.load_csv(file_input.value)
+            df = datasets.load_npz(file_input.value) if is_npz else datasets.load_csv(file_input.value)
         except Exception as exc:
             status_pane.object = error_card(exc)
             return
-        filename = file_input.filename or "Uploaded CSV"
-        _apply_dataframe(df, f"Temporary CSV - {filename}")
+        kind = "NPZ" if is_npz else "CSV"
+        filename = file_input.filename or f"Uploaded {kind}"
+        _apply_dataframe(df, f"Temporary {kind} - {filename}")
 
     file_input.param.watch(_on_upload, "value")
     database_btn.on_click(_load_database)
@@ -507,6 +510,19 @@ def data_analysis_app():
             return io.BytesIO(b"")
         return io.BytesIO(stats_mod.frame_csv_bytes(df))
 
+    def _grid_npz():
+        # The native grid, in the layout datasets.load_npz reads back, so a
+        # download re-uploads into the same grid.
+        grid = state["grid"]
+        if grid is None:
+            return io.BytesIO(b"")
+        buffer = io.BytesIO()
+        np.savez_compressed(
+            buffer, x_m=grid.x, y_m=grid.y, concentration_mgL=grid.values,
+        )
+        buffer.seek(0)
+        return buffer
+
     stats_download = pn.widgets.FileDownload(
         callback=_stats_csv, filename="dataset_statistics.csv",
         label="↓ Download statistics (CSV)", button_type="primary",
@@ -515,9 +531,13 @@ def data_analysis_app():
         callback=_data_csv, filename="dataset.csv",
         label="↓ Download dataset (CSV)", button_type="default",
     )
+    grid_download = pn.widgets.FileDownload(
+        callback=_grid_npz, filename="grid.npz",
+        label="↓ Download grid (NPZ)", button_type="default",
+    )
 
     tab_statistics = pn.Column(
-        pn.Row(stats_download, data_download),
+        pn.Row(stats_download, data_download, grid_download),
         stats_output, sizing_mode="stretch_width",
     )
 

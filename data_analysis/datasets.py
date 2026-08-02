@@ -143,6 +143,43 @@ def load_csv(raw: bytes) -> pd.DataFrame:
     return df
 
 
+def load_npz(raw: bytes) -> pd.DataFrame:
+    """Expand an uploaded ``.npz`` grid into the long-form frame ``load_csv`` yields.
+
+    The archive holds the *native* grid — ``x_m`` and ``y_m`` as 1D axes and
+    ``concentration_mgL`` as a 2D array of shape ``(len(y_m), len(x_m))``. One
+    meshgrid turns it into one row per point, so every tab and ``pivot_gridded``
+    see exactly what a CSV upload produces.
+
+    The keys are a contract with the model's exporter, so they are kept verbatim
+    rather than canonicalised — ``notation.py`` reads ``concentration_mgL``.
+
+    Raises ``ValueError`` for empty, unreadable or mis-shaped input.
+    """
+    if raw is None or len(raw) == 0:
+        raise ValueError("The uploaded file is empty.")
+
+    try:
+        # allow_pickle=False: an uploaded archive is untrusted, and a pickled
+        # array inside it would execute arbitrary code on load.
+        with np.load(io.BytesIO(raw), allow_pickle=False) as d:
+            x, y, c = d["x_m"], d["y_m"], d["concentration_mgL"]
+    except KeyError as exc:
+        raise ValueError(
+            "The .npz file must contain x_m, y_m and concentration_mgL arrays."
+        ) from exc
+    except Exception as exc:  # numpy/zipfile raise a grab-bag of read errors
+        raise ValueError(f"Could not read the .npz file: {exc}") from exc
+
+    if c.shape != (y.size, x.size):
+        raise ValueError("NPZ concentration shape does not match its axes.")
+
+    X, Y = np.meshgrid(x, y)
+    return pd.DataFrame({
+        "x_m": X.ravel(), "y_m": Y.ravel(), "concentration_mgL": c.ravel(),
+    })
+
+
 def numeric_columns(df: pd.DataFrame) -> list[str]:
     """Column names whose dtype is numeric."""
     return [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
