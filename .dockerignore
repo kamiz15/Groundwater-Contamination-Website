@@ -9,6 +9,5 @@ __pycache__
 .venv
 venv
 .numerical_runs
-tmpclaude-06ad-cwd
-tmpclaude-4453-cwd
+tmp*-cwd
 .env
