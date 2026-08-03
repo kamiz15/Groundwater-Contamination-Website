@@ -3,6 +3,7 @@ import smtplib
 from email.message import EmailMessage
 import os
 import secrets
+from urllib.parse import urlparse
 
 from bokeh.resources import CDN
 from flask import Flask, abort, render_template, jsonify, redirect, request, url_for
@@ -50,6 +51,8 @@ from settings import (
     FLASK_HOST,
     FLASK_PORT,
     MAX_REQUEST_BYTES,
+    PANEL_ALLOW_ORIGINS,
+    PANEL_PUBLIC_BASE,
     SECRET_KEY,
     SESSION_COOKIE_SECURE,
 )
@@ -62,6 +65,37 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _warn_about_panel_embedding() -> None:
+    """Say at startup when the Panel iframes will not be able to size themselves.
+
+    The pages embed Panel in an iframe and the parent grows that iframe to fit,
+    which it can only do same-origin. An absolute PANEL_PUBLIC_BASE makes every
+    embed cross-origin (a different port is a different origin), the height sync
+    silently gives up, and the plot is cut off at its CSS floor. The matching
+    trap is PANEL_ALLOW_ORIGINS: a host that is not listed has its websocket
+    rejected, so the plot never finishes rendering on that device.
+    """
+    parsed = urlparse(PANEL_PUBLIC_BASE)
+    if parsed.scheme or parsed.netloc:
+        logger.warning(
+            "PANEL_PUBLIC_BASE=%s is absolute, so the Panel iframes are cross-origin "
+            "unless the site is served from exactly that origin. The iframe height "
+            "sync cannot run cross-origin and embedded plots will be cut off. Prefer "
+            "a same-origin path such as /panel.",
+            PANEL_PUBLIC_BASE,
+        )
+    else:
+        logger.info("PANEL_PUBLIC_BASE=%s (same-origin embed)", PANEL_PUBLIC_BASE or "/")
+    logger.info(
+        "PANEL_ALLOW_ORIGINS=%s - a browser reaching this site by any other host "
+        "(a LAN IP, for example) will have its Panel websocket rejected.",
+        ",".join(PANEL_ALLOW_ORIGINS) or "(empty)",
+    )
+
+
+_warn_about_panel_embedding()
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY

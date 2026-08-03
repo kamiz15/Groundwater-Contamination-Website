@@ -297,9 +297,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // The Bokeh plots are aspect-locked (height scales with width), so no fixed
   // height is ever right at every window size ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the frame must track content.
+  // Record why a frame is not tracking its content. Every failure below used to
+  // be swallowed, which left the embedded plot silently cut off at the CSS floor.
+  // Warn once per state change, not once per observer tick.
+  const noteSync = (frame, state, detail) => {
+    if (frame.dataset.frameSync === state) return;
+    frame.dataset.frameSync = state;
+    if (state !== "ok") console.warn(`[cast] panel frame ${state}: ${detail}`, frame);
+  };
   const measure = (frame) => {
-    const doc = frame.contentDocument || frame.contentWindow?.document;
-    if (!doc || !doc.body || !doc.documentElement) return null;
+    let doc = null;
+    try {
+      doc = frame.contentDocument || frame.contentWindow?.document;
+    } catch (_err) {
+      // Cross-origin: the parent cannot read the iframe, so this sync can never
+      // run and the frame stays at its floor. Almost always PANEL_PUBLIC_BASE
+      // set to an absolute URL - a different port is a different origin.
+      noteSync(frame, "cross-origin",
+        `cannot measure ${new URL(frame.src, location.href).origin} from ` +
+        `${location.origin}; set PANEL_PUBLIC_BASE to a same-origin path like /panel`);
+      return null;
+    }
+    if (!doc || !doc.body || !doc.documentElement) {
+      noteSync(frame, "pending", "iframe document not ready yet");
+      return null;
+    }
     return Math.ceil(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
   };
   const floorOf = (frame) => Number(frame.dataset.minHeight || 680);
@@ -314,7 +336,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const target = Math.max(content, floorOf(frame));
       const current = Math.round(parseFloat(frame.style.height) || 0);
       if (target > current + 1) frame.style.height = `${target}px`;
-    } catch (_err) { /* not ready / cross-origin */ }
+      noteSync(frame, "ok", "");
+    } catch (_err) { /* measure() already reported the reason */ }
   };
 
   // Reset then fit ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â allows shrinking too. Only from discrete events (load,
@@ -325,7 +348,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const content = measure(frame);
       if (content == null) return;
       frame.style.height = `${Math.max(content, floorOf(frame))}px`;
-    } catch (_err) { /* not ready / cross-origin */ }
+      noteSync(frame, "ok", "");
+    } catch (_err) { /* measure() already reported the reason */ }
   };
 
   frames.forEach((frame) => {
@@ -339,6 +363,14 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (_err) { /* timers below still cover it */ }
       // Catch the async Bokeh render even if the observer misses it.
       [150, 600, 1500, 3000, 5000, 8000].forEach((ms) => setTimeout(() => growFrame(frame), ms));
+      // Past the last retry: if the frame never fitted, the plot is almost
+      // certainly clipped. Say so rather than leaving a silently cut graph.
+      setTimeout(() => {
+        if (frame.dataset.frameSync === "ok") return;
+        noteSync(frame, "failed",
+          `never fitted its content (last state: ${frame.dataset.frameSync || "unknown"}); ` +
+          "the embedded plot is probably cut off");
+      }, 9000);
     });
   });
 
