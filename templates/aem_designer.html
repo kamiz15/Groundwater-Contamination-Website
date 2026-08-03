@@ -26,13 +26,13 @@
               <label>Trans. dispersivity &alpha;<sub>T</sub><span class="param-help" tabindex="0" role="note" aria-label="Transverse dispersivity — plume spreading across the flow direction [m].">i<span class="param-help__tip" role="tooltip">Transverse dispersivity — plume spreading across the flow direction [m].</span></span><input type="number" name="alpha_t" value="0.2" step="any" min="0"></label>
               <label>Acceptor Concentration <i>C</i><sub>A</sub> [mg/L]<span class="param-help" tabindex="0" role="note" aria-label="Background acceptor concentration [mg/L].">i<span class="param-help__tip" role="tooltip">Background acceptor concentration [mg/L].</span></span><input type="number" name="ca" value="8" step="any"></label>
               <label>Stoichiometry Ratio &gamma; [-]<span class="param-help" tabindex="0" role="note" aria-label="Donor : acceptor stoichiometry mass ratio (dimensionless).">i<span class="param-help__tip" role="tooltip">Donor : acceptor stoichiometry mass ratio (dimensionless).</span></span><input type="number" name="gamma" value="3.5" step="any" min="0"></label>
-              <label>Source width <i>W</i><sub>s</sub><span class="param-help" tabindex="0" role="note" aria-label="Source-zone width guide [m] — the x-extent shown by the gold lines.">i<span class="param-help__tip" role="tooltip">Source-zone width guide [m] — the x-extent shown by the gold lines.</span></span><input type="number" name="ws" value="0.5" step="any" min="0"></label>
+              <label>Source zone extent<span class="param-help" tabindex="0" role="note" aria-label="Source-zone extent [m] — the x-extent shown by the gold lines.">i<span class="param-help__tip" role="tooltip">Source-zone extent [m] — the x-extent shown by the gold lines.</span></span><input type="number" name="ws" value="0.5" step="any" min="0"></label>
             </div>
             <button id="aem-orientation" type="button" class="aem-btn">Orientation: vertical</button>
             <p class="aem-settings-hint">Vertical orientation: every source top edge must be at least 0.1 m below the water table (y = 0).</p>
             <h4 class="aem-settings-group">Computational parameters</h4>
             <div class="aem-field-grid">
-              <label>Grid spacing &Delta;<span class="param-help" tabindex="0" role="note" aria-label="Output grid spacing [m]. Smaller = finer field but slower solve.">i<span class="param-help__tip" role="tooltip">Output grid spacing [m]. Smaller = finer field but slower solve.</span></span><input type="number" name="dom_inc" value="1" step="any" min="0"></label>
+              <label>Resolution &Delta;<span class="param-help" tabindex="0" role="note" aria-label="Output grid resolution [m]. Smaller = finer field but slower solve.">i<span class="param-help__tip" role="tooltip">Output grid resolution [m]. Smaller = finer field but slower solve.</span></span><input type="number" name="dom_inc" value="1" step="any" min="0"></label>
               <label>Control points<span class="param-help" tabindex="0" role="note" aria-label="Boundary control points per element used to fit the solution.">i<span class="param-help__tip" role="tooltip">Boundary control points per element used to fit the solution.</span></span><input type="number" name="num_cp" value="40" step="1" min="1"></label>
               <label>Expansion terms<span class="param-help" tabindex="0" role="note" aria-label="Number of Mathieu expansion terms (higher = more accurate, slower).">i<span class="param-help__tip" role="tooltip">Number of Mathieu expansion terms (higher = more accurate, slower).</span></span><input type="number" name="num_terms" value="5" step="1" min="1"></label>
               <label>Plot aspect<span class="param-help" tabindex="0" role="note" aria-label="Result aspect: 'scaled' for equal x/y axes, blank for auto.">i<span class="param-help__tip" role="tooltip">Result aspect: 'scaled' for equal x/y axes, blank for auto.</span></span><input type="text" name="plot_aspect" value="" placeholder="(auto)"></label>
@@ -64,6 +64,9 @@
         <div class="aem-designer-panel">
           <canvas id="aem-colorbar" class="aem-colorbar" aria-label="Electron donor concentration colorbar"></canvas>
           <div id="aem-info" class="aem-info" aria-live="polite"></div>
+          <label class="aem-conc-edit" hidden>Concentration C<sub>D</sub><sup>0</sup> [mg/L]
+            <input id="aem-conc-input" type="number" step="0.01" min="0.1" inputmode="decimal">
+          </label>
           <div id="aem-status" class="aem-status" aria-live="polite"></div>
         </div>
       </main>

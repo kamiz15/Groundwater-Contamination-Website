@@ -171,6 +171,7 @@
     const form = document.getElementById("aem-design-form");
     const statusEl = document.getElementById("aem-status");
     const infoEl = document.getElementById("aem-info");
+    const concInput = document.getElementById("aem-conc-input");
     const colorbar = document.getElementById("aem-colorbar");
     const DEFAULT_R = 0.02;       // fallback size for a click without a drag
     const polygons = [];
@@ -212,7 +213,7 @@
     const reframeView = () => {
       const m = Math.max(WS * 0.10, 0.05);
       view.xmin = -m; view.xmax = WS + m;
-      if (orientation() === "vertical") { view.ymin = -(WS + m); view.ymax = m; }
+      if (orientation() === "vertical") { view.ymin = -(WS + m); view.ymax = 0; }
       else { view.ymin = -m; view.ymax = WS + m; }
     };
     const allCircles = () => polygons.flatMap((polygon) => polygon.circles);
@@ -377,8 +378,8 @@
         ctx.strokeStyle = "#1565c0"; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(0, py0); ctx.lineTo(box().width, py0); ctx.stroke();
         ctx.fillStyle = "#1565c0"; ctx.font = "11px sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText("water table (y = 0) - draw below", 8, py0 - 4);
+        ctx.textAlign = "left"; ctx.textBaseline = "top";
+        ctx.fillText("water table (y = 0) - draw below", 8, py0 + 4);
 
         ctx.strokeStyle = "#d97706"; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]);
         ctx.beginPath(); ctx.moveTo(0, pyMinTop); ctx.lineTo(box().width, pyMinTop); ctx.stroke();
@@ -407,7 +408,7 @@
     const drawWsAnnotation = (vp, ws, b) => {
       ctx.save();
       ctx.font = "11px sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "top";
-      const label = `Ws = ${fmt2(ws)} m`;
+      const label = `Source zone extent = ${fmt2(ws)} m`;
       const tw = ctx.measureText(label).width;
       const rx = (b.left !== undefined ? b.left + b.width : box().width) - 6;
       const ry = (b.top !== undefined ? b.top : 0) + 6;
@@ -614,6 +615,7 @@
       if (fullView) { fullView = false; }
       const vp = sourceViewport();
       drawGrid(vp);
+      drawPanelTicks(vp, 44, 0, b.width, b.height - 24, 5, 6);   // numeric scale on both axes
       drawPolygons(vp, polygons, selected && selected.type === "poly" ? selected : null);
       drawSources(vp);
       drawPlacing(vp);
@@ -643,14 +645,24 @@
       cb.textAlign = "right"; cb.fillText(fmt2(CONC_MAX), w - 1, h);
     };
 
+    // Sync the editable concentration field to the selection. Skip the write while
+    // the field itself is focused so typing (e.g. "12.5") isn't clobbered mid-edit.
+    const syncConcInput = (e) => {
+      if (!concInput) return;
+      const wrap = concInput.closest(".aem-conc-edit");
+      if (!e) { if (wrap) wrap.hidden = true; return; }
+      if (wrap) wrap.hidden = false;
+      if (document.activeElement !== concInput) concInput.value = fmt2(e.c);
+    };
     const updateInfo = () => {
       const e = selectedElem();
-      if (!e) { setInfo(""); return; }
+      if (!e) { setInfo(""); syncConcInput(null); return; }
       const size = e.kind === "circle" ? `r = ${fmt2(e.r)} m`
         : e.kind === "ellipse" ? `a = ${fmt2(e.a)}, b = ${fmt2(e.b)} m`
         : `l = ${fmt2(e.l)} m, θ = ${fmt2(e.theta || 0)}°`;
       const label = selected.type === "source" ? e.kind : "circle";
       setInfo(`${label}  |  ${size}  |  C_D^0 = ${fmt2(e.c)} mg/L  |  pos = (${fmt2(e.x)}, ${fmt2(e.y)})`);
+      syncConcInput(e);
     };
 
     // Resize backing store to displayed box (DPR-aware) and redraw.
@@ -699,6 +711,7 @@
 
     canvas.addEventListener("mousedown", (event) => {
       if (event.button === 1 || (event.button === 0 && event.shiftKey)) {
+        event.preventDefault();   // middle-button: suppress the browser's autoscroll
         panning = true; panStart = {x: event.clientX, y: event.clientY, ...view}; return;
       }
       if (event.button !== 0 || fullView) return;
@@ -911,6 +924,27 @@
       importInput.value = "";
     });
     document.getElementById("aem-export").addEventListener("click", exportJson);
+    // Direct numerical concentration entry (2-decimal) for the selected element,
+    // alongside the +/- keys. Bind to the element captured on focus, not a live
+    // selectedElem() lookup — blurring by clicking another element must not retarget
+    // the edit to the newly-selected one.
+    if (concInput) {
+      let concTarget = null;
+      concInput.addEventListener("focus", () => { concTarget = selectedElem(); });
+      concInput.addEventListener("input", () => {
+        if (!concTarget) return;
+        const v = +concInput.value;
+        if (!Number.isFinite(v) || v <= 0) return;
+        concTarget.c = +v.toFixed(2); updateInfo(); draw();
+      });
+      concInput.addEventListener("change", () => {
+        if (!concTarget) return;
+        let v = +concInput.value;
+        if (!Number.isFinite(v) || v <= 0) v = concTarget.c;
+        concTarget.c = +Math.max(0.1, v).toFixed(2);
+        concTarget = null; updateInfo(); draw();
+      });
+    }
     const indexBtn = document.getElementById("aem-index");
     const toggleIndices = () => {
       showIndices = !showIndices;
