@@ -29,6 +29,8 @@ MAX_PACK_CIRCLES = 80
 MAX_PACK_CANDIDATES = 300_000
 MAX_GRID_CELLS = 500_000
 MAX_COORDINATE = 10_000.0
+DEFAULT_MIN_RADIUS = 0.003
+MAX_MIN_RADIUS = 1.0
 
 
 def _current_email():
@@ -68,7 +70,7 @@ def _number(value, name, *, positive=False, minimum=None, maximum=None):
     return number
 
 
-def _vertices(raw):
+def _vertices(raw, min_radius=DEFAULT_MIN_RADIUS):
     if not isinstance(raw, list) or not 3 <= len(raw) <= MAX_VERTICES:
         raise ValueError(f"vertices must contain 3 to {MAX_VERTICES} points.")
     vertices = []
@@ -81,7 +83,10 @@ def _vertices(raw):
         ))
     width = max(x for x, _ in vertices) - min(x for x, _ in vertices)
     height = max(y for _, y in vertices) - min(y for _, y in vertices)
-    candidates = (int(width / 0.006) + 2) * (int(height / 0.006) + 2)
+    # The packer scatters candidates on a 2*min_radius lattice, so the work a
+    # polygon implies depends on the caller's min_radius, not a fixed step.
+    step = 2 * min_radius
+    candidates = (int(width / step) + 2) * (int(height / step) + 2)
     if width <= 0 or height <= 0 or candidates > MAX_PACK_CANDIDATES:
         raise ValueError("Polygon extent is empty or too large to pack safely.")
     polygon = ShapelyPolygon(vertices)
@@ -305,10 +310,12 @@ def aem_inverse():
 def aem_pack():
     try:
         data = _json_body()
-        vertices = _vertices(data.get("vertices"))
+        min_radius = _number(data.get("min_radius", DEFAULT_MIN_RADIUS), "min_radius",
+                             positive=True, maximum=MAX_MIN_RADIUS)
+        vertices = _vertices(data.get("vertices"), min_radius)
         concentration = _number(data.get("default_c", 10), "default_c", positive=True, maximum=10_000)
         count = int(_number(data.get("max_circles", 80), "max_circles", minimum=1, maximum=MAX_PACK_CIRCLES))
-        circles = greedy_circle_pack(vertices, concentration, count)
+        circles = greedy_circle_pack(vertices, concentration, count, min_radius)
         return jsonify({"success": True, "circles": [
             {name: float(value) for name, value in circle.items()} for circle in circles
         ]})
@@ -322,7 +329,9 @@ def aem_pack():
 def aem_repack():
     try:
         data = _json_body()
-        vertices = _vertices(data.get("vertices"))
+        min_radius = _number(data.get("min_radius", DEFAULT_MIN_RADIUS), "min_radius",
+                             positive=True, maximum=MAX_MIN_RADIUS)
+        vertices = _vertices(data.get("vertices"), min_radius)
         raw_circles = data.get("circles")
         if not isinstance(raw_circles, list) or not 1 <= len(raw_circles) <= MAX_PACK_CIRCLES:
             raise ValueError(f"circles must contain 1 to {MAX_PACK_CIRCLES} items.")
@@ -337,7 +346,8 @@ def aem_repack():
                 "c": _number(item.get("c"), f"circles[{index}].c", positive=True, maximum=10_000),
             })
         changed = int(_number(data.get("changed_idx"), "changed_idx", minimum=0, maximum=len(circles) - 1))
-        return jsonify({"success": True, "circles": repack_after_resize(circles, changed, vertices)})
+        return jsonify({"success": True,
+                        "circles": repack_after_resize(circles, changed, vertices, min_radius)})
     except (ValueError, IndexError) as exc:
         return _error(str(exc))
 

@@ -88,7 +88,9 @@ def test_native_client_contract_covers_csrf_import_export_and_axis_rendering():
     assert 'ctx.fillText("x (m)"' in source                       # matplotlib-style axis label
     assert "DONOR_BANDS" in source                                # discrete contour bands
     assert "drawing.push(snapDrawPoint(point))" in source
-    assert 'selected = match ? {type: "poly", p: selected.p, c: match.index} : null' in source
+    # The repack path still reselects the changed circle — now as a one-element
+    # multi-selection, cleared to the empty selection when the circle is gone.
+    assert 'selected = match ? [{type: "poly", p: key0.p, c: match.index}] : []' in source
 
 
 def _run_aem_js(expression):
@@ -124,6 +126,67 @@ def test_native_exact_negative_halves_use_python_even_parity_before_clamp():
 ])
 def test_display_formatter_caps_at_two_decimals_and_drops_whole_number_zeros(value, expected):
     assert _run_aem_js(f"h.fmt2({value})") == expected
+
+
+MARQUEE_ELEMENTS = [
+    {"x": 0.10, "y": 0.10},   # 0 inside
+    {"x": 0.30, "y": 0.30},   # 1 on the corner boundary
+    {"x": 0.40, "y": 0.10},   # 2 outside in x
+    {"x": 0.10, "y": 0.40},   # 3 outside in y
+    {"x": 0.00, "y": 0.00},   # 4 on the opposite corner boundary
+]
+
+
+@pytest.mark.parametrize(("rect", "expected"), [
+    ({"x0": 0, "y0": 0, "x1": 0.3, "y1": 0.3}, [0, 1, 4]),
+    ({"x0": 0.3, "y0": 0.3, "x1": 0, "y1": 0}, [0, 1, 4]),      # reversed corners
+    ({"x0": 0.05, "y0": 0.05, "x1": 0.2, "y1": 0.2}, [0]),      # boundaries excluded
+    ({"x0": 0.5, "y0": 0.5, "x1": 0.6, "y1": 0.6}, []),         # empty sweep
+])
+def test_marquee_selects_elements_whose_centre_is_inside_the_rect(rect, expected):
+    assert _run_aem_js(
+        f"h.elementsInRect({json.dumps(MARQUEE_ELEMENTS)},{json.dumps(rect)})"
+    ) == expected
+
+
+def test_removal_plan_orders_indices_descending_per_container():
+    keys = [
+        {"type": "poly", "p": 0, "c": 1},
+        {"type": "source", "i": 0},
+        {"type": "poly", "p": 0, "c": 3},
+        {"type": "source", "i": 2},
+        {"type": "poly", "p": 1, "c": 0},
+        {"type": "poly", "p": 0, "c": 0},
+        {"type": "source", "i": 1},
+    ]
+
+    plan = _run_aem_js(f"h.removalPlan({json.dumps(keys)})")
+
+    assert [(group["type"], group.get("p"), group["indices"]) for group in plan] == [
+        ("poly", 0, [3, 1, 0]),
+        ("source", None, [2, 1, 0]),
+        ("poly", 1, [0]),
+    ]
+    # Ascending splices would delete the wrong elements; descending never shifts
+    # an index that has not been used yet.
+    for group in plan:
+        assert group["indices"] == sorted(group["indices"], reverse=True)
+
+
+def test_removal_plan_applied_descending_deletes_exactly_the_selected_elements():
+    """The plan is only useful if splicing it leaves the unselected items intact."""
+    expression = (
+        "(()=>{const sources=['s0','s1','s2','s3'];"
+        "const circles=['c0','c1','c2'];"
+        "const keys=[{type:'source',i:0},{type:'poly',p:0,c:1},"
+        "{type:'source',i:2},{type:'source',i:0}];"
+        "h.removalPlan(keys).forEach((g)=>{"
+        "const list=g.type==='source'?sources:circles;"
+        "g.indices.forEach((i)=>list.splice(i,1));});"
+        "return {sources,circles};})()"
+    )
+
+    assert _run_aem_js(expression) == {"sources": ["s1", "s3"], "circles": ["c0", "c2"]}
 
 
 def test_repack_reselects_changed_circle_after_earlier_neighbor_removed():
@@ -174,10 +237,31 @@ def test_pack_endpoint_matches_reference_algorithm(aem_client):
     ]
 
 
+def test_pack_endpoint_honours_a_custom_min_radius(aem_client):
+    vertices = [[0, 0], [0.03, 0], [0.03, 0.03], [0, 0.03]]
+    response = _post(aem_client, "/aem/api/pack",
+                     json={"vertices": vertices, "default_c": 10, "max_circles": 3,
+                           "min_radius": 0.006})
+
+    assert response.status_code == 200
+    assert response.get_json()["circles"] == [
+        {key: float(value) for key, value in circle.items()}
+        for circle in greedy_circle_pack(vertices, 10, 3, 0.006)
+    ]
+    # A coarser floor cannot produce the default packing.
+    assert response.get_json()["circles"] != [
+        {key: float(value) for key, value in circle.items()}
+        for circle in greedy_circle_pack(vertices, 10, 3)
+    ]
+
+
 @pytest.mark.parametrize(
     "payload, message",
     [
         ({"vertices": [[0, 0], [1, 1]]}, "3 to 128"),
+        ({"vertices": [[0, 0], [0.03, 0], [0, 0.03]], "min_radius": 0}, "greater than zero"),
+        ({"vertices": [[0, 0], [0.03, 0], [0.03, 0.03], [0, 0.03]],
+          "min_radius": 1e-6}, "too large"),
         ({"vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]}, "too large"),
         ({"vertices": [[0, 0], [0.03, 0], [0, 0.03]], "max_circles": 81}, "at most 80"),
     ],

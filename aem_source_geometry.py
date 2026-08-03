@@ -17,19 +17,20 @@ def _distance_to_boundary(x, y, poly):
     return d if poly.contains(p) else -d
 
 
-def _max_radius_at(x, y, placed, poly, abs_max=0.06):
+def _max_radius_at(x, y, placed, poly, abs_max=0.06, min_radius=MIN_RADIUS):
     """Largest radius at (x,y) that doesn't overlap anything."""
     r = _distance_to_boundary(x, y, poly)
     if r <= 0:
         return 0
     for cx, cy, cr in placed:
         r = min(r, math.hypot(x - cx, y - cy) - cr)
-        if r <= MIN_RADIUS:
+        if r <= min_radius:
             return 0
     return min(r, abs_max)
 
 
-def greedy_circle_pack(vertices, default_c=DEFAULT_CONC, max_circles=80):
+def greedy_circle_pack(vertices, default_c=DEFAULT_CONC, max_circles=80,
+                       min_radius=MIN_RADIUS):
     """
     Greedy packing: scatter candidate points, repeatedly place the largest
     possible circle, then re-evaluate. Produces varied circle sizes.
@@ -44,9 +45,9 @@ def greedy_circle_pack(vertices, default_c=DEFAULT_CONC, max_circles=80):
     placed = []
     circles = []
 
-    step = MIN_RADIUS * 2
-    cand_xs = np.arange(minx + MIN_RADIUS, maxx - MIN_RADIUS + step, step)
-    cand_ys = np.arange(miny + MIN_RADIUS, maxy - MIN_RADIUS + step, step)
+    step = min_radius * 2
+    cand_xs = np.arange(minx + min_radius, maxx - min_radius + step, step)
+    cand_ys = np.arange(miny + min_radius, maxy - min_radius + step, step)
     candidates = []
     for x in cand_xs:
         for y in cand_ys:
@@ -57,13 +58,13 @@ def greedy_circle_pack(vertices, default_c=DEFAULT_CONC, max_circles=80):
         best_r, best_x, best_y = 0, 0, 0
         surviving = []
         for (x, y) in candidates:
-            r = _max_radius_at(x, y, placed, poly, abs_max_r)
-            if r > MIN_RADIUS:
+            r = _max_radius_at(x, y, placed, poly, abs_max_r, min_radius)
+            if r > min_radius:
                 surviving.append((x, y))
                 if r > best_r:
                     best_r, best_x, best_y = r, x, y
         candidates = surviving
-        if best_r <= MIN_RADIUS:
+        if best_r <= min_radius:
             break
         placed.append((best_x, best_y, best_r))
         circles.append({"x": round(best_x, 5), "y": round(best_y, 5),
@@ -72,7 +73,8 @@ def greedy_circle_pack(vertices, default_c=DEFAULT_CONC, max_circles=80):
     return circles
 
 
-def repack_after_resize(circles, changed_idx, polygon_vertices):
+def repack_after_resize(circles, changed_idx, polygon_vertices,
+                        min_radius=MIN_RADIUS):
     """
     After one circle is resized, resolve overlaps (push apart) then grow
     neighbours into any freed space. The changed circle stays fixed.
@@ -114,7 +116,7 @@ def repack_after_resize(circles, changed_idx, polygon_vertices):
                 ci["x"] = round((ci["x"] + nearest.x) / 2, 5)
                 ci["y"] = round((ci["y"] + nearest.y) / 2, 5)
                 moved = True
-            while ci["r"] > MIN_RADIUS and not poly.contains(
+            while ci["r"] > min_radius and not poly.contains(
                     Point(ci["x"], ci["y"]).buffer(ci["r"] * 0.8)):
                 ci["r"] = round(ci["r"] * 0.9, 5)
                 moved = True
@@ -123,7 +125,7 @@ def repack_after_resize(circles, changed_idx, polygon_vertices):
 
     changed_obj = circles[changed_idx]
     circles = [c for i, c in enumerate(circles)
-               if c["r"] >= MIN_RADIUS and (
+               if c["r"] >= min_radius and (
                    c is changed_obj or poly.contains(Point(c["x"], c["y"])))]
     changed_idx = next(i for i, c in enumerate(circles) if c is changed_obj)
 
