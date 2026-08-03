@@ -35,8 +35,36 @@
     if (!Number.isFinite(n)) return String(value);
     return String(parseFloat(n.toFixed(2)));
   };
+  // Marquee hit test: indices of the elements whose CENTRE falls inside the
+  // rubber-band rectangle. The rect comes straight from press/release points, so
+  // either corner can be the smaller one — normalise rather than make the caller
+  // care which way the drag went. Boundary counts as inside.
+  const elementsInRect = (elements, rect) => {
+    const x0 = Math.min(rect.x0, rect.x1), x1 = Math.max(rect.x0, rect.x1);
+    const y0 = Math.min(rect.y0, rect.y1), y1 = Math.max(rect.y0, rect.y1);
+    return (elements || []).reduce((indices, e, index) => {
+      if (e.x >= x0 && e.x <= x1 && e.y >= y0 && e.y <= y1) indices.push(index);
+      return indices;
+    }, []);
+  };
+  // Deletion plan for a multi-selection: one group per container, indices in
+  // DESCENDING order. Splicing ascending shifts every later index down by one and
+  // deletes the wrong elements, so the ordering is the correctness guarantee, not
+  // cosmetics — hence a pure function a test can pin.
+  const removalPlan = (keys) => {
+    const groups = new Map();
+    (keys || []).forEach((key) => {
+      const container = key.type === "source" ? "sources" : `poly:${key.p}`;
+      const index = key.type === "source" ? key.i : key.c;
+      if (!groups.has(container)) groups.set(container, {type: key.type, p: key.p, indices: []});
+      const group = groups.get(container);
+      if (!group.indices.includes(index)) group.indices.push(index);   // clicks can repeat a key
+    });
+    return [...groups.values()].map((group) =>
+      ({...group, indices: group.indices.sort((a, b) => b - a)}));
+  };
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = {roundHalfEven, snapDrawPoint, reselectCircle, fmt2};
+    module.exports = {roundHalfEven, snapDrawPoint, reselectCircle, fmt2, elementsInRect, removalPlan};
   }
   if (typeof document === "undefined") return;
 
@@ -162,7 +190,7 @@
     const GRID = 0.05;
     const GRID_HEIGHT = 15.0;
     const CONC_MAX = 50.0;
-    const MIN_RADIUS = 0.003;
+    let minRadius = 0.003;        // radius floor; driven by the Min circle radius field
     const RADIUS_STEP = 0.002;
     const CONC_STEP = 2.0;
 
@@ -177,12 +205,13 @@
     const polygons = [];
     const sources = [];           // standalone simple sources: {kind,x,y,c,r|a,b|l,theta,id}
     let drawing = [];
-    // selected is a tagged union:
+    // selected is an ARRAY of tagged keys (empty = nothing selected):
     //   {type:"poly", p, c}  -> a packed circle inside polygons[p].circles[c]
     //   {type:"source", i}   -> sources[i]
-    let selected = null;
-    let dragOffset = [0, 0];
+    let selected = [];
+    let dragStart = null;         // press point + each selected element's origin, for a drift-free drag
     let dragging = false;
+    let marquee = null;           // {x0,y0,x1,y1,add} rubber-band select, in data coords
     let placing = null;           // {kind, x0, y0, x1, y1} during a press-drag shape draw
     let panning = false;
     let panStart = null;
@@ -205,6 +234,7 @@
       WS = +formValues().ws || 0.5;
       snapConfig.wsMax = WS;
       snapConfig.orientation = orientation();
+      minRadius = +formValues().min_radius > 0 ? +formValues().min_radius : 0.003;
     };
     // Re-frame the view to the orientation convention, mirroring
     // source_designer.py:_reframe_for_orientation:
@@ -345,10 +375,19 @@
       }
       return found;
     };
-    const selectedElem = () => {
-      if (!selected) return null;
-      return selected.type === "source" ? sources[selected.i] : polygons[selected.p].circles[selected.c];
-    };
+    const elemOf = (key) =>
+      key.type === "source" ? sources[key.i] : polygons[key.p].circles[key.c];
+    const sameKey = (a, b) => a.type === b.type
+      && (a.type === "source" ? a.i === b.i : a.p === b.p && a.c === b.c);
+    const isSelected = (key) => selected.some((k) => sameKey(k, key));
+    const selectedElems = () => selected.map(elemOf);
+    // Every element paired with its selection key — the marquee and the index
+    // labels are the only places that need both.
+    const selectableElems = () => [
+      ...polygons.flatMap((poly, p) => poly.circles.map((circle, c) =>
+        ({key: {type: "poly", p, c}, x: circle.x, y: circle.y}))),
+      ...sources.map((s, i) => ({key: {type: "source", i}, x: s.x, y: s.y})),
+    ];
 
     const drawGrid = (vp) => {
       ctx.strokeStyle = "#ececec"; ctx.lineWidth = 0.3;
@@ -419,7 +458,7 @@
       ctx.restore();
     };
 
-    const drawPolygons = (vp, polygonList, selKey) => {
+    const drawPolygons = (vp, polygonList, selKeys) => {
       polygonList.forEach((poly, pi) => {
         if (poly.vertices.length >= 3) {
           ctx.beginPath();
@@ -435,7 +474,7 @@
           const point = toPixel([circle.x, circle.y], vp);
           ctx.beginPath(); ctx.arc(point[0], point[1], circle.r * vp.scale, 0, Math.PI * 2);
           ctx.fillStyle = redsColor(circle.c / CONC_MAX); ctx.fill();
-          const active = selKey && selKey.p === pi && selKey.c === ci;
+          const active = (selKeys || []).some((k) => k.type === "poly" && k.p === pi && k.c === ci);
           ctx.strokeStyle = active ? "#e94560" : "black";
           ctx.lineWidth = active ? 2 : 0.5; ctx.stroke();
         });
@@ -477,7 +516,17 @@
       ctx.restore();
     };
     const drawSources = (vp) => {
-      sources.forEach((s, i) => drawShape(vp, s, selected && selected.type === "source" && selected.i === i));
+      sources.forEach((s, i) => drawShape(vp, s, isSelected({type: "source", i})));
+    };
+    // Rubber band, stroked while the press is held so the sweep is visible.
+    const drawMarquee = (vp) => {
+      if (!marquee) return;
+      const [ax, ay] = toPixel([marquee.x0, marquee.y0], vp);
+      const [bx, by] = toPixel([marquee.x1, marquee.y1], vp);
+      ctx.save();
+      ctx.strokeStyle = "#e94560"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+      ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+      ctx.restore();
     };
     // Faint ordinal at each element centroid, in allElementDicts order.
     // ponytail: collection order, not the reference's spatial reindex — it's a visual aid.
@@ -616,8 +665,9 @@
       const vp = sourceViewport();
       drawGrid(vp);
       drawPanelTicks(vp, 44, 0, b.width, b.height - 24, 5, 6);   // numeric scale on both axes
-      drawPolygons(vp, polygons, selected && selected.type === "poly" ? selected : null);
+      drawPolygons(vp, polygons, selected);
       drawSources(vp);
+      drawMarquee(vp);
       drawPlacing(vp);
       drawInProgress(vp);
       drawIndices(vp);
@@ -647,22 +697,34 @@
 
     // Sync the editable concentration field to the selection. Skip the write while
     // the field itself is focused so typing (e.g. "12.5") isn't clobbered mid-edit.
-    const syncConcInput = (e) => {
+    // A selection whose concentrations disagree shows blank rather than implying
+    // one of them is shared.
+    const syncConcInput = (elems) => {
       if (!concInput) return;
       const wrap = concInput.closest(".aem-conc-edit");
-      if (!e) { if (wrap) wrap.hidden = true; return; }
+      if (!elems.length) { if (wrap) wrap.hidden = true; return; }
       if (wrap) wrap.hidden = false;
-      if (document.activeElement !== concInput) concInput.value = fmt2(e.c);
+      const shared = elems.every((e) => e.c === elems[0].c) ? fmt2(elems[0].c) : "";
+      if (document.activeElement !== concInput) concInput.value = shared;
     };
     const updateInfo = () => {
-      const e = selectedElem();
-      if (!e) { setInfo(""); syncConcInput(null); return; }
+      const elems = selectedElems();
+      if (!elems.length) { setInfo(""); syncConcInput(elems); return; }
+      if (elems.length > 1) {
+        // Multi-selection: a count plus the concentration range — the per-element
+        // geometry readout below has no single answer to give.
+        const lo = fmt2(Math.min(...elems.map((e) => e.c)));
+        const hi = fmt2(Math.max(...elems.map((e) => e.c)));
+        setInfo(`${elems.length} elements selected  |  C_D^0 = ${lo === hi ? lo : `${lo}–${hi}`} mg/L`);
+        syncConcInput(elems); return;
+      }
+      const e = elems[0];
       const size = e.kind === "circle" ? `r = ${fmt2(e.r)} m`
         : e.kind === "ellipse" ? `a = ${fmt2(e.a)}, b = ${fmt2(e.b)} m`
         : `l = ${fmt2(e.l)} m, θ = ${fmt2(e.theta || 0)}°`;
-      const label = selected.type === "source" ? e.kind : "circle";
+      const label = selected[0].type === "source" ? e.kind : "circle";
       setInfo(`${label}  |  ${size}  |  C_D^0 = ${fmt2(e.c)} mg/L  |  pos = (${fmt2(e.x)}, ${fmt2(e.y)})`);
-      syncConcInput(e);
+      syncConcInput(elems);
     };
 
     // Resize backing store to displayed box (DPR-aware) and redraw.
@@ -691,12 +753,12 @@
       circle: "CIRCLE — press and drag from the centre to set the radius.",
       ellipse: "ELLIPSE — press and drag to set the semi-axes (a horizontal, b vertical).",
       line: "LINE — press and drag from one end to the other.",
-      select: "SELECT — click an element; drag to move, ↑↓ size (←→ ellipse b), +/- conc, Del remove, 'x' delete polygon.",
+      select: "SELECT — click an element (shift-click to add, drag empty canvas to box-select); drag to move, ↑↓ size (←→ ellipse b), +/- conc, Del remove, 'x' delete polygon.",
     };
     const setTool = (next) => {
       tool = next;
       mode = tool === "select" ? "edit" : "draw";
-      selected = null; dragging = false; placing = null; dragOffset = [0, 0];
+      selected = []; dragging = false; placing = null; marquee = null; dragStart = null;
       if (tool !== "polygon") drawing = [];
       TOOL_BTNS.forEach((t) => {
         const btn = document.getElementById(`aem-tool-${t}`);
@@ -710,7 +772,8 @@
     const setMode = (m) => setTool(m === "edit" ? "select" : "polygon");
 
     canvas.addEventListener("mousedown", (event) => {
-      if (event.button === 1 || (event.button === 0 && event.shiftKey)) {
+      // Pan on middle-button or Alt+left-drag: shift now belongs to multi-select.
+      if (event.button === 1 || (event.button === 0 && event.altKey)) {
         event.preventDefault();   // middle-button: suppress the browser's autoscroll
         panning = true; panStart = {x: event.clientX, y: event.clientY, ...view}; return;
       }
@@ -731,15 +794,21 @@
       // SELECT: pick nearest element (packed circle or standalone source).
       const found = hit(point);
       if (found) {
-        selected = found; dragging = true;
-        const e = selectedElem();
-        dragOffset = [e.x - point[0], e.y - point[1]];
+        if (event.shiftKey) selected = isSelected(found)
+          ? selected.filter((k) => !sameKey(k, found)) : [...selected, found];
+        else if (!isSelected(found)) selected = [found];   // pressing a member keeps the group
+        dragging = true;
+        // Anchor to the press point and each element's origin: translating from the
+        // origin every frame keeps the 5-decimal rounding from accumulating drift.
+        dragStart = {x: point[0], y: point[1], origins: selectedElems().map((e) => ({x: e.x, y: e.y}))};
         updateInfo();
-        setStatus("drag to move | ↑↓ size | +/- conc | Del remove");
+        setStatus(selected.length > 1
+          ? `${selected.length} selected — drag to move | +/- conc | Del remove`
+          : "drag to move | ↑↓ size | +/- conc | Del remove");
       } else {
-        selected = null; dragging = false;
-        updateInfo();
-        setStatus("SELECT — click an element to select it.");
+        marquee = {x0: point[0], y0: point[1], x1: point[0], y1: point[1], add: event.shiftKey};
+        dragging = false;
+        setStatus("Drag to box-select, or click an element.");
       }
       draw();
     });
@@ -756,16 +825,45 @@
         placing.x1 = +x.toFixed(5); placing.y1 = +y.toFixed(5);
         draw(); return;
       }
-      if (!dragging || !selected || tool !== "select") return;
-      const [x, y] = toData(event); const e = selectedElem();
-      e.x = +(x + dragOffset[0]).toFixed(5); e.y = +(y + dragOffset[1]).toFixed(5);
+      if (marquee) {
+        const [x, y] = toData(event);
+        marquee.x1 = x; marquee.y1 = y;
+        draw(); return;
+      }
+      if (!dragging || !selected.length || tool !== "select") return;
+      // One delta for the whole selection, so the group keeps its shape.
+      const [x, y] = toData(event);
+      const dx = x - dragStart.x, dy = y - dragStart.y;
+      selectedElems().forEach((e, index) => {
+        e.x = +(dragStart.origins[index].x + dx).toFixed(5);
+        e.y = +(dragStart.origins[index].y + dy).toFixed(5);
+      });
       updateInfo(); draw();
     });
-    window.addEventListener("mouseup", () => {
+    window.addEventListener("mouseup", (event) => {
+      if (marquee) {
+        const rect = marquee;
+        marquee = null;
+        // Threshold in screen pixels: a click that never moved is a click, and a
+        // plain one clears — but a shift-click that simply missed is a slip during
+        // multi-select, not a request to throw the selection away.
+        const swept = Math.hypot(rect.x1 - rect.x0, rect.y1 - rect.y0) * sourceViewport().scale;
+        if (swept < 4) selected = rect.add ? selected : [];
+        else {
+          const elems = selectableElems();
+          const picked = elementsInRect(elems, rect).map((index) => elems[index].key);
+          selected = rect.add ? [...selected, ...picked.filter((k) => !isSelected(k))] : picked;
+        }
+        updateInfo();
+        setStatus(selected.length
+          ? `${selected.length} element(s) selected.`
+          : "SELECT — click an element to select it.");
+        draw();
+      }
       if (placing) {
         const s = placingToSource(placing, false);
         sources.push(s);
-        selected = {type: "source", i: sources.length - 1};
+        selected = [{type: "source", i: sources.length - 1}];
         placing = null;
         updateInfo();
         setStatus(`${s.kind} placed — keep placing, or switch to Select to edit.`);
@@ -794,12 +892,12 @@
       try {
         setStatus("Packing circles (greedy)...");
         const data = await post("/aem/api/pack", {vertices: drawing,
-          default_c: +form.default_c.value, max_circles: 80});
+          default_c: +form.default_c.value, max_circles: 80, min_radius: minRadius});
         if (!data.circles.length) {
           show("That polygon is too small to fit any circles — draw a larger one.", true);
           setStatus("No circles fit — draw a larger polygon."); return;
         }
-        polygons.push({vertices: drawing, circles: data.circles}); drawing = []; selected = null;
+        polygons.push({vertices: drawing, circles: data.circles}); drawing = []; selected = [];
         setStatus(`${data.circles.length} circles packed. Switched to Select.`);
         show(`${data.circles.length} circles packed.`);
         setTool("select");
@@ -819,46 +917,65 @@
       if (key === "Escape") { event.preventDefault(); drawing = []; placing = null; setStatus("Cancelled."); draw(); return; }
       if (key === "n" && tool === "polygon") { event.preventDefault(); drawing = []; setStatus("New polygon — click to place vertices."); draw(); return; }
       if (key === "Enter" && tool === "polygon" && drawing.length >= 3) { event.preventDefault(); packPolygon(); return; }
-      const elem = selectedElem();
-      if (!elem) {
+      const elems = selectedElems();
+      if (!elems.length) {
         if (["Backspace", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) event.preventDefault();
         return;
       }
       if (["Delete", "Backspace"].includes(key)) {
         event.preventDefault();
-        if (selected.type === "source") sources.splice(selected.i, 1);
-        else polygons[selected.p].circles.splice(selected.c, 1);
-        selected = null; updateInfo(); setStatus("Element deleted."); draw(); return;
+        // Descending indices per container (see removalPlan): splicing ascending
+        // would shift the later indices and remove the wrong elements.
+        removalPlan(selected).forEach((group) => {
+          const list = group.type === "source" ? sources : polygons[group.p].circles;
+          group.indices.forEach((index) => list.splice(index, 1));
+        });
+        selected = []; updateInfo(); setStatus("Element(s) deleted."); draw(); return;
       }
-      if (key === "x" && selected.type === "poly") { event.preventDefault(); polygons.splice(selected.p, 1); selected = null; updateInfo(); setStatus("Polygon deleted."); draw(); return; }
-      if (["+", "="].includes(key)) { event.preventDefault(); elem.c = +(Math.max(0.1, elem.c + CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
-      if (["-", "_"].includes(key)) { event.preventDefault(); elem.c = +(Math.max(0.1, elem.c - CONC_STEP)).toFixed(1); updateInfo(); draw(); return; }
-      if (["ArrowLeft", "ArrowRight"].includes(key) && selected.type === "source" && elem.kind === "ellipse") {
+      if (key === "x" && selected.some((k) => k.type === "poly")) {
         event.preventDefault();
-        elem.b = Math.max(MIN_RADIUS, +(elem.b + (key === "ArrowRight" ? RADIUS_STEP : -RADIUS_STEP)).toFixed(5));
+        // Same descending rule, one level up: distinct polygon indices, highest first.
+        [...new Set(selected.filter((k) => k.type === "poly").map((k) => k.p))]
+          .sort((a, b) => b - a).forEach((p) => polygons.splice(p, 1));
+        selected = []; updateInfo(); setStatus("Polygon(s) deleted."); draw(); return;
+      }
+      if (["+", "="].includes(key)) { event.preventDefault(); elems.forEach((e) => { e.c = +(Math.max(0.1, e.c + CONC_STEP)).toFixed(1); }); updateInfo(); draw(); return; }
+      if (["-", "_"].includes(key)) { event.preventDefault(); elems.forEach((e) => { e.c = +(Math.max(0.1, e.c - CONC_STEP)).toFixed(1); }); updateInfo(); draw(); return; }
+      // ponytail: single-selection resize; the packed path repacks server-side per
+      // change, so an N-way resize would fire N /aem/api/repack round trips. Lift it
+      // when the endpoint can resize several circles in one call.
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key) && elems.length > 1) {
+        event.preventDefault();
+        setStatus("Resize applies to one element at a time — select a single element.");
+        return;
+      }
+      const key0 = selected[0], elem = elems[0];
+      if (["ArrowLeft", "ArrowRight"].includes(key) && key0.type === "source" && elem.kind === "ellipse") {
+        event.preventDefault();
+        elem.b = Math.max(minRadius, +(elem.b + (key === "ArrowRight" ? RADIUS_STEP : -RADIUS_STEP)).toFixed(5));
         updateInfo(); setStatus(`b → ${fmt2(elem.b)} m`); draw(); return;
       }
       if (["ArrowUp", "ArrowDown"].includes(key)) {
         event.preventDefault();
         const step = key === "ArrowUp" ? RADIUS_STEP : -RADIUS_STEP;
-        if (selected.type === "source") {
-          if (elem.kind === "circle") elem.r = Math.max(MIN_RADIUS, +(elem.r + step).toFixed(5));
-          else if (elem.kind === "ellipse") elem.a = Math.max(MIN_RADIUS, +(elem.a + step).toFixed(5));
-          else elem.l = Math.max(MIN_RADIUS, +(elem.l + 2 * step).toFixed(5));
+        if (key0.type === "source") {
+          if (elem.kind === "circle") elem.r = Math.max(minRadius, +(elem.r + step).toFixed(5));
+          else if (elem.kind === "ellipse") elem.a = Math.max(minRadius, +(elem.a + step).toFixed(5));
+          else elem.l = Math.max(minRadius, +(elem.l + 2 * step).toFixed(5));
           updateInfo(); setStatus("Resized."); draw(); return;
         }
         if (repacking) return;                       // ignore held arrows mid-repack
-        const poly = polygons[selected.p];
-        elem.r = Math.max(MIN_RADIUS, +(elem.r + step).toFixed(5));
+        const poly = polygons[key0.p];
+        elem.r = Math.max(minRadius, +(elem.r + step).toFixed(5));
         if (poly.vertices.length) {
           const changed = {x: elem.x, y: elem.y};
           repacking = true;
           try {
             const data = await post("/aem/api/repack", {vertices: poly.vertices,
-              circles: poly.circles, changed_idx: selected.c});
+              circles: poly.circles, changed_idx: key0.c, min_radius: minRadius});
             poly.circles = data.circles;
             const match = reselectCircle(poly.circles, changed);
-            selected = match ? {type: "poly", p: selected.p, c: match.index} : null;
+            selected = match ? [{type: "poly", p: key0.p, c: match.index}] : [];
           }
           catch (error) { show(error.message, true); setStatus(error.message); }
           finally { repacking = false; }
@@ -883,7 +1000,7 @@
     const packBtn = document.getElementById("aem-pack");
     if (packBtn) packBtn.addEventListener("click", packPolygon);
     document.getElementById("aem-clear").addEventListener("click", () => {
-      polygons.length = 0; sources.length = 0; drawing = []; placing = null; selected = null; fullView = false;
+      polygons.length = 0; sources.length = 0; drawing = []; placing = null; selected = []; fullView = false;
       setTool("polygon"); updateInfo(); setStatus("Cleared all sources."); draw();
     });
     const importInput = document.getElementById("aem-import");
@@ -916,7 +1033,7 @@
         importedDomain = domainKeys.every((k) => Number.isFinite(config[k]))
           ? Object.fromEntries(domainKeys.map((k) => [k, config[k]])) : null;
         importedSig = importedDomain ? geomSignature() : null;
-        drawing = []; selected = null; fitSource();
+        drawing = []; selected = []; fitSource();
         show(`Imported ${config.elements.length} source element(s).`);
         setStatus(`Imported ${config.elements.length} element(s).`);
         setTool("select"); draw();
@@ -924,25 +1041,25 @@
       importInput.value = "";
     });
     document.getElementById("aem-export").addEventListener("click", exportJson);
-    // Direct numerical concentration entry (2-decimal) for the selected element,
-    // alongside the +/- keys. Bind to the element captured on focus, not a live
-    // selectedElem() lookup — blurring by clicking another element must not retarget
+    // Direct numerical concentration entry (2-decimal) for the whole selection,
+    // alongside the +/- keys. Bind to the elements captured on focus, not a live
+    // selectedElems() lookup — blurring by clicking another element must not retarget
     // the edit to the newly-selected one.
     if (concInput) {
-      let concTarget = null;
-      concInput.addEventListener("focus", () => { concTarget = selectedElem(); });
+      let concTargets = [];
+      concInput.addEventListener("focus", () => { concTargets = selectedElems(); });
       concInput.addEventListener("input", () => {
-        if (!concTarget) return;
+        if (!concTargets.length) return;
         const v = +concInput.value;
         if (!Number.isFinite(v) || v <= 0) return;
-        concTarget.c = +v.toFixed(2); updateInfo(); draw();
+        concTargets.forEach((e) => { e.c = +v.toFixed(2); }); updateInfo(); draw();
       });
       concInput.addEventListener("change", () => {
-        if (!concTarget) return;
+        if (!concTargets.length) return;
         let v = +concInput.value;
-        if (!Number.isFinite(v) || v <= 0) v = concTarget.c;
-        concTarget.c = +Math.max(0.1, v).toFixed(2);
-        concTarget = null; updateInfo(); draw();
+        if (!Number.isFinite(v) || v <= 0) v = concTargets[0].c;
+        concTargets.forEach((e) => { e.c = +Math.max(0.1, v).toFixed(2); });
+        concTargets = []; updateInfo(); draw();
       });
     }
     const indexBtn = document.getElementById("aem-index");
@@ -969,6 +1086,7 @@
       alpha_l: (v) => v > 0, alpha_t: (v) => v > 0, ca: () => true,
       gamma: (v) => v > 0, dom_inc: (v) => v > 0,
       num_cp: (v) => v >= 1, num_terms: (v) => v >= 1, ws: (v) => v > 0,
+      min_radius: (v) => v > 0,
     };
     const applyField = (name) => {
       const input = form.elements[name];
@@ -987,8 +1105,11 @@
         }
       }
       // Normalise the field to at most 2 displayed decimals (whole numbers bare).
-      input.value = fmt2(value);
+      // min_radius is sub-centimetre — 2 decimals would round it to 0 — so it keeps
+      // exactly what was typed, and reports itself unrounded below.
+      if (name !== "min_radius") input.value = fmt2(value);
       if (name === "ws") { syncSettings(); reframeView(); draw(); }
+      if (name === "min_radius") syncSettings();
       // Non-blocking dispersivity-ratio warning (reference warnings_for_export).
       if (name === "alpha_l" || name === "alpha_t") {
         const al = +form.elements.alpha_l.value, at = +form.elements.alpha_t.value;
@@ -998,9 +1119,9 @@
           return;
         }
       }
-      showSettingsMsg(`${name} = ${fmt2(value)}  ✓`, true);
+      showSettingsMsg(`${name} = ${name === "min_radius" ? value : fmt2(value)}  ✓`, true);
     };
-    ["alpha_l", "alpha_t", "ca", "gamma", "dom_inc", "num_cp", "num_terms", "ws", "plot_aspect"]
+    ["alpha_l", "alpha_t", "ca", "gamma", "dom_inc", "num_cp", "num_terms", "ws", "min_radius", "plot_aspect"]
       .forEach((name) => {
         const input = form.elements[name];
         if (input) input.addEventListener("change", () => applyField(name));
