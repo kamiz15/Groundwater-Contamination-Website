@@ -93,6 +93,31 @@ def test_native_client_contract_covers_csrf_import_export_and_axis_rendering():
     assert 'selected = match ? [{type: "poly", p: key0.p, c: match.index}] : []' in source
 
 
+def test_designer_canvas_cannot_feed_its_own_resize_observer():
+    """Guard against a runaway canvas.
+
+    resize() writes the backing store as cssHeight * devicePixelRatio. If the
+    canvas CSS height resolved to auto, the element would adopt that attribute
+    as its intrinsic height, the observer would fire again, and on any dpr > 1
+    display it would grow without bound. Two things keep that from happening:
+    the height stays definite, and the observer watches the parent, not the
+    element we resize.
+    """
+    css = Path("static/styles.css").read_text(encoding="utf-8")
+    # Several rules target the canvas; the last one wins, so that is the one
+    # whose height decides whether the observer can feed itself.
+    blocks = [chunk.split("}", 1)[0] for chunk in css.split("#aem-designer-canvas {")[1:]]
+    assert blocks, "no #aem-designer-canvas rule found"
+    assert not any("height: 100%" in b for b in blocks), "canvas height must stay definite"
+    assert re.search(r"height:\s*\d+(\.\d+)?vh", blocks[-1]), (
+        "the winning canvas rule needs a viewport-relative height"
+    )
+
+    source = Path("static/aem.js").read_text(encoding="utf-8")
+    assert "ResizeObserver(() => resize()).observe(canvas)" not in source
+    assert "observe(canvas.parentElement" in source
+
+
 def _run_aem_js(expression):
     script = (
         "const h=require('./static/aem.js');"

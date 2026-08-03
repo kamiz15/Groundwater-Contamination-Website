@@ -1168,7 +1168,9 @@
     });
 
     if (typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(() => resize()).observe(canvas);
+      // Observe the STAGE, not the canvas: resize() writes the canvas backing
+      // store, and observing the element we resize is the classic feedback loop.
+      new ResizeObserver(() => resize()).observe(canvas.parentElement || canvas);
     }
     window.addEventListener("resize", resize);
     // Initialise the drawing frame from the form's default settings (vertical, Ws=0.5).
