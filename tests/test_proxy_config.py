@@ -12,3 +12,39 @@ def test_panel_extension_static_assets_are_proxied_before_flask_static():
     assert panel_static in config
     assert "proxy_pass http://$panel_upstream/panel$request_uri;" in config
     assert config.index(panel_static) < config.index(flask_static)
+
+def test_panel_frame_height_sync_reports_why_it_failed():
+    """The iframe height sync must never fail silently.
+
+    It can only measure a same-origin iframe; when it cannot, the frame stays at
+    its CSS floor and the embedded plot is cut off. That used to be swallowed by
+    a bare catch, which made a clipped graph impossible to diagnose from the
+    browser."""
+    source = (PROJECT_ROOT / "static" / "script.js").read_text(encoding="utf-8")
+    assert "/* not ready / cross-origin */" not in source, (
+        "the silent swallow is back; a clipped panel frame would be invisible again"
+    )
+    assert "noteSync" in source
+    assert 'noteSync(frame, "cross-origin"' in source
+    assert 'noteSync(frame, "failed"' in source
+    assert "frame.dataset.frameSync" in source
+
+
+def test_absolute_panel_base_is_flagged_as_cross_origin():
+    """An absolute PANEL_PUBLIC_BASE makes every embed cross-origin (a different
+    port is a different origin), which disables the iframe height sync. Only a
+    path-only value is same-origin."""
+    from urllib.parse import urlparse
+
+    def is_cross_origin(value):
+        parsed = urlparse(value)
+        return bool(parsed.scheme or parsed.netloc)
+
+    assert is_cross_origin("http://localhost:5007")
+    assert is_cross_origin("https://cast.example.org/panel")
+    assert not is_cross_origin("/panel")
+    assert not is_cross_origin("")
+
+    app_source = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+    assert "_warn_about_panel_embedding" in app_source, "startup diagnostic removed"
+    assert "PANEL_ALLOW_ORIGINS" in app_source
