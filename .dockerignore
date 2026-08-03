@@ -1,6 +1,7 @@
 .git
 .gitignore
 .vscode
+.claude
 __pycache__
 *.pyc
 *.pyo
