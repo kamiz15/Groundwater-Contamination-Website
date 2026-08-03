@@ -95,3 +95,8 @@ if NUMERICAL_MAX_CELLS <= 0 or NUMERICAL_SOLVER_TIMEOUT_S < 0:
     raise RuntimeError('NUMERICAL_MAX_CELLS must be positive and NUMERICAL_SOLVER_TIMEOUT_S must be non-negative')
 if NUMERICAL_HK_MIN_M_PER_DAY <= 0 or NUMERICAL_HK_MAX_M_PER_DAY < NUMERICAL_HK_MIN_M_PER_DAY:
     raise RuntimeError('NUMERICAL_HK_MIN_M_PER_DAY and NUMERICAL_HK_MAX_M_PER_DAY define an invalid range')
+
+# Where an AEM forward run drops its concentration grid (.npz), one file per
+# user, so the Data Workbench can re-open the last run without a re-upload.
+# The model writes atomically, so a new run just replaces the previous file.
+AEM_EXPORT_DIR = os.getenv('AEM_EXPORT_DIR', '.aem_exports')

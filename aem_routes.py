@@ -259,7 +259,9 @@ def _owned_job_meta(job_id):
 
 
 def _submit(kind, params):
-    job_id = submit_job(kind, params)
+    # The worker needs the owner to key its per-user .npz grid export; job meta
+    # is written here but never read by the worker process.
+    job_id = submit_job(kind, {**params, "email": _current_email()})
     save_job_meta(job_id, {"email": _current_email(), "kind": kind})
     return jsonify({
         "success": True,
@@ -476,6 +478,7 @@ def aem_job_result(job_id):
     try:
         concentration, *_ = aem_result_grid(result)
         response["csv_url"] = url_for("aem_bp.aem_job_result_csv", job_id=job_id)
+        response["npz_url"] = url_for("aem_bp.aem_job_result_npz", job_id=job_id)
         if np.isfinite(concentration).all():
             response["workbench_url"] = url_for(
                 "site_bp.data_analysis_workbench", aem_job=job_id
@@ -506,5 +509,40 @@ def aem_job_result_csv(job_id):
     return Response(
         frame.to_csv(index=False, na_rep="").encode("utf-8"),
         mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@aem_bp.get("/aem/jobs/<job_id>/result.npz")
+@login_required
+def aem_job_result_npz(job_id):
+    """The workbench-native sibling of the CSV download (same guards).
+
+    Built from the pickled result's plain arrays with the free function — the
+    live ATSimulation (and so ``sim.grid_npz_bytes()``) does not survive the job
+    queue.
+    """
+    meta = _owned_job_meta(job_id)
+    status = job_status(job_id) if meta else None
+    if status is None:
+        abort(404, description="Unknown AEM job.")
+    if status["status"] != "done":
+        abort(409, description="AEM job is not complete.")
+
+    # Lazy import: keeps app.py startup free of the AEM package.
+    from aem.at_grid_export import grid_npz_bytes
+
+    result = fetch_result(job_id)
+    try:
+        payload = grid_npz_bytes(result.xaxis, result.yaxis, result.result)
+    except (AttributeError, TypeError, ValueError):
+        abort(409, description="AEM job does not contain an exportable concentration grid.")
+
+    kind = "forward" if meta["kind"] == "aem_forward" else "inverse"
+    safe_job_id = "".join(char for char in job_id if char.isalnum())[:32]
+    filename = f"aem_{kind}_{safe_job_id}.npz"
+    return Response(
+        payload,
+        mimetype="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

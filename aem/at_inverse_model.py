@@ -1,3 +1,6 @@
+# Written by Alvin Yadav
+# Based on code from Anton Köhler
+
 import os
 import sys
 import datetime
@@ -5,93 +8,23 @@ import numpy as np
 from math import cos, sin, pi
 import matplotlib.pyplot as plt
 
-from .at_config import ATConfiguration
 from .at_element import ATElement, ATElementType
 from .at_simulation import ATSimulation, create_mirrored_element
+from .at_inverse_config import InverseConfiguration
 
-# Default inverse-modelling search configuration
-PARAM_SEARCH_DEFAULTS = {
-    # transverse dispersivity alpha_t [m]
-    "alpha_t": {
-        "lower": 0.001,
-        "upper": 0.1,
-        "initial_step_factor": 1.0 / 500.0,  # start with (ub-lb)/500
-        "step_growth": 3.0,                  # each failure → step *= 3
-        "max_step_factor": 0.2,              # step <= 0.2 * (ub - lb)
-        "L_tolerance": 10.0,                  # |L_max - target| [m]
-    },
-    # longitudinal dispersivity alpha_l [m]
-    "alpha_l": {
-        "lower": 0.5,
-        "upper": 10.5,
-        "initial_step_factor": 1.0 / 200.0,
-        "step_growth": 3.0,
-        "max_step_factor": 0.2,
-        "L_tolerance": 10.0,
-    },
-    # Radius r [m] – absolute global bounds (independent of source modifier)
-    "r": {
-        "lower": 0.5,
-        "upper": 10.0,
-        "initial_step_factor": 1.0 / 500.0,
-        "step_growth": 3.0,
-        "max_step_factor": 0.2,
-        "L_tolerance": 10.0,
-    },
-    # Source conc C0 [mg/L]
-    "C0": {
-        "factor_lower": 0.5,
-        "factor_upper": 150.0,
-        "min_abs": 0.01,
-        "max_abs": 120.0,
-        "initial_step_factor": 1.0 / 500.0,
-        "step_growth": 3.0,
-        "max_step_factor": 0.2,
-        "L_tolerance": 10.0,
-    },
-    # Background conc Ca [mg/L]
-    "ca": {
-        "factor_lower": 0.5,
-        "factor_upper": 30.0,
-        "min_abs": 0.1,
-        "max_abs": 20.0,
-        "initial_step_factor": 1.0 / 500.0,
-        "step_growth": 3.0,
-        "max_step_factor": 0.2,
-        "L_tolerance": 10.0,
-    },
-    # Gamma [1/y]
-    "gamma": {
-        "factor_lower": 3.0,
-        "factor_upper": 10.0,
-        "min_abs": 0.0,
-        "max_abs": 1.0,
-        "initial_step_factor": 1.0 / 500.0,
-        "step_growth": 3.0,
-        "max_step_factor": 0.2,
-        "L_tolerance": 10.0,
-    },
-}
+"""
+ All inverse-model parameters (per-parameter search bounds, fixed
+ dispersivities, domain / numerical settings, run-level options) are in
+ inverse_config.json and are loaded into an InverseConfiguration.
 
-# Default fixed dispersivities used during inverse modelling.
-# These values are applied depending on which parameter is being estimated:
-#   - When estimating alpha_t, alpha_l is fixed to FIXED_ALPHA_L
-#   - When estimating alpha_l, alpha_t is fixed to FIXED_ALPHA_T
-#   - When estimating r/C0/ca/gamma → alpha_l and alpha_t are fixed to
-#       ALPHA_L_WHEN_ESTIMATING_OTHERS and ALPHA_T_WHEN_ESTIMATING_OTHERS respectively.
-
-FIXED_ALPHA_T = 0.1   # m
-FIXED_ALPHA_L = 1.0   # m
-ALPHA_T_WHEN_ESTIMATING_OTHERS = 0.1 #m
-ALPHA_L_WHEN_ESTIMATING_OTHERS = 1.0 #m
-
-
-# Global L_max tolerance (meters)
-L_TOLERANCE_DEFAULT = 10.0
-
-# Default stagnation limit for inverse solver
-MAX_STAGNATION_DEFAULT = 5
-
+ Fixed-dispersivity behaviour (unchanged), depending on which parameter is
+ being estimated:
+   - estimating alpha_t -> alpha_l fixed to inv_cfg.fixed_alpha_l
+   - estimating alpha_l -> alpha_t fixed to inv_cfg.fixed_alpha_t
+   - estimating r/C0/ca/gamma -> both fixed to
+      inv_cfg.alpha_t_when_estimating_others / inv_cfg.alpha_l_when_estimating_others
+      
+"""
 
 #Folder path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -178,67 +111,34 @@ def _read_cases_with_optional_header(path: str):
 
 #
 # Inverse-modelling overview:
-#   - compute_lmax / compute_lmax_general: run a forward simulation and compute L_max.
+#   - compute_lmax_general: run a forward simulation and compute L_max.
 #   - process_input_file_with_logging: read input lines, choose bounds and fixed parameters,
 #       and call estimate_parameter_scanned for each case.
 #   - estimate_parameter_scanned: single generic inverse solver that performs
 #       dynamic scanning between lower/upper bounds and bisection to match target L_max.
 
-def compute_lmax(alpha, r, C0, Ca, gamma, orientation, elem_kind, target_Lmax, print_context=None):
-    cfg = ATConfiguration.from_json("simulation_config.json")
-    cfg.alpha_t = alpha
-    cfg.ca = Ca
-    cfg.gamma = gamma
-    cfg.orientation = orientation
-    cfg.dom_inc = 0.5
-    if target_Lmax is not None:
-        cfg.dom_xmax = max(cfg.dom_xmax, target_Lmax * 1.1)
-
-    if orientation == "vertical":
-        if elem_kind == "Circle":
-            base = ATElement(ATElementType.Circle, x=0.0, y=-(r + 0.01), c=C0, r=r)
-        elif elem_kind == "Line":
-            base = ATElement(ATElementType.Line, x=0.0, y=-(r + 0.01), c=C0, r=r)
-        else:
-            raise ValueError(f"Unknown element type: {elem_kind}")
-        img = create_mirrored_element(base)
-        img.id = f"image_{base.id}"
-        cfg.elements = [base, img]
-        cfg.dom_ymax = 0.0
-    else:
-        if elem_kind == "Circle":
-            base = ATElement(ATElementType.Circle, x=0.0, y=0.0, c=C0, r=r)
-        else:
-            base = ATElement(ATElementType.Line, x=0.0, y=0.0, c=C0, r=r)
-        cfg.elements = [base]
-
-    for e in cfg.elements:
-        e.calc_d_q(cfg.alpha_t, cfg.alpha_l, cfg.beta)
-        e.set_outline(cfg.num_cp)
-
-    sim = ATSimulation(cfg)
-    sim.solve_system(cfg.alpha_l, cfg.alpha_t, cfg.beta, cfg.gamma, cfg.ca, cfg.num_terms, cfg.num_cp)
-    sim.conc_array(cfg.dom_xmin, cfg.dom_ymin, cfg.dom_xmax, cfg.dom_ymax, cfg.dom_inc)
-    sim.print_context = print_context
-    sim.calculate_lmax()
-    return sim.L_max, sim
-
 def compute_lmax_general(
         r, C0, Ca, gamma, alpha_t, alpha_l,
+        inv_cfg,
         orientation="horizontal", elem_kind="Circle", target_Lmax=None, print_context=None
 ):
     """
     Computes L_max with general parameters.
+
+    Domain / numerical settings come exclusively from the InverseConfiguration
+    (inverse_config.json); the forward model's simulation_config.json is no
+    longer consulted. beta is derived from the alpha_l actually used in this
+    evaluation (beta = 1 / (2 * alpha_l)) so it stays physically consistent with
+    the simulated dispersivity.
     """
-    cfg = ATConfiguration.from_json("simulation_config.json")
+    cfg = inv_cfg.build_base_config()
     # Set physical / transport parameters
     cfg.alpha_t = float(alpha_t)
     cfg.alpha_l = float(alpha_l)
+    cfg.beta = 1.0 / (2.0 * cfg.alpha_l)
     cfg.ca = float(Ca)
     cfg.gamma = float(gamma)
     cfg.orientation = orientation
-    # Grid increment
-    cfg.dom_inc = 0.5
 
     # Expand domain in x if target_Lmax is known
     if target_Lmax is not None and cfg.dom_xmax < target_Lmax * 1.1:
@@ -315,30 +215,28 @@ def save_statistics(sim, line_index, statsfile):
 
 
 
-def process_input_file_with_logging(
-        input_file,
-        output_file=None,
-        statsfile=None,
-        orientation="horizontal",
-        elem_kind="Circle",
-        source_thickness_modifier=1.0,
-        tolerance: float = None,
-        max_stagnation: int = None,
-        estimate_param: str = "alpha_t",
-        lower_bound: float = None,
-        upper_bound: float = None
-):
-    """Function that logs parameters and outputs per input line interleaved."""
-    input_file = _in_files_dir(input_file)
-    output_file = _in_files_dir(output_file)
-    statsfile = _in_files_dir(statsfile)
+def process_input_file_with_logging(inv_cfg):
+    """Run the inverse solver for every case in the input file.
+
+    All configuration (run-level options, search bounds, fixed dispersivities,
+    domain / numerical settings) comes from the given InverseConfiguration,
+    loaded from inverse_config.json. This is the inverse model's exclusive
+    config; the forward model's simulation_config.json is never read here.
+    """
+    input_file = _in_files_dir(inv_cfg.input_file)
+    output_file = _in_files_dir(inv_cfg.output_file)
+    statsfile = _in_files_dir(inv_cfg.stats_file)
     log_file = os.path.join(FILES_DIR, "findalpha_log.txt")
 
-    # Use editable module default if not provided
-    if max_stagnation is None:
-        max_stagnation = int(MAX_STAGNATION_DEFAULT)
-    else:
-        max_stagnation = int(max_stagnation)
+    # Run-level options sourced from the inverse configuration
+    orientation = inv_cfg.orientation
+    elem_kind = inv_cfg.elem_kind
+    source_thickness_modifier = inv_cfg.source_thickness_modifier
+    estimate_param = inv_cfg.estimate_param
+    tolerance = inv_cfg.l_tolerance_default
+    lower_bound = inv_cfg.lower_bound
+    upper_bound = inv_cfg.upper_bound
+    max_stagnation = int(inv_cfg.max_stagnation_default)
 
     with open(log_file, 'a') as f:
         # Add timestamp header for new run
@@ -413,8 +311,8 @@ def process_input_file_with_logging(
                 # print(f"Target parameter: {estimate_param}")  # Removed per instructions
                 print("=" * 80)
                 try:
-                    # Decide default bounds if not provided using PARAM_SEARCH_DEFAULTS
-                    pdefs = PARAM_SEARCH_DEFAULTS.get(estimate_param, {})
+                    # Decide default bounds if not provided using the search table
+                    pdefs = inv_cfg.param_search_defaults.get(estimate_param, {})
                     lb, ub = lower_bound, upper_bound
 
                     if lb is None or ub is None:
@@ -453,18 +351,18 @@ def process_input_file_with_logging(
                     }
                     if estimate_param == "alpha_t":
                         # estimating alpha_t → alpha_l fixed
-                        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else FIXED_ALPHA_L
+                        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else inv_cfg.fixed_alpha_l
                     elif estimate_param == "alpha_l":
                         # estimating alpha_l → alpha_t fixed
-                        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else FIXED_ALPHA_T
+                        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else inv_cfg.fixed_alpha_t
                     else:
                         # estimating other parameters → both dispersivities fixed
-                        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else ALPHA_T_WHEN_ESTIMATING_OTHERS
-                        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else ALPHA_L_WHEN_ESTIMATING_OTHERS
+                        fixed["alpha_t"] = alpha_t_in if alpha_t_in is not None else inv_cfg.alpha_t_when_estimating_others
+                        fixed["alpha_l"] = alpha_l_in if alpha_l_in is not None else inv_cfg.alpha_l_when_estimating_others
 
                     # L_max tolerance: global default unless overridden
                     if tolerance is None:
-                        L_tol = float(L_TOLERANCE_DEFAULT)
+                        L_tol = float(inv_cfg.l_tolerance_default)
                     else:
                         L_tol = float(tolerance)
 
@@ -475,6 +373,7 @@ def process_input_file_with_logging(
                         ub,
                         fixed,
                         target,
+                        inv_cfg,
                         orientation=orientation,
                         elem_kind=elem_kind,
                         L_tolerance=L_tol,
@@ -528,6 +427,7 @@ def estimate_parameter_scanned(
         upper_bound: float,
         fixed_params: dict,
         target_Lmax: float,
+        inv_cfg,
         orientation: str = "horizontal",
         elem_kind: str = "Circle",
         L_tolerance: float = 1e-3,
@@ -551,9 +451,9 @@ def estimate_parameter_scanned(
     lb = float(lower_bound)
     ub = float(upper_bound)
 
-    # Use editable module default if not provided
+    # Fall back to the inverse-config default if not provided
     if max_stagnation is None:
-        max_stagnation = int(MAX_STAGNATION_DEFAULT)
+        max_stagnation = int(inv_cfg.max_stagnation_default)
     else:
         max_stagnation = int(max_stagnation)
 
@@ -582,6 +482,7 @@ def estimate_parameter_scanned(
         L, sim = compute_lmax_general(
             fp["r"], fp["C0"], fp["ca"], fp["gamma"],
             fp["alpha_t"], fp["alpha_l"],
+            inv_cfg,
             orientation=orientation, elem_kind=elem_kind, target_Lmax=target_Lmax,
             print_context=ctx
         )

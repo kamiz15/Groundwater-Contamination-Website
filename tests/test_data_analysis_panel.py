@@ -75,7 +75,7 @@ def test_temporary_csv_does_not_replace_the_saved_database(monkeypatch):
 
     app = workbench.data_analysis_app()
     preview = _named_widget(app, pn.widgets.Tabulator, "Data preview")
-    file_input = _named_widget(app, pn.widgets.FileInput, "Upload another CSV")
+    file_input = _named_widget(app, pn.widgets.FileInput, "Upload another CSV or NPZ")
     refresh = _named_widget(app, pn.widgets.Button, "Refresh site database")
 
     file_input.param.update(

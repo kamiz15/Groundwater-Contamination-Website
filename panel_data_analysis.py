@@ -30,9 +30,11 @@ dict in ``panel_server.py``::
 """
 from __future__ import annotations
 
+import datetime as dt
 import html
 import io
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -47,6 +49,7 @@ from data_analysis.kde import BANDWIDTHS, KERNELS
 from data_analysis.plots import COLORMAPS, DEFAULT_COLORMAP, profile_line_options
 from data_analysis.scales import SCALES
 from data_analysis.stats import DISTRIBUTIONS
+from aem_jobs import user_export_stem
 from data_queries import get_user_sites_rows
 from numerical_jobs import fetch_result, job_status, load_job_meta
 from panel_auth import authenticated_email
@@ -147,8 +150,11 @@ def data_analysis_app():
     database_btn = pn.widgets.Button(
         name="Refresh site database", button_type="primary", width=190,
     )
+    aem_btn = pn.widgets.Button(
+        name="Load my last AEM run", button_type="default", width=190,
+    )
     file_input = pn.widgets.FileInput(
-        name="Upload another CSV", accept=".csv", multiple=False,
+        name="Upload another CSV or NPZ", accept=".csv,.npz", multiple=False,
     )
     status_pane = pn.pane.HTML(
         info_card("Loading your site database..."), sizing_mode="stretch_width"
@@ -242,19 +248,46 @@ def data_analysis_app():
             return
         _apply_dataframe(frame, "Site database")
 
-    def _on_upload(_=None):
-        if not file_input.value:
+    def _load_last_aem(_=None):
+        """Open the .npz an AEM forward run wrote for this user (one per user)."""
+        email = authenticated_email()
+        path = user_export_stem(email) + ".npz" if email else ""
+        try:
+            with open(path, "rb") as handle:
+                raw = handle.read()
+            when = dt.datetime.fromtimestamp(os.path.getmtime(path))
+        except OSError:
+            status_pane.object = info_card(
+                "No AEM export yet. Run an AEM forward simulation and it will "
+                "show up here — each run replaces the previous one."
+            )
             return
         try:
-            df = datasets.load_csv(file_input.value)
+            df = datasets.load_npz(raw)
         except Exception as exc:
             status_pane.object = error_card(exc)
             return
-        filename = file_input.filename or "Uploaded CSV"
-        _apply_dataframe(df, f"Temporary CSV - {filename}")
+        # _apply_dataframe prints the row × column count; the timestamp here is
+        # what tells the user *which* run they are looking at.
+        _apply_dataframe(df, f"Last AEM run ({when:%Y-%m-%d %H:%M})")
+
+    def _on_upload(_=None):
+        if not file_input.value:
+            return
+        name = (file_input.filename or "").lower()
+        is_npz = name.endswith(".npz") or file_input.value[:4] == b"PK\x03\x04"  # npz is a zip
+        try:
+            df = datasets.load_npz(file_input.value) if is_npz else datasets.load_csv(file_input.value)
+        except Exception as exc:
+            status_pane.object = error_card(exc)
+            return
+        kind = "NPZ" if is_npz else "CSV"
+        filename = file_input.filename or f"Uploaded {kind}"
+        _apply_dataframe(df, f"Temporary {kind} - {filename}")
 
     file_input.param.watch(_on_upload, "value")
     database_btn.on_click(_load_database)
+    aem_btn.on_click(_load_last_aem)
 
     # ===================================================================== #
     # Tab 1 — Univariate
@@ -507,6 +540,19 @@ def data_analysis_app():
             return io.BytesIO(b"")
         return io.BytesIO(stats_mod.frame_csv_bytes(df))
 
+    def _grid_npz():
+        # The native grid, in the layout datasets.load_npz reads back, so a
+        # download re-uploads into the same grid.
+        grid = state["grid"]
+        if grid is None:
+            return io.BytesIO(b"")
+        buffer = io.BytesIO()
+        np.savez_compressed(
+            buffer, x_m=grid.x, y_m=grid.y, concentration_mgL=grid.values,
+        )
+        buffer.seek(0)
+        return buffer
+
     stats_download = pn.widgets.FileDownload(
         callback=_stats_csv, filename="dataset_statistics.csv",
         label="↓ Download statistics (CSV)", button_type="primary",
@@ -515,9 +561,13 @@ def data_analysis_app():
         callback=_data_csv, filename="dataset.csv",
         label="↓ Download dataset (CSV)", button_type="default",
     )
+    grid_download = pn.widgets.FileDownload(
+        callback=_grid_npz, filename="grid.npz",
+        label="↓ Download grid (NPZ)", button_type="default",
+    )
 
     tab_statistics = pn.Column(
-        pn.Row(stats_download, data_download),
+        pn.Row(stats_download, data_download, grid_download),
         stats_output, sizing_mode="stretch_width",
     )
 
@@ -530,7 +580,7 @@ def data_analysis_app():
 
     intake = pn.Column(
         "### 1. Data source",
-        pn.Row(database_btn, file_input),
+        pn.Row(database_btn, aem_btn, file_input),
         status_pane, preview,
         data_version, grid_version,
         sizing_mode="stretch_width",

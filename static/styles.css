@@ -2060,6 +2060,23 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .aem-summary dt { font-weight: 700; text-transform: capitalize; }
 .aem-summary dd { margin: 0; }
 .aem-result-actions { gap: 0.75rem; flex-wrap: wrap; margin: 0 0 1rem; }
+/* The cancel group and the download/workbench group are separate containers
+   (the JS shows them at different times), so they used to stack as two rows
+   with different margins. display:contents flattens both into one flex line,
+   so every button is a direct item sharing the same gap. Scoped above the
+   model-page mobile breakpoint so the narrow layout is unchanged. */
+@media (min-width: 621px) {
+  .aem-result-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  .aem-result-toolbar > .model-input-actions { display: contents; }
+  /* Higher specificity than the rule above, so hiding a whole group still works. */
+  .aem-result-toolbar > .model-input-actions[hidden] { display: none; }
+}
 .aem-result-card .primary-btn {
   appearance: none;
   font-family: inherit;
@@ -2086,7 +2103,7 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .aem-designer-app {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 230px);
+  height: auto;
   min-height: 540px;
   width: 100%;
   box-sizing: border-box;
@@ -2117,7 +2134,6 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 }
 .aem-designer-sidebar {
   min-width: 0;
-  overflow-y: auto;
   overflow-x: hidden;        /* settings grid now fits the wider sidebar Ã¢â‚¬â€ no h-scroll */
   background: #fff;
   border: 1px solid #ddd;
@@ -2213,7 +2229,7 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .aem-btn--submit:hover { background: #8a1a1a; }
 .aem-designer-stage {
   min-width: 0;
-  min-height: 420px;
+  min-height: 680px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2229,7 +2245,7 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
   flex: 1 1 auto;
   width: 100%;
   height: 100%;
-  min-height: 380px;
+  min-height: 640px;
   max-height: none;
   max-width: 100%;
   display: block;
