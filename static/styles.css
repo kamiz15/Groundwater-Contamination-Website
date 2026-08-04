@@ -2068,11 +2068,13 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .model-workbench-stage .model-output-card{ margin-bottom: 0; }
 .model-workbench-stage .model-output-card:last-child .panel-shell,
 .model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 680px; }
-/* Numerical single output: low floor only Ã¢â‚¬â€ the JS (script.js) grows the frame
-   to exactly fit the aspect-locked Bokeh plot at the current width, so a fixed
-   height is intentionally avoided (it can't be right at every window size). */
+/* Numerical single output. The Bokeh figures are NOT aspect-locked: they are
+   stretch_width with a fixed pixel height (430 for the plume view, 350 for the
+   vertical reactive one), so a correct floor is knowable. script.js still grows
+   the frame to fit, but that sync cannot run cross-origin - the floor is what
+   the page falls back to, and it must already clear the tallest figure. */
 .numerical-single-page .model-workbench-stage .model-output-card .panel-shell,
-.numerical-single-page .model-workbench-stage .model-output-card .panel-frame{ min-height: 300px; }
+.numerical-single-page .model-workbench-stage .model-output-card .panel-frame{ min-height: 560px; }
 /* Numerical multiples stack an input panel above the result panel in the stage;
    the input editor keeps its own 480px floor instead of the 680px result height. */
 .model-workbench-stage .vertical-multiple-input-shell,

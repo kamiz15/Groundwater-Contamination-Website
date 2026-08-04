@@ -535,7 +535,7 @@ def plot_reactive_plume_interactive(
         p.multi_line(cxs, cys, color="black", line_width=2.0, alpha=0.95)
 
     if float(plume_length) > 0:
-        plume_label = f"Plume length = {plume_length:.1f} m"
+        plume_label = f"Plume length = {plume_length:.2f} m"
         p.line([plume_length, plume_length], [plot_y0, plot_y1], color="black",
                line_dash="dashed", line_width=1.5, legend_label=plume_label)
         # Rotated in-plot label (both orientations), matching the static PDF.

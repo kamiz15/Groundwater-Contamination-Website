@@ -384,11 +384,12 @@ def run_numerical_model_horizontal(
     hk: float = 8.64,
     gradient: float = 0.0125,
     h_left: float = 20.0,
+    domain_factor: float = 1.5,
 ) -> HorizontalModelResult:
     """Plan-view (horizontal) reactive transport, matching Orlando's horizontal_W.py.
 
     Seven modifiable inputs: source_thickness (Sw), grid_size, al, at, gamma, Cd, Ca.
-    Domain length L_D and width are DERIVED (Cirpka analytical, x1.5); heads come from a
+    Domain length L_D and width are DERIVED (Cirpka analytical, x domain_factor); heads come from a
     fixed gradient; simulation time is auto (travel time + 1000 d) at Courant target 5.
     porosity, K and gradient are standard defaults the caller may override.
     """
@@ -402,7 +403,10 @@ def run_numerical_model_horizontal(
     delr = delc = float(grid_size)
     nlay = 1
     Ly = source_thickness * 10.0                 # domain width = 10 * Sw
-    Lx = 1.5 * (source_thickness ** 2) / (16.0 * at * (erfinv(ca / (gamma * cd + ca)) ** 2))
+    # domain_factor multiplies the analytical L_max to give the simulated domain.
+    # 1.5 is the published sizing; raising it is the only way to see the plume
+    # continue past L_max, at proportionally more cells.
+    Lx = domain_factor * (source_thickness ** 2) / (16.0 * at * (erfinv(ca / (gamma * cd + ca)) ** 2))
     ncol = int(Lx / delr)
     nrow = int(Ly / delc)
     if ncol < 2 or nrow < 2:
@@ -548,7 +552,7 @@ def run_numerical_model_horizontal(
                         lw=1.2,
                         ls="--",
                         zorder=6,
-                        label=f"Maximum Plume Length L_max = {plume_length:.1f} m",
+                        label=f"Maximum Plume Length L_max = {plume_length:.2f} m",
                     )
                     ax.text(plume_length - (ncol * delr) * 0.006, (nrow * delc) * 0.5,
                             f"$L^n_{{max}}$ = {plume_length:.2f} m", color="k",
@@ -556,7 +560,7 @@ def run_numerical_model_horizontal(
                             bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.75))
                     ax.legend()
                 fig.text(0.5, 0.015,
-                         f"$L_D$ = {Lx:.2f} m (1.5\u00b7$L_{{max}}$, Cirpka et al. 2005)   |   "
+                         f"$L_D$ = {Lx:.2f} m ({domain_factor:g}\u00b7$L_{{max}}$, Cirpka et al. 2005)   |   "
                          f"\u0394x=\u0394y = {delr:.2f} m   |   porosity = {prsity:.2f}   |   "
                          f"K = {hk:.2f} m/d   |   gradient = {gradient:.4f}   |   "
                          f"P\u00e9clet = {peclet:.2f}   |   Courant target = 5",
@@ -604,11 +608,12 @@ def run_numerical_model(
     hk: float = 8.64,
     gradient: float = 0.0125,
     h_left: float = 20.0,
+    domain_factor: float = 1.5,
 ) -> NumericalModelResult:
     """Vertical cross-section reactive transport, matching Orlando's vertical_W.py.
 
     Seven modifiable inputs: Lz (aquifer thickness), grid_size, al, atv, gamma, Cd, Ca.
-    Domain length L_D is DERIVED (Liedl analytical, x1.5); heads from a fixed gradient;
+    Domain length L_D is DERIVED (Liedl analytical, x domain_factor); heads from a fixed gradient;
     simulation time auto (travel time + 1000 d) at Courant target 5. Source spans the
     full thickness (top cell kept clean); no right-hand boundary (Orlando's choice).
     """
@@ -625,7 +630,10 @@ def run_numerical_model(
     if nlay < 2:
         raise ValueError("Derived layer count is too small; reduce the grid size.")
     botm = np.linspace(0.0 - delv, -Lz, nlay)
-    Lx = 1.5 * (4.0 * Lz ** 2) / (np.pi ** 2 * atv) * np.log((4.0 * gamma * cd + ca) / (np.pi * ca))
+    # domain_factor multiplies the analytical L_max to give the simulated domain.
+    # 1.5 is the published sizing; raising it is the only way to see the plume
+    # continue past L_max, at proportionally more cells.
+    Lx = domain_factor * (4.0 * Lz ** 2) / (np.pi ** 2 * atv) * np.log((4.0 * gamma * cd + ca) / (np.pi * ca))
     if not np.isfinite(Lx) or Lx <= 0:
         raise ValueError("Vertical analytical domain length is invalid for these inputs.")
     ncol = int(Lx / delr)
@@ -765,7 +773,7 @@ def run_numerical_model(
                             ha="right", va="center", fontsize=8, rotation=90, zorder=7,
                             bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.75))
                 fig.text(0.5, 0.005,
-                         f"$L_D$ = {Lx:.2f} m (1.5\u00b7$L_{{max}}$, Liedl et al. 2005)   |   "
+                         f"$L_D$ = {Lx:.2f} m ({domain_factor:g}\u00b7$L_{{max}}$, Liedl et al. 2005)   |   "
                          f"\u0394x=\u0394z = {delr:.2f} m   |   porosity = {prsity:.2f}   |   "
                          f"K = {hk:.2f} m/d   |   gradient = {gradient:.4f}   |   "
                          f"P\u00e9clet = {peclet:.2f}   |   Courant target = 5",
