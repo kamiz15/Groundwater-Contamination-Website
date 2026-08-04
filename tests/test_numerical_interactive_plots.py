@@ -50,7 +50,7 @@ def test_reactive_plume_builder_splits_ca_cd_and_adds_hover():
     np.testing.assert_allclose(np.asarray(hover["cd"]), [0.0, 0.0, 1.0, 0.0, 0.5, 2.0])
     assert any(renderer.glyph.__class__.__name__ == "MultiLine" for renderer in fig.renderers)
     assert any(isinstance(tool, HoverTool) for tool in fig.tools)
-    assert {item.label.value for item in fig.legend[0].items} == {"Plume length = 5.0 m"}
+    assert {item.label.value for item in fig.legend[0].items} == {"Plume length = 5.00 m"}
     colorbars = [layout for layout in fig.right if isinstance(layout, ColorBar)]
     assert [bar.title for bar in colorbars] == ["C_a [mg/L]", "C_d [mg/L]"]
     images = _image_renderers(fig)
@@ -90,7 +90,7 @@ def test_reactive_plume_builder_uses_depth_down_for_vertical():
     assert fig.legend[0].click_policy == "hide"
     # Two legend entries now: the plume length and the CD source band.
     legend_labels = {item.label.value for item in fig.legend[0].items}
-    assert legend_labels == {"Plume length = 5.0 m", "CD source"}
+    assert legend_labels == {"Plume length = 5.00 m", "CD source"}
     assert any(isinstance(tool, HoverTool) for tool in fig.tools)
     tool_names = {tool.__class__.__name__ for tool in fig.tools}
     assert {"PanTool", "WheelZoomTool", "BoxZoomTool", "ResetTool", "SaveTool"} <= tool_names

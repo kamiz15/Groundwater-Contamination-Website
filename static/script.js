@@ -295,8 +295,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const frames = document.querySelectorAll("iframe.panel-frame");
   if (!frames.length) return;
 
-  // The Bokeh plots are aspect-locked (height scales with width), so no fixed
-  // height is ever right at every window size ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the frame must track content.
+  // Bokeh figures here have fixed pixel heights, but the Panel document around
+  // them does not, so the frame still has to track its content.
   // Record why a frame is not tracking its content. Every failure below used to
   // be swallowed, which left the embedded plot silently cut off at the CSS floor.
   // Warn once per state change, not once per observer tick.
