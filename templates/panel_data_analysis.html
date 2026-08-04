@@ -1,15 +1,22 @@
 {% extends "base.html" %}
 
-{% block title %}Data Analysis Workbench{% endblock %}
+{% block title %}Data Workbench{% endblock %}
+{% block content_class %}data-page-content{% endblock %}
 
 {% block content %}
-<section class="section-spaced model-page">
-  <div class="model-output-card">
+<section class="section-spaced model-page data-workbench-page data-themed-page">
+  <header class="section-head database-page-head">
+    <span class="kicker">Interactive Analysis</span>
+    <h2>Data Workbench</h2>
+  </header>
+
+  <div class="card-like model-output-card data-page-card data-workbench-card">
     <div class="model-output-header">
-      <h2>Data Analysis Workbench</h2>
-      <a class="ghost-btn" href="{{ url_for('site_bp.site_database') }}">Back to Database</a>
+      <h3>Analysis Workspace</h3>
     </div>
-    <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame data-analysis-frame" loading="eager"></iframe>
+    <div class="panel-shell output-panel-shell">
+      <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame data-analysis-frame" loading="eager"></iframe>
+    </div>
   </div>
 </section>
 {% endblock %}

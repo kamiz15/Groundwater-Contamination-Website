@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Site Database & Model Input{% endblock %}
+{% block title %}Site Database{% endblock %}
 {% block content_class %}site-database-content{% endblock %}
 
 {% block content %}
-<section class="section-spaced site-database-page">
-  <h2>Site Database & Model Input</h2>
+<section class="section-spaced site-database-page data-themed-page">
+  <header class="section-head database-page-head">
+    <span class="kicker">Data Management</span>
+    <h2>Site Database</h2>
+  </header>
 
   {% if message %}
     <p class="flash flash-success">{{ message }}</p>
@@ -13,26 +16,78 @@
   {% if error %}
     <p class="flash flash-error">{{ error }}</p>
   {% endif %}
-  <div class="card-like">
-    <h3>Visual Analysis</h3>
-    <p class="small">Create quick visual summaries from your saved site data.</p>
-    <div class="model-actions">
-      <a class="primary-btn" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a>
+  <div
+    class="card-like reference-database-card data-page-card"
+    data-database-browser
+  >
+    <div class="table-header-row">
+      <div>
+        <h3>Reference Database</h3>
+      </div>
+    </div>
+
+    <div class="reference-table-controls">
+      <label class="reference-entry-control">
+        Show
+        <select data-database-size aria-label="Reference rows per page">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="all">All</option>
+        </select>
+        entries
+      </label>
+      <label class="reference-search-control">
+        Search:
+        <input type="search" data-database-search aria-label="Search reference database">
+      </label>
+    </div>
+
+    <div class="reference-table-wrapper">
+      <table class="data-table site-data-table site-data-table--dense reference-data-table">
+        <thead>
+          <tr>
+            {% for header in reference_headers %}
+              <th scope="col" aria-sort="none">
+                <button type="button" class="reference-sort-button" data-database-sort data-column="{{ loop.index0 }}">
+                  <span>{{ header }}</span>
+                  <span class="reference-sort-indicator" aria-hidden="true">&#8597;</span>
+                </button>
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in reference_rows %}
+            <tr data-database-row data-reference-row>
+              {% for header in reference_headers %}
+                <td data-label="{{ header }}">{{ row[header] }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="reference-table-footer">
+      <p class="small reference-table-info" data-database-info aria-live="polite"></p>
+      <nav class="reference-pagination" data-database-pagination aria-label="Reference database pages"></nav>
+    </div>
+    <div class="model-actions reference-database-actions">
+      <a class="ghost-btn" href="{{ url_for('site_bp.reference_database_export', file_format='csv') }}" download>Download Reference Database</a>
+      <a class="primary-btn" href="{{ url_for('site_bp.dispersivity_data') }}">Dispersivity Data</a>
     </div>
   </div>
 
-  <div class="card-like">
+  <script src="{{ url_for('static', filename='site_database.js') }}?v=20260803c" defer></script>
+  <h2 class="site-user-database-heading">Your Database</h2>
+
+  <div class="card-like database-action-card database-upload-card data-page-card">
     <h3>Upload Site Data (CSV)</h3>
     <p class="small">
       Upload multiple sites at once. Column headers are matched to known model parameters, and
-      common alternate spellings are accepted. Recognized columns are displayed with the canonical
-      CAST notation below; unrecognized columns keep their original names as additional fields.
+      common alternate spellings are accepted. Unrecognized columns keep their original names.
     </p>
-    <div class="upload-notation-list" aria-label="Recognized CSV columns">
-      {% for label, label_markup in upload_field_defs %}
-        <span title="{{ label }}">{{ label_markup|safe }}</span>
-      {% endfor %}
-    </div>
     <form method="POST" enctype="multipart/form-data" class="site-form csv-form">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="upload_csv">
@@ -41,10 +96,11 @@
         <input id="csvFileInput" type="file" name="csv_file" accept=".csv">
       </label>
       <button type="submit" class="primary-btn">Upload CSV</button>
+      <a class="ghost-btn" href="{{ url_for('static', filename='sample_db.csv') }}" download>Download Sample File</a>
     </form>
   </div>
 
-  <div class="card-like">
+  <div class="card-like database-action-card database-manual-card data-page-card">
     <h3>Add Single Site Manually</h3>
     <form method="POST" class="site-form">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -66,7 +122,13 @@
     </form>
   </div>
 
-  <div class="card-like site-table-card">
+  <div
+    class="card-like site-table-card data-page-card"
+    data-database-browser
+    data-database-csv-url="{{ url_for('site_bp.user_database_export', file_format='csv') }}"
+    data-database-excel-url="{{ url_for('site_bp.user_database_export', file_format='xlsx') }}"
+    data-database-pdf-url="{{ url_for('site_bp.user_database_export', file_format='pdf') }}"
+  >
     <div class="table-header-row">
       <div>
         <h3>Your Site Entries</h3>
@@ -84,6 +146,32 @@
     </div>
 
     {% if sites %}
+      <div class="reference-export-toolbar" aria-label="Your database exports">
+        <button type="button" class="ghost-btn reference-export-button" data-database-export="copy">Copy</button>
+        <button type="button" class="ghost-btn reference-export-button" data-database-export="csv">CSV</button>
+        <button type="button" class="ghost-btn reference-export-button" data-database-export="excel">Excel</button>
+        <button type="button" class="ghost-btn reference-export-button" data-database-export="pdf">PDF</button>
+        <button type="button" class="ghost-btn reference-export-button" data-database-export="print">Print</button>
+        <span class="small reference-export-status" data-database-export-status role="status" aria-live="polite"></span>
+      </div>
+
+      <div class="reference-table-controls">
+        <label class="reference-entry-control">
+          Show
+          <select data-database-size aria-label="Your database rows per page">
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="all">All</option>
+          </select>
+          entries
+        </label>
+        <label class="reference-search-control">
+          Search:
+          <input type="search" data-database-search aria-label="Search your database">
+        </label>
+      </div>
+
 
       {% set site_column_count = table_field_defs|length + extra_field_keys|length + 1 %}
       <div class="table-wrapper site-table-wrapper">
@@ -105,12 +193,12 @@
               {% for key in extra_field_keys %}
                 <th title="Extra column from your file (not a recognized model parameter)">{{ key }}</th>
               {% endfor %}
-              <th></th>
+              <th data-export-ignore></th>
             </tr>
           </thead>
           <tbody>
             {% for s in sites %}
-              <tr>
+              <tr data-database-row>
                 {% for field, label in table_field_defs %}
                   {% set value = s.display_id if field == 'id' else s[field] %}
                   <td data-label="{{ label }}" title="{{ value }}">{{ value }}</td>
@@ -119,7 +207,7 @@
                   {% set ev = (s.extra_data or {}).get(key) %}
                   <td data-label="{{ key }}" title="{{ ev if ev is not none else '' }}">{% if ev is not none and ev != '' %}{{ ev }}{% else %}<span class="small">&mdash;</span>{% endif %}</td>
                 {% endfor %}
-                <td data-label="Actions" class="site-table-action">
+                <td data-label="Actions" class="site-table-action" data-export-ignore>
                   <form method="POST" action="{{ url_for('site_bp.delete_site_row', site_id=s.id) }}"
                         onsubmit="return confirm('Delete site #{{ s.display_id }} ({{ s.site_unit }})?');">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -130,6 +218,10 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+      <div class="reference-table-footer">
+        <p class="small reference-table-info" data-database-info aria-live="polite"></p>
+        <nav class="reference-pagination" data-database-pagination aria-label="Your database pages"></nav>
       </div>
     {% else %}
       {% if total_site_count %}

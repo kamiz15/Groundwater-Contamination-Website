@@ -3,8 +3,10 @@
 import csv
 import io
 import logging
+from pathlib import Path
 import re
 from urllib.parse import urlencode
+from xml.sax.saxutils import escape as xml_escape
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, jsonify, url_for
 from flask_login import current_user, login_required
@@ -35,6 +37,207 @@ from symbol_registry import (
 
 site_bp = Blueprint("site_bp", __name__)
 logger = logging.getLogger(__name__)
+REFERENCE_DATABASE_PATH = Path(__file__).resolve().parent / "static" / "original.csv"
+DISPERSIVITY_DATABASE_PATH = (
+    Path(__file__).resolve().parent / "static" / "fig1_plots.csv"
+)
+
+
+def _reference_database_rows():
+    with REFERENCE_DATABASE_PATH.open(
+        "r", encoding="utf-8-sig", newline=""
+    ) as csv_file:
+        reader = csv.DictReader(csv_file)
+        headers = reader.fieldnames or []
+        rows = [
+            {header: (row.get(header) or "") for header in headers}
+            for row in reader
+        ]
+    return headers, rows
+
+
+def _dispersivity_database_rows():
+    with DISPERSIVITY_DATABASE_PATH.open(
+        "r", encoding="utf-8-sig", newline=""
+    ) as csv_file:
+        reader = csv.DictReader(csv_file, delimiter=";")
+        headers = reader.fieldnames or []
+        rows = [
+            {header: (row.get(header) or "") for header in headers}
+            for row in reader
+        ]
+    return headers, rows
+
+
+def _filter_and_sort_reference_rows(
+    headers, rows, query="", sort_column=None, sort_direction="asc"
+):
+    query = query.strip().casefold()
+    filtered = [
+        row
+        for row in rows
+        if not query
+        or any(query in str(row.get(header, "")).casefold() for header in headers)
+    ]
+
+    if sort_column is None or not 0 <= sort_column < len(headers):
+        return filtered
+
+    header = headers[sort_column]
+
+    def sort_key(row):
+        value = str(row.get(header, "")).strip()
+        try:
+            return (0, float(value))
+        except ValueError:
+            return (1, value.casefold())
+
+    return sorted(filtered, key=sort_key, reverse=sort_direction == "desc")
+
+
+def _reference_database_csv_bytes(headers, rows):
+    stream = io.StringIO(newline="")
+    writer = csv.writer(stream)
+    writer.writerow(headers)
+    writer.writerows(
+        [row.get(header, "") for header in headers] for row in rows
+    )
+    return ("\ufeff" + stream.getvalue()).encode("utf-8")
+
+
+def _reference_database_xlsx_bytes(headers, rows):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Reference Database"
+    sheet.freeze_panes = "A2"
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([row.get(header, "") for header in headers])
+
+    header_fill = PatternFill("solid", fgColor="285A84")
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+    for column, header in enumerate(headers, start=1):
+        sheet.column_dimensions[get_column_letter(column)].width = min(
+            max(len(str(header)) + 2, 10), 32
+        )
+    sheet.auto_filter.ref = sheet.dimensions
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _site_database_xlsx_bytes(headers, rows):
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Site Database"
+    sheet.append(["Site Database"])
+    sheet.append(headers)
+    for row in rows:
+        sheet.append([row.get(header, "") for header in headers])
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _reference_database_pdf_bytes(headers, rows, title="CAST Reference Database"):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A3, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+
+    buffer = io.BytesIO()
+    page_size = landscape(A3)
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=page_size,
+        leftMargin=10 * mm,
+        rightMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+        title=title,
+    )
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle(
+        "ReferenceCell",
+        parent=styles["BodyText"],
+        fontSize=4.5,
+        leading=5.5,
+        spaceAfter=0,
+    )
+    header_style = ParagraphStyle(
+        "ReferenceHeader",
+        parent=cell_style,
+        textColor=colors.white,
+        fontName="Helvetica-Bold",
+    )
+    story = [
+        Paragraph(
+            f"{title} ({len(rows)} entries)",
+            styles["Heading2"],
+        ),
+        Spacer(1, 4 * mm),
+    ]
+
+    if rows:
+        table_data = [
+            [Paragraph(xml_escape(str(header)), header_style) for header in headers]
+        ]
+        table_data.extend(
+            [
+                [
+                    Paragraph(xml_escape(str(row.get(header, ""))), cell_style)
+                    for header in headers
+                ]
+                for row in rows
+            ]
+        )
+        usable_width = page_size[0] - 20 * mm
+        table = LongTable(
+            table_data,
+            colWidths=[usable_width / len(headers)] * len(headers),
+            repeatRows=1,
+            hAlign="LEFT",
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#285a84")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#b8c4cf")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#f5f8fb")],
+                    ),
+                ]
+            )
+        )
+        story.append(table)
+    else:
+        story.append(Paragraph("No matching entries.", styles["BodyText"]))
+
+    document.build(story)
+
+    return buffer.getvalue()
+
 
 # ---- column config ----
 # COLUMN_DEFS maps the legacy 9-column plot labels to their index in the
@@ -80,12 +283,6 @@ MANUAL_FIELD_DEFS = [
     (field, label, ui_label_markup(label))
     for field, label, _unit in SITE_COLUMN_DEFS
     if field in _MANUAL_SITE_FIELDS
-]
-UPLOAD_FIELD_DEFS = [
-    (TEXT_COLUMN_DEFS[field]["ui"], TEXT_COLUMN_DEFS[field]["ui"])
-    for field in TEXT_SITE_FIELDS
-] + [
-    (label, ui_label_markup(label)) for _field, label, _unit in SITE_COLUMN_DEFS
 ]
 
 
@@ -197,6 +394,28 @@ def _extra_field_keys(rows):
     return keys
 
 
+def _user_database_rows(email):
+    sites = get_user_sites_rows(email)
+    field_defs = _visible_field_defs(sites)
+    extra_keys = _extra_field_keys(sites)
+    headers = [label for _field, label in field_defs] + extra_keys
+    rows = []
+
+    for display_id, site in enumerate(sites, start=1):
+        row = {}
+        for field, label in field_defs:
+            value = display_id if field == "id" else site.get(field)
+            row[label] = "" if value is None else value
+        extra_data = site.get("extra_data") or {}
+        for key in extra_keys:
+            value = extra_data.get(key, "")
+            row[key] = "" if value is None else value
+        rows.append(row)
+
+    return headers, rows
+
+
+
 def _site_filters_from_request():
     filters = {}
     for field, _label in ALL_FIELD_DEFS:
@@ -255,6 +474,95 @@ def _sort_sites(rows, sort_field, sort_dir):
 # -----------------------------
 # MAIN TABLE VIEWS
 # -----------------------------
+
+@site_bp.route("/dispersivity-data", methods=["GET"])
+@login_required
+def dispersivity_data():
+    headers, rows = _dispersivity_database_rows()
+    return render_template(
+        "dispersivity_data.html",
+        dispersivity_headers=headers,
+        dispersivity_rows=rows,
+    )
+
+
+@site_bp.route("/sites/user.<file_format>", methods=["GET"])
+@login_required
+def user_database_export(file_format):
+    file_format = file_format.lower()
+    if file_format not in {"csv", "xlsx", "pdf"}:
+        abort(404, description="Unsupported site database export.")
+
+    headers, rows = _user_database_rows(_current_email())
+    export_rows = _filter_and_sort_reference_rows(
+        headers,
+        rows,
+        query=request.args.get("q", ""),
+    )
+
+    if file_format == "csv":
+        payload = _reference_database_csv_bytes(headers, export_rows)
+        mimetype = "text/csv"
+    elif file_format == "xlsx":
+        payload = _site_database_xlsx_bytes(headers, export_rows)
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        payload = _reference_database_pdf_bytes(
+            headers, export_rows, title="Site Database"
+        )
+        mimetype = "application/pdf"
+
+    return Response(
+        payload,
+        mimetype=mimetype,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="CAST-site-database.{file_format}"'
+            )
+        },
+    )
+
+
+@site_bp.route("/sites/reference.<file_format>", methods=["GET"])
+@login_required
+def reference_database_export(file_format):
+    file_format = file_format.lower()
+    if file_format not in {"csv", "xlsx", "pdf"}:
+        abort(404, description="Unsupported reference database export.")
+
+    headers, rows = _reference_database_rows()
+    sort_column = request.args.get("sort", type=int)
+    sort_direction = (
+        "desc" if request.args.get("dir", "").lower() == "desc" else "asc"
+    )
+    export_rows = _filter_and_sort_reference_rows(
+        headers,
+        rows,
+        query=request.args.get("q", ""),
+        sort_column=sort_column,
+        sort_direction=sort_direction,
+    )
+
+    if file_format == "csv":
+        payload = _reference_database_csv_bytes(headers, export_rows)
+        mimetype = "text/csv"
+    elif file_format == "xlsx":
+        payload = _reference_database_xlsx_bytes(headers, export_rows)
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        payload = _reference_database_pdf_bytes(headers, export_rows)
+        mimetype = "application/pdf"
+
+    return Response(
+        payload,
+        mimetype=mimetype,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="CAST-reference-database.{file_format}"'
+            )
+        },
+    )
+
 
 @site_bp.route("/sites", methods=["GET", "POST"])
 @login_required
@@ -396,13 +704,15 @@ def site_database():
     sort_field, sort_dir = _site_sort_from_request()
     filtered_sites = _filter_sites(sites, active_filters)
     filtered_sites = _sort_sites(filtered_sites, sort_field, sort_dir)
+    reference_headers, reference_rows = _reference_database_rows()
     return render_template(
         "site_database.html",
         sites=filtered_sites,
+        reference_headers=reference_headers,
+        reference_rows=reference_rows,
         table_field_defs=table_field_defs,
         table_field_markup=table_field_markup,
         manual_field_defs=MANUAL_FIELD_DEFS,
-        upload_field_defs=UPLOAD_FIELD_DEFS,
         extra_field_keys=extra_field_keys,
         active_filters=active_filters,
         sort_field=sort_field,

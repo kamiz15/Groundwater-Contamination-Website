@@ -810,9 +810,9 @@ static/images/conceptual_birla.png
 
 Those files are not present in the repository, so those images render as missing. `templates/model_page_base.html` also has a fallback reference to `static/images/placeholder.png`, which is absent, although templates that extend it can override the image block.
 
-### Site Database Is Insert-only
+### Site Database Operations
 
-The current UI supports listing, filtering, sorting, manual insertion, and CSV insertion. It does not provide edit, delete, deduplication, or export operations.
+The current UI supports listing, searching, page-size selection, manual and CSV insertion, row deletion, clearing the user database, duplicate-row prevention, and Copy/CSV/XLSX/PDF/Print exports. It does not provide in-place row editing.
 
 Numeric parsing intentionally converts invalid numeric text to `NULL` rather than rejecting the row. This is convenient for sparse data but can hide malformed values.
 
@@ -832,7 +832,7 @@ The runtime `ensure_schema()` approach creates missing tables for development, b
 
 The Analysis Visualisation menu intentionally exposes only the working site-database pages: bar graph, box plot, and histogram. The unfinished all-plots, scatterplot, and statistical-analysis placeholders were removed for v2.
 
-`plot_functions.py` optionally searches for `static/original.csv`, but that reference dataset is not present in this repository. The retained plot pages render user-only plots or an empty-state Bokeh chart when the file is absent.
+`static/original.csv` contains the bundled 112-site CAST reference database, with native search, sorting, page-size selection, and pagination. Copy, filtered CSV/XLSX/PDF downloads, and Print apply to the user-uploaded database; `static/sample_db.csv` is the downloadable upload example. `plot_functions.py` uses the reference file for reference-data plots. The `/dispersivity-data` page uses the legacy `static/fig1_plots.csv` dataset and its histogram, box plot, and scatter plot assets with the current responsive table controls.
 
 ### Numerical Work Is Synchronous and User-sized
 

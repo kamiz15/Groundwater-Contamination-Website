@@ -1,0 +1,113 @@
+Site No.,Site Unit,Compound,Aquifer thickness[m],Plume length[m],Plume Width[m],Hydraulic conductivity[10-3 [m/s]],Electron Donor[mg/l],Electron Acceptors : O2[mg/l],NO3[mg/l],SO4[mg/l],Fe(II)[mg/l],Plume state,Chem. Group,Country,Literature Source
+1,"Hill AFB,UT,site 870",BTEX,7.62,502.92,228.6,0.0004,0.02,5.9,17,99,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+2,"Battle Creek ANGB, MI, site 3",BTEX,9.144,274.32,114.3,0.0005,3.552,6.9,3.42,27.3,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+3,"Madison ANGB,WI",BTEX,3.048,228.6,121.92,0.0004,28,7.1,10,89.2,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+4,"Elmendorf AFB, AK,hangar 10",BTEX,6.096,914.4,457.2,0.001,0.447,0.8,15,26.7,0.5,NA,BTEX,USA,Wiedemeir et al. 1999
+5,"Elmendorf AFB, AK,ST 41",BTEX,6.096,213.36,152.4,0.001,43.28,12.6,31,59.3,0.5,NA,BTEX,USA,Wiedemeir et al. 1999
+6,"King Salmon AFB,AK,SS-12",BTEX,3.048,259.08,274.32,0.0005,5.261,10.9,0.3,8.54,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+7,"Eglin AFB,FL, police facility",BTEX,7.62,91.44,45.72,0.5,4.03,3.8,0.2,31,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+8,Düsseldorf,BTEX,4.572,146.304,36.576,0.0005,14.096,3.7,0.29,1000,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+9,"McDill AFB,FL,site 56",BTEX,3.048,76.2,36.576,0.0005,29.636,2.4,1.32,110,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+10,"McDill AFB,FL,pumphouse 75",BTEX,7.62,106.68,45.72,0.5,0.676,2.1,0.99,65.8,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+11,"Myrtle Beach,SC,police facility",BTEX,10.668,350.52,228.6,0.0005,18.27,1.9,1.36,84.1,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+12,"Langley AFB,VA,site SS04",BTEX,6.4008,182.88,36.576,0.01,1.806,5,1.4,865,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+13,"Langley AFB,VA,site SS16",BTEX,3.048,42.672,36.576,0.005,0.123,6.5,5.2,237,0.06,NA,BTEX,USA,Wiedemeir et al. 1999
+14,"Griffis AFB, NY, pumphouse 5",BTEX,3.048,109.728,79.248,0.0005,12.84,6.5,2.7,20,0.06,NA,BTEX,USA,Wiedemeir et al. 1999
+15,"Pope AFB,NC,FPTA,No.4",BTEX,7.62,219.456,115.824,0.0005,8.18,8.6,1.95,13.3,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+16,"Seymour Johnson AFB,NC,bldg.470",BTEX,3.048,96.012,76.2,0.0002,13.8,9,1.7,47,0.06,NA,BTEX,USA,Wiedemeir et al. 1999
+17,"Fairchild AFB,WA bldg.1212",BTEX,6.096,53.34,38.1,0.00001,13.118,9.3,8.42,60,0.08,NA,BTEX,USA,Wiedemeir et al. 1999
+18,"Eaker AFB,AR,gas station",BTEX,4.572,128.016,100.584,0.0000016,84.9,8.2,0.46,89,0.003,NA,BTEX,USA,Wiedemeir et al. 1999
+19,"Dover AFB,DL,site SS27/XYZ",BTEX,7.62,914.4,228.6,0.0014,22.9,8.3,18.4,64.1,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+20,"Bolling AFB,DC,car care center",BTEX,9.144,192.024,91.44,0.0005,49.3,7.5,17.2,83,0.06,NA,BTEX,USA,Wiedemeir et al. 1999
+21,"Offutt AFB,NE,tank349",BTEX,3.048,60.96,53.34,0.0000016,90.21,6.8,7.67,75.5,0.22,NA,BTEX,USA,Wiedemeir et al. 1999
+22,"Westover AFB,MA,Christmas tfta",BTEX,4.572,60.96,45.72,0.0000026,0.469,11.2,7.31,436,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+23,"Columbus AFB,MS,ST -24",BTEX,4.572,106.68,60.96,0.01,20.95,8.52,2.5,14.6,0.1,NA,BTEX,USA,Wiedemeir et al. 1999
+24,"Shaw AFB, SC,bldg. 1613",BTEX,22,420,280,0.01,4.246,7.9,3.45,51.6,0.05,NA,BTEX,USA,Wiedemeir et al. 1999
+25,"Travis AFB,CA, gas station",BTEX,6.096,207.264,97.536,0.00000318,67,3.7,9.5,2000,0.06,NA,BTEX,USA,Wiedemeir et al. 1999
+26,"Beale AFB,CA,UST site",BTEX,3.048,67.056,54.864,0.0000016,0.0719,8.4,4.3,27,0.083,NA,BTEX,USA,Wiedemeir et al. 1999
+27,"Charlston AFB,SC, site ST 27",BTEX,8.5344,71.3232,47.5488,0.0001,25.4,5.5,0.9,18,0.1,N.A,BTEX,USA,"AFCEE, 1999"
+28,Carswell AFB ST-14,BTEX,4.2672,396.24,121.92,0.00000505,1.504,2.4,1.5,84.5,0.01,N.A,BTEX,USA,"AFCEE, 1999"
+29,"Ellsworth, SD Area D",BTEX,2.1336,457.2,106.68,0.0024,5.375,5.5,NA,1000,0.02,N.A,BTEX,USA,"AFCEE, 1999"
+30,"Fairchild AFB,WA West Defuel",BTEX,2.1336,57.3024,30.48,0.0004,3.57,NA,NA,3.7,0.18,N.A,BTEX,USA,"AFCEE, 1999"
+31,"Fairchild AFB,WA FT1",BTEX,3.05,152,84,0.000379,5.22,5.7,10.6,11.3,0.01,N.A,BTEX,USA,"AFCEE, 1999"
+32,"King Salmon AFB,AK, Site FT-01",BTEX,9.14,366,61,0.000379,9.23,2.8,5.48,6.38,0.05,N.A,BTEX,USA,"AFCEE, 1999"
+33,"MacDill AFB,FL OT24",BTEX,6.1,168,61,0.000379,2.84,0.6,NA,23.6,0.4,N.A,BTEX,USA,"AFCEE, 1999"
+34,"Malmstrom AFB, pumphouse #2",BTEX,0.61,107,84,1.01E-05,5.48,7.4,NA,1332,0.01,N.A,BTEX,USA,"AFCEE, 1999"
+35,"Myrtle Beach,SC,MOGAS site",BTEX,3.05,85,110,0.0001,48.65,0.42,NA,43.83,3.34,N.A,BTEX,USA,"AFCEE, 1999"
+36,"Myrtle Beach,SC POL Bulk fuel Storage Area",BTEX,10.67,229,43,0.0001,18.27,1.9,0.15,21.4,2,N.A,BTEX,USA,"AFCEE, 1999"
+37,"Offutt AFB,NE,Site FPTA3",BTEX,9.14,198,130,0.0004,3.23,0.1,0,33.1,8,N.A,BTEX,USA,"AFCEE, 1999"
+38,Plattsburg AFB FT-002,BTEX,15.24,853,152,0.0004,6.01,10,0.44,21.35,0.05,N.A,BTEX,USA,"AFCEE, 1999"
+39,"Rickenbacker ANGB,OH, Building 560",BTEX,2.44,30,24,0.001,0.96,3.9,9.1,1443,0.05,N.A,BTEX,USA,"AFCEE, 1999"
+40,"Seymour Johnson AFB,NC,former AGE FFS (volume 1)",BTEX,2.44,64,50,0.0001,13.8,7.6,1.7,26.9,0.04,N.A,BTEX,USA,"AFCEE, 1999"
+41,"Westover AFB,MA,current FT area (FT-08)",BTEX,16.76,244,107,0.001,32.56,9.82,4,12.1,0.05,N.A,BTEX,USA,"AFCEE, 1999"
+42,"Westover ARB,MA,zone 1",BTEX,9.14,549,366,0.0004,15.6,10.43,2,13,0.01,N.A,BTEX,USA,"AFCEE, 1999"
+43,"Wurtsmith AFB, KC-135",BTEX,6.1,152,46,0.0004,9.23,7.7,NA,9.43,0.01,N.A,BTEX,USA,"AFCEE, 1999"
+44,"Wurtsmith AFB, OT-41,SS42",BTEX,3.66,96,32,0.0004,3.13,8,6,14.5,0.05,N.A,BTEX,USA,"AFCEE, 1999"
+45,Niedergörsdorf TL1,Ethylbenzene,12,140,NA,1E-05,0.07,1,12,54,19,Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+46,Niedergörsdorf TL1,Toluene,12,90,NA,1E-05,0.04,1,12,54,19,Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+47,Niedergörsdorf TL1,m/p-Xylene,12,120,NA,1E-05,1.3,1,12,54,19,Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+48,Niedergörsdorf TL2,m/p-Xylene,12,90,NA,1E-05,2.4,2,10,40,40,Uncertain,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+49,Niedergörsdorf TL2,O-Xylene,12,60,NA,1E-05,1.4,2,10,40,40,Uncertain,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+50,Niedergörsdorf TL2,Ethylbenzene,12,90,NA,1E-05,0.7,2,10,40,40,Uncertain,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+51,Brand,Benzene,100,150,NA,1E-05,0.25,1,NA,15,110,Stationary (model),BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+52,Brand,"m,p-Xylene",100,100,NA,5.5E-05,0.4,1,NA,15,110,Stationary (model),BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+53,OLES-Eppe ,BTEX,15,160,NA,2E-05,0.31,1,NA,200,2,Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+54,OLES-Eppe,BTEX,2,120,NA,0.0001,0.01,7.5,NA,NA,NA,Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+55,VMZ Spandau 1.GWL,BTEX,11,250,NA,0.0005,33,7.5,0.5,17,NA,Shrinking,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+56,Castrop-Rauxel 1.Stockwerk,Benzene,7.4,200,NA,0.0005,123,1.6,1,1400,NA,Stationary (model),BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+57,Gaswerk Düsseldorf,Toluene,20,600,NA,0.0006,90,NA,NA,NA,NA,Non-Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+58,Metlen,BTEX,6,500,NA,0.0017,230,0.6,5,650,0.3,Quasi Stationary,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+59,Wülknitz,BTEX,30,300,NA,0.0016,0.4,NA,depleted,depleted,NA,Uncertain,BTEX,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008"
+60,"Freiberg, Sachsen",Benzene,3,600,70,0.0003,0.01,NA,NA,NA,NA,NA,BTEX,Germany,Eckert et al. 1996
+61,"Gloucester Landfill, Canada",Benzene,10,100,50,1,0.01,4,NA,NA,NA,NA,BTEX,Canada,Lesage et al. 1990
+62,"Grindsted, Denmark",Benzene,6,175,30,0.0004,0.01,NA,NA,NA,NA,NA,BTEX,Denmark,Rügge et al. 1995
+63,"Perth basin, Western Australia",Benzene,1.35,420,30,0.000285,0.01,0.28,0.08,21,0.37,NA,BTEX,Western Australia,Thierrin et al. 1995
+64,Wisotzky & Eckert 1997,BTEX,5,540,100,0.0016,0.01,NA,NA,NA,NA,NA,BTEX,Germany,Wisotzky & Eckert 1997
+65,Manufacturer gas Plant sites New Jersey (C),Benzene,1,180,5,5.5E-06,1.5,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+66,Manufacturer gas Plant sites New Jersey (D),Benzene,2,30,10,5.1E-06,0.019,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+67,Manufacturer gas Plant sites New Jersey (F),Benzene,5,450,25,5.1E-05,0.65,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+68,Hotorata (New Zealand),Benzene,2.3,450,11.5,0.00115,0.017,3.2,3.17,9,0.011,NA,BTEX,New Zealand,Vidovich et al. 2001
+69,Otorohanga (New Zealand),Benzene,3.75,140,18.75,0.00173,0.0004,1.29,0.85,5.6,5.96,NA,BTEX,New Zealand,Vidovich et al. 2001
+70,"Neckar Valley, South Germany-MGP",BTEX,3,250,15,1.5E-05,8.9,0.99,13.43,481,0.19,NA,BTEX,Germany,Reichert et al. 1998
+71,Manufacturer gas Plant sites New Jersey (A),Benzene,1,900,5,0.026,0.75,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+72,Manufacturer gas Plant sites New Jersey (B),Benzene,10,750,50,0.035,0.25,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+73,Manufacturer gas Plant sites New Jersey (E),Benzene,2,2000,10,0.006,9.9,NA,NA,NA,NA,NA,BTEX,USA,Lewandowski and Mortimer 2004
+74,Castrop-Rauxel 1.Stockwerk ,Naphtalene,7.4,325,NA,501,35,1.6,1,760,45,Growing model,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+75,Düsseldorf,Naphtalene,20,600,NA,0.6,10,NA,NA,NA,NA,Non-Stationary,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+76,Testfeld Süd,Acenaphthene,3.3,450,NA,0.0034,32,0.23,1,53,NA,NA,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+77,OLES-Eppe DRM,sum PAH,15,160,NA,0.02,1.2,1,NA,200,2,Stationary,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+78,OLES-Eppe BH,sum PAH,2,120,NA,0.1,15,NA,NA,NA,NA,N.A,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+79,Wülknitz,Naphtalene,30,300,NA,0.0016,10,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+80,Wülknitz,Acenaphthene,30,300,NA,0.0016,0.6,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+81,Wülknitz,Fluorene,30,300,NA,0.0016,0.2,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+82,Wülknitz,Phenanthrene,30,300,NA,0.0016,9,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+83,Wülknitz,Pyrene,30,150,NA,0.0016,1,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+84,VMZ Spandau 1.GWL,sum PAH,11,50,NA,0.5,0.65,7.5,NA,0.5,17,Shrinking,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+85,Testfeld Süd,PAH without Naphtalene,3.3,450,NA,4685,10,0.23,1,53,NA,N.A,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+86,Castrop-Rauxel 1. Stock ,NSO-HET,7.4,325,NA,501,22,1.6,1,760,NA,N.A,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+87,Wülknitz,NSO-HET Benzothioophene,30,300,NA,0.0016,3,NA,depleted,depleted,NA,Uncertain,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+88,Testfeld Süd,HET_Dimethylbenzofurane,3.3,450,NA,0.0056,11.5,0.23,1,53,NA,N.A,PAH,KORA project GERMANY,"Wabbels and Teutsch, 2008/Werne et al. 2008 "
+89,Eckert et al. 1996 (A),Acenaphthene,3,400,400,0.0003,0.05,NA,NA,NA,NA,N.A,PAH,Germany,Eckert et al. 1996 (A)
+90,Eckert et al. 1996 (B),Naphthalene,3,300,300,0.000289,0.05,NA,NA,NA,NA,N.A,BTEX,Germany,Eckert et al. 1996 (B)
+91,Former gasworks at Düsseldorf,Acenaphthene,5,120,120,0.0013,0.5,NA,NA,NA,NA,N.A,BTEX,Germany,Schmitt et al.  1996
+92,Rocky Point North Carolina (A),Anthracene,1.52,300,300,3.52E-05,0.01,NA,NA,NA,NA,N.A,BTEX,USA,Borden et al. 1995
+93,Rocky Point North Carolina (B),Naphtalene,1.52,300,300,3.52E-05,0.01,NA,NA,NA,NA,N.A,BTEX,USA,Borden et al. 1995
+94,Central Florida,Naphtalene,1.65,200,200,0.000119,0.1,NA,NA,NA,NA,N.A,BTEX,USA,Adams & Golden 1991
+95,Baltimore Gas & Electric Company,Naphtalene,5.35,200,200,0.0016,4.4,0.7,13,25,95,N,BTEX,USA,Durant et al. 1995
+96,"Cliffs-Dow Chemical Company, Michigan",Naphtalene,4.3,100,100,0.000379,0.001,1.4,0.9,48.25,NA,N.A,BTEX,USA,Klecka et al. 1990
+97,"Landfill Vejen, Denmark",Naphtalene,20,130,130,5.01E-06,0.01,NA,NA,NA,NA,N.A,BTEX,USA,Lynglkilde & Christensen 1992
+98,Upstate New York,Naphtalene,29,400,400,0.000379,8.92,4,NA,NA,NA,N.A,BTEX,USA,Madsen et al. 1996
+99,Grindsted Landfill,Naphtalene,8,30,30,0.0004,1,NA,NA,NA,NA,N.A,PAH,Denmark,Rügge et al. 1995
+100,Gaswerk-Ost in Karlsruhe,sum PAH,2.5,300,300,0.0016,0.01,NA,NA,NA,NA,N.A,BTEX,Germany,IMES 1996
+101,Manufacturer gas Plant sites New Jersey (A),Naphtalene,1,580,NA,0.026,9.8,NA,NA,NA,NA,N.A,BTEX,USA,Lewandowski and Mortimer 2004
+102,Manufacturer gas Plant sites New Jersey (B),Naphtalene,10,600,NA,0.035,5.6,NA,NA,NA,NA,N.A,BTEX,USA,Lewandowski and Mortimer 2004
+103,Manufacturer gas Plant sites New Jersey (E),Naphtalene,2,2000,NA,0.006,1.7,NA,NA,NA,NA,N.A,BTEX,USA,Lewandowski and Mortimer 2004
+104,Niedergörsdorf TL1,"1,2,4-TMB Trimethylbenzenes",8.5,60,NA,0.01,0.6,NA,1,10.5,44,15.5,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+105,Niedergörsdorf TL1,Ethyltoluene,8.5,100,NA,0.01,0.88,NA,1,10.5,44,15.5,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+106,Niedergörsdorf TL1,"1,2,3-TMB Trimethylbenzenes",8.5,100,NA,0.01,0.6,NA,1,10.5,44,15.5,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+107,Niedergörsdorf TL1,"1,3,5-TMB Trimethylbenzenes",8.5,100,NA,0.01,0.2,NA,1,10.5,44,15.5,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+108,Niedergörsdorf TL2,Cumol,8.5,63,NA,0.01,0.2,NA,2,10,30,30,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+109,Niedergörsdorf TL2,Ethyltoluene,8.5,63,NA,0.01,0.13,NA,2,10,30,30,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+110,Brand,"1,2,4-TMB Trimethylbenzenes",75,80,NA,0.05,0.25,NA,1,NA,7.5,110,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+111,Brand,Ethyltoluene,75,80,NA,0.05,0.16,NA,1,NA,7.5,110,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"
+112,Metlen,MTBE,3.75,2000,NA,1.7,290,NA,0.6,5,650,0.3,Other HC,KORA project GERMANY,"Wabbels and Teutsch, 2008.  /Werne et al. 2008"

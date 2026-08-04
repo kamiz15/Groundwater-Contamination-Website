@@ -20,7 +20,7 @@
       data-blur-on-complete="onLandingTitleAnimationComplete"
     >Groundwater Contamination Assessment</h1>
     <p class="lead">
-      A research platform providing toolboxes and documentation to assess groundwater quality,
+      A research platform providing toolboxes and documentation to assess groundwater site data,
       set up contaminant transport models, and communicate results.
     </p>
 
@@ -30,18 +30,17 @@
     </div>
 
     <ul class="bullets">
-      <li>Database & model input</li>
-      <li>Analytical, Empirical & Numerical models</li>
-      <li>Optimization & Water Quality Index tools</li>
+      <li>Database</li>
+      <li>Models</li>
     </ul>
   </div>
 </section>
 
 <!-- AT A GLANCE -->
 <section class="stats-band" aria-label="Platform at a glance">
-  <div class="stat"><strong>6</strong><span>Assessment toolboxes</span></div>
+  <div class="stat"><strong>4</strong><span>Assessment toolboxes</span></div>
   <div class="stat"><strong>10+</strong><span>Transport models</span></div>
-  <div class="stat"><strong>3</strong><span>Modeling approaches</span></div>
+  <div class="stat"><strong>4</strong><span>Modeling approaches</span></div>
 </section>
 
 <!-- GROUNDWATER ASSESSMENT TOOLBOXES -->
@@ -58,7 +57,7 @@
        href="{{ url_for('site_bp.site_database') if current_user.is_authenticated else url_for('login_page') }}">
       <div class="tile-image tile-img-1"></div>
       <div class="tile-label">Site Database &amp; Model Input</div>
-      <p class="tile-desc">Manage site measurements and prepare validated input datasets for every model.</p>
+      <p class="tile-desc">Manage site data and prepare validated input datasets for every model.</p>
       <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
@@ -67,7 +66,7 @@
        href="{{ url_for('analytical_bp.analytical_landing') }}">
       <div class="tile-image tile-img-2"></div>
       <div class="tile-label">Analytical Models</div>
-      <p class="tile-desc">Closed-form plume solutions — Liedl 2D/3D, Chu, Ham, Cirpka, BIOSCREEN-AT.</p>
+      <p class="tile-desc">Closed-form 2D/3D solutions &mdash; e.g. Liedl et al. solutions, BIOSCREEN-AT.</p>
       <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
@@ -75,24 +74,28 @@
       class="tile"
       href="{{ url_for('empirical_bp.empirical_landing') }}">
       <div class="tile-image tile-img-3"></div>
-      <div class="tile-label">Empirical Models</div>
-      <p class="tile-desc">Field-data correlations for plume length — Maier &amp; Grathwohl, Birla et al.</p>
+      <div class="tile-label">Hybrid Models</div>
+      <p class="tile-desc">Closed-form models that are combinations of different modeling approaches.</p>
       <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
     <a id="model-numerical" class="tile" href="{{ url_for('numerical_bp.numerical_landing') }}">
       <div class="tile-image tile-img-4"></div>
       <div class="tile-label">Numerical Models</div>
-      <p class="tile-desc">MODFLOW-based flow &amp; transport simulations, horizontal and vertical setups.</p>
+      <p class="tile-desc">MODFLOW-based 2D transport simulations.</p>
       <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
 
     <a id="model-optimization" class="tile" href="{{ url_for('aem_bp.aem_landing') }}">
       <div class="tile-image tile-img-5"></div>
-      <div class="tile-label">AEM Source Designer</div>
-      <p class="tile-desc">Parameter estimation and optimization workflows.</p>
+      <div class="tile-label">AEM</div>
+      <p class="tile-desc">Analytic Element Models for transport problems.</p>
       <span class="tile-cta">Open toolbox &rarr;</span>
     </a>
+
+    <div id="model-koehler" class="tile tile-title-only">
+      <div class="tile-label">Köhler et al. (2024)</div>
+    </div>
   </div>
 </section>
 
@@ -101,12 +104,12 @@
 <section id="docs" class="docs section-spaced">
   <span class="kicker">Workflow</span>
   <h2>Suggested workflow</h2>
-  <p>The toolboxes are designed to be used in sequence, from site data to transport models:</p>
+  <p>The toolboxes can be used in sequence, starting from site data and progressing to transport models. A suggested workflow is:</p>
   <ol class="workflow-steps">
     <li>Start with the Database Toolbox</li>
     <li>Continue with the Analytical or Empirical model toolbox</li>
-    <li>Run the Numerical model toolbox</li>
-    <li>Use the AEM Source Designer model</li>
+    <li>Run the Numerical model toolbox (for simple cases)</li>
+    <li>Use the AEM model for more flexible source and domain conditions</li>
   </ol>
   <p><a class="ghost-btn" href="https://kamiz15.github.io/castbook-quarto/" target="_blank" rel="noopener noreferrer">User manual</a></p>
   <div class="note">

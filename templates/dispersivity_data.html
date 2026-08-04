@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Dispersivity Data{% endblock %}
+{% block content_class %}site-database-content{% endblock %}
+
+{% block content %}
+<section class="section-spaced dispersivity-data-page data-themed-page">
+  <header class="section-head database-page-head">
+    <span class="kicker">Reference Dataset</span>
+    <h2>Dispersivity Data</h2>
+  </header>
+
+  <div class="card-like data-page-card dispersivity-table-card" data-database-browser>
+    <div class="table-header-row">
+      <div>
+        <h3>Dispersivity Dataset</h3>
+      </div>
+      <a class="ghost-btn" href="{{ url_for('static', filename='fig1_plots.csv') }}" download>Download Dispersivity Data</a>
+    </div>
+
+    <div class="reference-table-controls">
+      <label class="reference-entry-control">
+        Show
+        <select data-database-size aria-label="Dispersivity rows per page">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="all">All</option>
+        </select>
+        entries
+      </label>
+      <label class="reference-search-control">
+        Search:
+        <input type="search" data-database-search aria-label="Search dispersivity data">
+      </label>
+    </div>
+
+    <div class="reference-table-wrapper">
+      <table class="data-table site-data-table reference-data-table dispersivity-data-table">
+        <thead>
+          <tr>
+            {% for header in dispersivity_headers %}
+              <th scope="col" aria-sort="none">
+                <button type="button" class="reference-sort-button" data-database-sort data-column="{{ loop.index0 }}">
+                  <span>{{ header }}</span>
+                  <span class="reference-sort-indicator" aria-hidden="true">&#8597;</span>
+                </button>
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dispersivity_rows %}
+            <tr data-database-row data-dispersivity-row>
+              {% for header in dispersivity_headers %}
+                <td data-label="{{ header }}">{{ row[header] }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="reference-table-footer">
+      <p class="small reference-table-info" data-database-info aria-live="polite"></p>
+      <nav class="reference-pagination" data-database-pagination aria-label="Dispersivity data pages"></nav>
+    </div>
+  </div>
+
+  <h2 class="data-page-section-heading">Dispersivity Plots</h2>
+  <div class="dispersivity-plot-grid">
+    <figure class="card-like data-page-card dispersivity-plot-card">
+      <h3>Transverse Dispersivity Distribution</h3>
+      <img src="{{ url_for('static', filename='DispersivityPlots/ticks.png') }}" alt="Histogram of transverse and vertical transverse dispersivity data">
+    </figure>
+    <figure class="card-like data-page-card dispersivity-plot-card">
+      <h3>Dispersivity Summary</h3>
+      <img src="{{ url_for('static', filename='DispersivityPlots/box.png') }}" alt="Box plot comparing transverse dispersivity measurements">
+    </figure>
+    <figure class="card-like data-page-card dispersivity-plot-card dispersivity-plot-card--wide">
+      <h3>Dispersivity by Data Order</h3>
+      <img src="{{ url_for('static', filename='DispersivityPlots/scatter.png') }}" alt="Scatter plot of transverse dispersivity measurements by data order">
+    </figure>
+  </div>
+
+  <script src="{{ url_for('static', filename='site_database.js') }}?v=20260803d" defer></script>
+</section>
+{% endblock %}

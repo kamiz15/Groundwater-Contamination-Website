@@ -128,6 +128,7 @@ def test_site_database_typesets_shared_parameter_labels(site_client):
     assert "Vertical Transverse Dispersivity &alpha;<sub>Tv</sub> [m]" in page
     assert "Threshold Concentration <i>C</i><sub>thres</sub> [mg/L]" in page
     assert 'name="electron_acceptor_no3"' in page
-    assert 'aria-label="Recognized CSV columns"' in page
+    assert 'aria-label="Recognized CSV columns"' not in page
+    assert "Download Sample File" in page
     assert "Plume Width <i>W</i><sub>p</sub> [m]" in page
     assert "<code>site_unit, compound" not in page

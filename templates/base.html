@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}CAST{% endblock %}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260803c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260804d">
 
   {# Inter is self-hosted via @font-face in styles.css (GDPR: no visitor IPs to Google). #}
   {# BokehJS (~2 MB of render-blocking scripts) is only needed by pages that
@@ -26,7 +26,8 @@
 
     <nav class="nav" aria-label="Primary">
       <a class="nav-link" href="{{ url_for('home') }}">Home</a>
-      <a class="nav-link" href="{{ url_for('site_bp.site_database') }}">Database</a>
+      <a class="nav-link" href="{{ url_for('site_bp.site_database') }}">Site Database</a>
+      <a class="nav-link" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a>
       <a class="nav-link" href="{{ url_for('aem_bp.aem_landing') }}">AEM Model</a>
       <a class="nav-link" href="{{ url_for('analytical_bp.analytical_landing') }}">Analytical Models</a>
       <a class="nav-link" href="{{ url_for('empirical_bp.empirical_landing') }}">Empirical Models</a>
@@ -48,6 +49,15 @@
         <ul class="menu">
           <li class="menu-item">
             <a class="menu-link" href="{{ url_for('home') }}">Home</a>
+          </li>
+          <li class="menu-item has-dd">
+            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
+              Database &#9662;
+            </button>
+            <ul class="dropdown">
+              <li><a class="dd-link" href="{{ url_for('site_bp.site_database') }}">Site Database</a></li>
+              <li><a class="dd-link" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a></li>
+            </ul>
           </li>
 
           <li class="menu-item has-dd">
@@ -101,9 +111,6 @@
             <a class="menu-link" href="{{ url_for('aem_bp.aem_landing') }}">AEM Model</a>
           </li>
 
-          <li class="menu-item">
-            <a class="menu-link" href="{{ url_for('site_bp.site_database') }}">Database</a>
-          </li>
         </ul>
       </nav>
 
@@ -127,16 +134,24 @@
     <footer class="footer" role="contentinfo" id="footer-contact">
       <div class="footer-inner">
         <div class="footer-col">
-          <h4>Contact Us</h4>
+          <h4>Feedback or Issues</h4>
           <form id="contactForm">
             <input id="contactCsrf" type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <label for="contactName">Name</label>
-            <input id="contactName" name="name" type="text" placeholder="Your name" required />
-            <label for="contactEmail">Email</label>
-            <input id="contactEmail" name="email" type="email" placeholder="your@email.com" required />
-            <label for="contactMsg">Message</label>
-            <textarea id="contactMsg" name="message" rows="3" placeholder="Your message" required></textarea>
-            <div class="form-actions">
+            <div class="contact-row contact-row-details">
+              <div class="contact-field">
+                <label for="contactName">Name</label>
+                <input id="contactName" name="name" type="text" placeholder="Your name" required />
+              </div>
+              <div class="contact-field">
+                <label for="contactEmail">Email</label>
+                <input id="contactEmail" name="email" type="email" placeholder="your@email.com" required />
+              </div>
+            </div>
+            <div class="contact-row contact-row-message">
+              <div class="contact-field">
+                <label for="contactMsg">Message</label>
+                <textarea id="contactMsg" name="message" rows="2" placeholder="Your message" required></textarea>
+              </div>
               <button class="cta" type="submit">Submit</button>
             </div>
             <p id="contactMessage" class="contact-message" role="status" aria-live="polite"></p>
@@ -148,15 +163,15 @@
           <ul class="supporters">
             <li class="supporter">
               <span class="partner-logo partner-logo-tu"><img src="{{ url_for('static', filename='images/logos/university-tuebingen.svg') }}" alt="University of Tübingen logo"></span>
-              <span class="supporter-copy"><strong>Eberhard Karls University of Tübingen</strong><small>Germany</small></span>
             </li>
             <li class="supporter">
               <span class="partner-logo partner-logo-dark partner-logo-iitd"><img src="{{ url_for('static', filename='images/logos/iit-delhi.png') }}" alt="IIT Delhi logo"></span>
-              <span class="supporter-copy"><strong>Indian Institute of Technology Delhi</strong><small>India</small></span>
             </li>
             <li class="supporter">
               <span class="partner-logo partner-logo-dark partner-logo-waterloo"><img src="{{ url_for('static', filename='images/logos/university-waterloo.png') }}" alt="University of Waterloo logo"></span>
-              <span class="supporter-copy"><strong>University of Waterloo</strong><small>Canada</small></span>
+            </li>
+            <li class="supporter">
+              <span class="partner-logo partner-logo-dfg"><img src="{{ url_for('static', filename='report_assets/dfg-logo-foerderung/dfg_logo_schriftzug_blau_foerderung_de.png') }}" alt="German Research Foundation (DFG) funding logo"></span>
             </li>
           </ul>
         </div>
