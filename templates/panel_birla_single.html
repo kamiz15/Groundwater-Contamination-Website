@@ -1,8 +1,11 @@
 {% extends "model_workbench_single.html" %}
-{% block model_kicker %}Empirical Toolbox{% endblock %}
-{% block model_title %}Birla et al. - Single Simulation{% endblock %}
+{% block model_kicker %}Hybrid Toolbox{% endblock %}
+{% block model_title %}Birla et al. (2020) - Single Simulation{% endblock %}
 {% block toolbox_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
-{% block toolbox_label %}All empirical models{% endblock %}
+{% block toolbox_label %}All hybrid models{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_birla.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Birla et al.{% endblock %}
-{% block model_about_link %}<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='birla') }}">About</a>{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('empirical_bp.birla_multiple') }}">Multiple simulations</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='birla') }}">About</a>
+{% endblock %}

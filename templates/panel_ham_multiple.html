@@ -1,5 +1,9 @@
 {% extends "model_workbench_multiple.html" %}
 {% block model_kicker %}Analytical Toolbox{% endblock %}
-{% block model_title %}Ham et al. - Multiple Simulation{% endblock %}
+{% block model_title %}Ham et al. (2004) - Multiple Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_ham.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Ham et al.{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.ham_single') }}">Single simulation</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='ham') }}">About</a>
+{% endblock %}

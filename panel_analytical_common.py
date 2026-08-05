@@ -142,18 +142,41 @@ def error_card(message) -> str:
     """
 
 
-def comparison_plot(title: str, manual_label: str, manual_x, manual_y, selected_site_id: int, email: str, manual_axis_label: str):
+def comparison_plot_data(title: str, manual_label: str, manual_x, manual_y,
+                         selected_site_id: int, email: str, manual_axis_label: str):
+    field_x, field_y = load_field_points(email) if selected_site_id > 0 else ([], [])
+    return {
+        "type": "comparison_scatter",
+        "title": title,
+        "x_label": "Site Number" if selected_site_id > 0 else manual_axis_label,
+        "y_label": "Plume Length (m)",
+        "field_label": "Database plume length",
+        "field_x": field_x,
+        "field_y": field_y,
+        "manual_label": manual_label,
+        "manual_x": list(manual_x),
+        "manual_y": list(manual_y),
+        "caption": ("Database plume lengths compared with the model result."
+                    if field_x else "Computed model plume lengths."),
+    }
+
+
+def comparison_plot(title: str, manual_label: str, manual_x, manual_y,
+                    selected_site_id: int, email: str, manual_axis_label: str,
+                    return_data: bool = False):
+    plot_data = comparison_plot_data(
+        title, manual_label, manual_x, manual_y,
+        selected_site_id, email, manual_axis_label,
+    )
     p = figure(
-        title=title,
-        x_axis_label="Site Number" if selected_site_id > 0 else manual_axis_label,
-        y_axis_label="Plume Length (m)",
+        title=plot_data["title"],
+        x_axis_label=plot_data["x_label"],
+        y_axis_label=plot_data["y_label"],
         height=420,
         sizing_mode="stretch_width",
     )
-    if selected_site_id > 0:
-        field_x, field_y = load_field_points(email)
-        if field_x and field_y:
-            p.scatter(field_x, field_y, size=12, marker="circle", color="#5598e3", legend_label="Database plume length")
-    p.scatter(manual_x, manual_y, size=14 if len(manual_y) == 1 else 12, marker="circle", color="#0e3a69", legend_label=manual_label)
+    if plot_data["field_x"] and plot_data["field_y"]:
+        p.scatter(plot_data["field_x"], plot_data["field_y"], size=12, marker="circle", color="#5598e3", legend_label=plot_data["field_label"])
+    p.scatter(plot_data["manual_x"], plot_data["manual_y"], size=14 if len(plot_data["manual_y"]) == 1 else 12, marker="circle", color="#0e3a69", legend_label=plot_data["manual_label"])
     p.legend.location = "top_right"
-    return p
+    return (p, plot_data) if return_data else p

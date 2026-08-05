@@ -75,13 +75,20 @@ def test_multiple_output_autorun_supports_constant_button_names(
 ):
     submitted = []
     _freeze_button_names(monkeypatch, module)
-    monkeypatch.setattr(module, "query_float", lambda _name, default: default)
     monkeypatch.setattr(
         module,
         "query_int",
         lambda name, default: 1 if name in {"output_only", "run"} else default,
     )
     monkeypatch.setattr(module, "query_str", lambda _name, default="": default)
+    # The run is driven by the sidebar's site pick, so autorun needs one.
+    monkeypatch.setattr(module, "authenticated_email", lambda: "user@example.com")
+    monkeypatch.setattr(module, "get_user_sites_rows", lambda _email: [{
+        "id": 7, "display_id": 7, "site_unit": "Borden", "compound": "BTEX",
+        "aquifer_thickness": 10.0, "source_thickness": 5.0, "electron_donor": 5.0,
+        "electron_acceptor_o2": 2.0, "alpha_tv": 0.1, "alpha_th": 0.2, "gamma": 3.5,
+    }])
+    monkeypatch.setattr(module, "_selected_site_ids", lambda: [7])
     monkeypatch.setattr(
         module,
         "submit_job",

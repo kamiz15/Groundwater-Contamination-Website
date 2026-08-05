@@ -1,5 +1,9 @@
 {% extends "model_workbench_multiple.html" %}
 {% block model_kicker %}Analytical Toolbox{% endblock %}
-{% block model_title %}Liedl 3D - Multiple Simulation{% endblock %}
+{% block model_title %}Liedl 3D (2011) - Multiple Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_liedl_3d.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Liedl 3D{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.liedl3d_single') }}">Single simulation</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='liedl3d') }}">About</a>
+{% endblock %}

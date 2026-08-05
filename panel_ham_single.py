@@ -12,8 +12,8 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def ham_single_app():
-    q = pn.widgets.FloatInput(name="Source Flux Q [m\u00b2/yr]", value=query_float("Q", 5.0), step=0.1)
-    alpha_t = pn.widgets.FloatInput(name="Transverse Dispersivity \u03b1_T [m]", value=query_float("alpha_T", 0.01), step=0.001)
+    q = pn.widgets.FloatInput(name="Source Flux q [m\u00b2/yr]", value=query_float("Q", 5.0), step=0.1)
+    alpha_t = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("alpha_T", 0.01), step=0.001)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
     c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
     c_ed0 = pn.widgets.FloatInput(name="Donor Concentration at Source C_D^0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
@@ -29,7 +29,7 @@ def ham_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Ham et al. \u2014 Single Simulation", "Ham Analytical")
+        report = CASTReport("Ham et al. (2004) \u2014 Single Simulation", "Ham et al. (2004)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(
@@ -43,17 +43,18 @@ def ham_single_app():
             lmax = ham_lmax(q.value, alpha_t.value, gamma.value, c_ea0.value, c_ed0.value)
             result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
-            plot_pane.object = comparison_plot("Ham et al.", "Ham model plume length", user_x, [lmax], selected_site_id, email, "Run Number")
+            plot, plot_data = comparison_plot("Ham et al. (2004)", "Ham model plume length", user_x, [lmax], selected_site_id, email, "Run Number", return_data=True)
+            plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "Q", "name": "Source flux Q", "value": q.value, "unit": "m\u00b2/yr"},
-                    {"symbol": "\u03b1T", "name": "Transverse Dispersivity", "value": alpha_t.value, "unit": "m"},
-                    {"symbol": "\u03b3", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
+                    {"symbol": "q", "name": "Source Flux", "value": q.value, "unit": "m\u00b2/yr"},
+                    {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_t.value, "unit": "m"},
+                    {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
                     {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
                     {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
-                "plot_data": {"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Ham et al."},
+                "plot_data": plot_data,
             })
             export_btn.visible = True
         except Exception as exc:
@@ -67,7 +68,7 @@ def ham_single_app():
             _run()
         return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
-    controls = pn.Column("## Ham et al. - Single Simulation", "### Manual inputs", q, alpha_t, gamma, c_ea0, c_ed0, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})
+    controls = pn.Column("### Manual inputs", q, alpha_t, gamma, c_ea0, c_ed0, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})
     outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
     body = pn.FlexBox(controls, outputs_col, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
     return pn.Column(run_btn, result_pane, body, export_btn, sizing_mode="stretch_both", styles={"gap": "14px"})

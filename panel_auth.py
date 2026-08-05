@@ -26,12 +26,15 @@ def _query_email() -> str:
 
 
 def authenticated_email() -> str:
-    """Return the authenticated user's email for the current Panel session.
+    """Return the caller's identity for the current Panel session.
+
+    Either a logged-in account's email or, for a visitor using CAST without an
+    account, their per-session guest id (see security.current_email).
 
     Identity is taken from a reverse-proxy-injected, non-spoofable request header
-    derived from the Flask login session - never from a client-controllable query
-    parameter. This prevents one logged-in user from reading another user's site
-    data by editing `?email=` in the iframe URL.
+    derived from the Flask session - never from a client-controllable query
+    parameter. This prevents one visitor from reading another's site data by
+    editing `?email=` in the iframe URL.
 
     The query-string fallback is only consulted when explicitly enabled via the
     PANEL_TRUST_QUERY_EMAIL setting, which exists for running the Panel service

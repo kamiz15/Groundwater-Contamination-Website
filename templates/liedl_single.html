@@ -3,4 +3,7 @@
 {% block model_title %}Liedl et al. (2005) - Single Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_liedl_2d.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Liedl 2D{% endblock %}
-{% block model_about_link %}<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='liedl') }}">About</a>{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.liedl_multiple') }}">Multiple simulations</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='liedl') }}">About</a>
+{% endblock %}

@@ -64,7 +64,7 @@ def test_report_image_fit_preserves_aspect_ratio_when_height_is_capped():
 
 
 def test_pdf_report_renders_comparison_scatter_on_second_page():
-    report = CASTReport("Liedl et al. (2005) - Single Simulation", "Liedl Analytical")
+    report = CASTReport("Liedl et al. (2005) - Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "M", "name": "Aquifer Thickness", "value": 2, "unit": "m"},
@@ -91,7 +91,10 @@ def test_pdf_report_renders_comparison_scatter_on_second_page():
 
 
 def test_pdf_report_formats_symbols_for_input_table():
+    assert CASTReport._symbol_markup("S_T") == "<i>S</i><sub>T</sub>"
+    assert CASTReport._symbol_markup("S_W") == "<i>S</i><sub>W</sub>"
     assert CASTReport._symbol_markup("alpha_Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup(chr(945) + "Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup(chr(206) + chr(177) + "Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup("C_EA0") == "<i>C</i><sub>A</sub><super>0</super>"
+    assert CASTReport._symbol_markup("C_D0") == "<i>C</i><sub>D</sub><super>0</super>"

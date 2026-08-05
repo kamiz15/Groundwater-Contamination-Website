@@ -48,13 +48,13 @@
   <header class="section-head">
     <span class="kicker">Toolboxes</span>
     <h2>Groundwater Assessment Toolboxes</h2>
-    <p class="section-sub">A complete workflow — from site data to analytical, empirical and numerical contaminant transport models.</p>
+    <p class="section-sub">A complete workflow — from site data to analytical, hybrid and numerical contaminant transport models.</p>
   </header>
 
   <div class="tile-grid">
     <a id="model-site-db"
        class="tile"
-       href="{{ url_for('site_bp.site_database') if current_user.is_authenticated else url_for('login_page') }}">
+       href="{{ url_for('site_bp.site_database') }}">
       <div class="tile-image tile-img-1"></div>
       <div class="tile-label">Site Database &amp; Model Input</div>
       <p class="tile-desc">Manage site data and prepare validated input datasets for every model.</p>
@@ -107,7 +107,7 @@
   <p>The toolboxes can be used in sequence, starting from site data and progressing to transport models. A suggested workflow is:</p>
   <ol class="workflow-steps">
     <li>Start with the Database Toolbox</li>
-    <li>Continue with the Analytical or Empirical model toolbox</li>
+    <li>Continue with the Analytical or Hybrid model toolbox</li>
     <li>Run the Numerical model toolbox (for simple cases)</li>
     <li>Use the AEM model for more flexible source and domain conditions</li>
   </ol>

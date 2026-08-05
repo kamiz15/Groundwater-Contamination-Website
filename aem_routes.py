@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from aem_jobs import INVERSE_PARAMS, USER_FACING_ERROR, load_aem_design, save_aem_design
@@ -18,7 +17,7 @@ from numerical_jobs import (
     save_job_meta,
     submit_job,
 )
-from security import csrf_protect
+from security import csrf_protect, current_email
 
 aem_bp = Blueprint("aem_bp", __name__)
 
@@ -34,7 +33,7 @@ MAX_MIN_RADIUS = 1.0
 
 
 def _current_email():
-    return current_user.email
+    return current_email()
 
 
 def _error(message, status=400):
@@ -278,19 +277,16 @@ def _submit(kind, params):
 
 
 @aem_bp.get("/aem")
-@login_required
 def aem_landing():
     return render_template("aem_designer.html")
 
 
 @aem_bp.get("/aem/designer")
-@login_required
 def aem_designer():
     return redirect(url_for("aem_bp.aem_landing"), code=302)
 
 
 @aem_bp.get("/aem/forward")
-@login_required
 def aem_forward():
     token = request.args.get("design", "")
     if load_aem_design(token, _current_email()) is None:
@@ -299,13 +295,11 @@ def aem_forward():
 
 
 @aem_bp.get("/aem/inverse")
-@login_required
 def aem_inverse():
     return render_template("aem_inverse.html", inverse_params=INVERSE_PARAMS)
 
 
 @aem_bp.post("/aem/api/pack")
-@login_required
 @csrf_protect
 def aem_pack():
     try:
@@ -324,7 +318,6 @@ def aem_pack():
 
 
 @aem_bp.post("/aem/api/repack")
-@login_required
 @csrf_protect
 def aem_repack():
     try:
@@ -353,7 +346,6 @@ def aem_repack():
 
 
 @aem_bp.post("/aem/api/design")
-@login_required
 @csrf_protect
 def aem_design_create():
     try:
@@ -366,7 +358,6 @@ def aem_design_create():
 
 
 @aem_bp.post("/aem/api/forward")
-@login_required
 @csrf_protect
 def aem_forward_submit():
     try:
@@ -389,7 +380,6 @@ def aem_forward_submit():
 
 
 @aem_bp.post("/aem/api/inverse")
-@login_required
 @csrf_protect
 def aem_inverse_submit():
     try:
@@ -415,7 +405,6 @@ def aem_inverse_submit():
 
 
 @aem_bp.get("/aem/jobs/<job_id>")
-@login_required
 def aem_job_status(job_id):
     if _owned_job_meta(job_id) is None:
         return _error("Unknown AEM job.", 404)
@@ -436,7 +425,6 @@ def aem_job_status(job_id):
 
 
 @aem_bp.post("/aem/jobs/<job_id>/cancel")
-@login_required
 @csrf_protect
 def aem_job_cancel(job_id):
     if _owned_job_meta(job_id) is None:
@@ -454,7 +442,6 @@ def _array(value):
 
 
 @aem_bp.get("/aem/jobs/<job_id>/result")
-@login_required
 def aem_job_result(job_id):
     meta = _owned_job_meta(job_id)
     status = job_status(job_id) if meta else None
@@ -499,7 +486,6 @@ def aem_job_result(job_id):
 
 
 @aem_bp.get("/aem/jobs/<job_id>/result.csv")
-@login_required
 def aem_job_result_csv(job_id):
     meta = _owned_job_meta(job_id)
     status = job_status(job_id) if meta else None
@@ -524,7 +510,6 @@ def aem_job_result_csv(job_id):
 
 
 @aem_bp.get("/aem/jobs/<job_id>/result.npz")
-@login_required
 def aem_job_result_npz(job_id):
     """The workbench-native sibling of the CSV download (same guards).
 

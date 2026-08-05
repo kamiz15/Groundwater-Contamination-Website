@@ -1,89 +1,10 @@
-{% extends "base.html" %}
-{% block title %}Numerical Vertical Model - Multiple Simulation{% endblock %}
-{% block content %}
-<section class="section-spaced model-page model-workbench numerical-vertical-multiple-page">
-  <header class="model-workbench-header">
-    <div class="section-head">
-      <span class="kicker">Numerical Toolbox</span>
-      <h2>Numerical Vertical Model - Multiple Simulation</h2>
-      <p class="model-workbench-hint">Load site data, then edit scenarios in the table below and click Run to compare multiple simulations.</p>
-    </div>
-    <a class="ghost-btn model-workbench-back" href="{{ url_for('numerical_bp.numerical_landing') }}">&larr; All numerical models</a>
-  </header>
-
-  <div class="numerical-multiple-top">
-    <div class="numerical-multiple-inputs">
-      <div class="card-like model-output-card">
-        <h3>Simulation Panel</h3>
-        <div class="panel-shell output-panel-shell vertical-multiple-input-shell">
-          <iframe
-            src="{{ input_panel_src }}"
-            class="panel-frame output-panel-frame vertical-multiple-input-frame"
-            data-min-height="480"
-            loading="eager"
-          ></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="numerical-multiple-aside">
-      <div class="card-like numerical-multiple-run-card">
-        <button type="button" id="verticalMultipleRunButton" class="primary-btn numerical-multiple-run vertical-multiple-run-button">
-          Run Vertical Scenarios
-        </button>
-      </div>
-
-      <div class="card-like model-output-card vertical-multiple-result-card">
-        <h3>Output Visualisation</h3>
-        <div class="panel-shell output-panel-shell vertical-multiple-result-shell">
-          <iframe
-            id="verticalMultipleResultFrame"
-            src="{{ result_panel_src }}"
-            data-base-src="{{ result_panel_src }}"
-            class="panel-frame output-panel-frame vertical-multiple-result-frame"
-            data-min-height="320"
-            loading="eager"
-          ></iframe>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% include "report_bridge_card.html" %}
-
-  <script>
-    window.addEventListener("message", (event) => {
-      const data = event.data;
-      if (!data || data.type !== "numerical-multiple-result" || data.orientation !== "vertical") return;
-      // Only trust the result from the input frame we told to run.
-      const inputFrame = document.querySelector(".vertical-multiple-input-frame");
-      if (!inputFrame || event.source !== inputFrame.contentWindow) return;
-      const runButton = document.getElementById("verticalMultipleRunButton");
-      if (runButton) {
-        runButton.disabled = false;
-        runButton.textContent = "Run Vertical Scenarios";
-      }
-      // Failed run: the input frame shows the error; keep the output frame as-is.
-      if (data.error) return;
-      const frame = document.getElementById("verticalMultipleResultFrame");
-      if (!frame) return;
-      const base = frame.dataset.baseSrc || frame.src;
-      const separator = base.includes("?") ? "&" : "?";
-      const query = new URLSearchParams({
-        job_ids: JSON.stringify(data.job_ids || []),
-        scenario_rows: JSON.stringify(data.rows || []),
-      });
-      frame.src = `${base}${separator}${query.toString()}`;
-    });
-
-    document.getElementById("verticalMultipleRunButton")?.addEventListener("click", (event) => {
-      const button = event.currentTarget;
-      const frame = document.querySelector(".vertical-multiple-input-frame");
-      if (!frame || !frame.contentWindow) return;
-      button.disabled = true;
-      button.textContent = "Running Vertical Scenarios...";
-      frame.contentWindow.postMessage({ type: "run-numerical-multiple", orientation: "vertical" }, "*");
-    });
-  </script>
-</section>
+{% extends "model_workbench_multiple.html" %}
+{% block model_kicker %}Numerical Toolbox{% endblock %}
+{% block model_title %}Numerical Vertical Model - Multiple Simulation{% endblock %}
+{% block model_hint %}Pick the sites to compare on the left and press Run. The model runs once per selected site using that site's database parameters. Nothing is selected by default because every site queues a full numerical simulation.{% endblock %}
+{% block compare_submit_label %}Run Vertical Simulations{% endblock %}
+{% block toolbox_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
+{% block toolbox_label %}All numerical models{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">Single simulation</a>
 {% endblock %}

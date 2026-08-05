@@ -322,6 +322,10 @@ document.addEventListener("DOMContentLoaded", () => {
       noteSync(frame, "pending", "iframe document not ready yet");
       return null;
     }
+    // The parent frame tracks the full document height, so a second vertical
+    // scrollbar inside the embedded Panel document is redundant.
+    doc.documentElement.style.overflowY = "hidden";
+    doc.body.style.overflowY = "hidden";
     return Math.ceil(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight));
   };
   const floorOf = (frame) => Number(frame.dataset.minHeight || 680);

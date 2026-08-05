@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Empirical Models &bull; CAST{% endblock %}
+{% block title %}Hybrid Models &bull; CAST{% endblock %}
 {% block content %}
 
 <section class="model-landing">
   <header class="section-head">
     <span class="kicker">Toolbox</span>
-    <h2>Empirical Models</h2>
-    <p class="section-sub">Field-data correlations for plume length. Pick a model, then run a single scenario or compare multiple scenarios.</p>
+    <h2>Hybrid Models</h2>
+    <p class="section-sub">Models that combine different modelling approaches.</p>
   </header>
 
   <div class="model-grid">
     <div class="model-card">
-      <h3>Maier &amp; Grathwohl</h3>
+      <h3>Maier &amp; Grathwohl (2006)</h3>
       <div class="model-actions">
         <a class="primary-btn" href="{{ url_for('empirical_bp.maier_single') }}">Single</a>
         <a class="ghost-btn" href="{{ url_for('empirical_bp.maier_multiple') }}">Multiple</a>
@@ -20,12 +20,16 @@
     </div>
 
     <div class="model-card">
-      <h3>Birla et al.</h3>
+      <h3>Birla et al. (2020)</h3>
       <div class="model-actions">
         <a class="primary-btn" href="{{ url_for('empirical_bp.birla_single') }}">Single</a>
         <a class="ghost-btn" href="{{ url_for('empirical_bp.birla_multiple') }}">Multiple</a>
         <a class="ghost-btn" href="{{ url_for('model_about', slug='birla') }}">About</a>
       </div>
+    </div>
+
+    <div class="model-card">
+      <h3>K&ouml;hler et al. (2024)</h3>
     </div>
   </div>
 </section>

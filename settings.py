@@ -46,7 +46,7 @@ SESSION_COOKIE_SECURE = _env_bool('SESSION_COOKIE_SECURE', True)
 # limiting). The bundled nginx sets it to the real client and overwrites any
 # client-supplied value. Disable only if Flask is exposed without that proxy.
 TRUST_PROXY_HEADERS = _env_bool('TRUST_PROXY_HEADERS', True)
-DEMO_BYPASS_LOGIN = _env_bool('DEMO_BYPASS_LOGIN', False)
+# Fallback address for the contact form when CONTACT_EMAIL is unset.
 DEMO_USER_EMAIL = os.getenv('DEMO_USER_EMAIL', 'demo@example.com')
 CONTACT_EMAIL = os.getenv('CONTACT_EMAIL', DEMO_USER_EMAIL)
 CONTACT_FROM_EMAIL = os.getenv('CONTACT_FROM_EMAIL', CONTACT_EMAIL)
@@ -100,3 +100,9 @@ if NUMERICAL_HK_MIN_M_PER_DAY <= 0 or NUMERICAL_HK_MAX_M_PER_DAY < NUMERICAL_HK_
 # user, so the Data Workbench can re-open the last run without a re-upload.
 # The model writes atomically, so a new run just replaces the previous file.
 AEM_EXPORT_DIR = os.getenv('AEM_EXPORT_DIR', '.aem_exports')
+
+# Each site picked on a numerical multiple page is a full MODFLOW/MT3DMS run,
+# so cap how many one comparison may queue and keep the job worker responsive.
+NUMERICAL_MULTIPLE_MAX_RUNS = int(os.getenv('NUMERICAL_MULTIPLE_MAX_RUNS', '12'))
+if NUMERICAL_MULTIPLE_MAX_RUNS <= 0:
+    raise RuntimeError('NUMERICAL_MULTIPLE_MAX_RUNS must be positive')

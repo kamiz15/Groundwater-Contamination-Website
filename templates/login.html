@@ -10,7 +10,7 @@
 <body class="login-body">
     <div class="login-container">
         <h2>Welcome Back</h2>
-        <p class="login-subtitle">Log in to access the project dashboard</p>
+        <p class="login-subtitle">Log in to save your own site data</p>
 
         <form id="loginForm">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -33,6 +33,14 @@
 
             </p>
         </form>
+
+        <p class="login-disclaimer">
+            <strong>How your data is used.</strong> We store your account details and any
+            site data you upload only to run the models and show you your results. Your
+            data is not sold, shared with third parties, or used for any purpose beyond
+            operating CAST. Uploaded sites stay private to your account and you can delete
+            them at any time from the Site Database page.
+        </p>
     </div>
 </body>
 </html>

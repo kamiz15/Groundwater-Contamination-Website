@@ -52,3 +52,21 @@ def request_finite_int(name: str, default):
     if value is None:
         return default
     return int(value)
+
+
+def compare_site_ids(sites, default_all=True):
+    """Sites picked in a multiple page's "Compare Sites" list.
+
+    Restricted to sites the model can actually use, so a hand-edited query
+    string cannot smuggle in a site the model's own filter rejected.
+
+    With default_all (the analytical and empirical pages) an empty pick means
+    all of them, matching the original CAST's "All Sites". The numerical pages
+    pass default_all=False: each site there is a full MODFLOW run, so nothing
+    may start until the user has chosen.
+    """
+    usable = [int(s["id"]) for s in sites]
+    picked = [i for i in request.args.getlist("compare_sites", type=int) if i in usable]
+    if picked:
+        return picked
+    return usable if default_all else []

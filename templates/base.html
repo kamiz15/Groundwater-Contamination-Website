@@ -30,7 +30,7 @@
       <a class="nav-link" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a>
       <a class="nav-link" href="{{ url_for('aem_bp.aem_landing') }}">AEM Model</a>
       <a class="nav-link" href="{{ url_for('analytical_bp.analytical_landing') }}">Analytical Models</a>
-      <a class="nav-link" href="{{ url_for('empirical_bp.empirical_landing') }}">Empirical Models</a>
+      <a class="nav-link" href="{{ url_for('empirical_bp.empirical_landing') }}">Hybrid Models</a>
       <a class="nav-link" href="{{ url_for('numerical_bp.numerical_landing') }}">Numerical Models</a>
     </nav>
 
@@ -55,8 +55,8 @@
               Database &#9662;
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('site_bp.site_database') }}">Site Database</a></li>
-              <li><a class="dd-link" href="{{ url_for('site_bp.data_analysis_workbench') }}">Data Workbench</a></li>
+              <li><a class="dd-link" href="{{ url_for('site_bp.site_database') }}">Site Data</a></li>
+              <li><a class="dd-link" href="{{ url_for('site_bp.data_analysis_workbench') }}">Visual analysis</a></li>
             </ul>
           </li>
 
@@ -65,32 +65,23 @@
               Analytical Model &#9662;
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.analytical_landing') }}">All Models</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005) - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_multiple') }}">Liedl et al. (2005) - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl3d_single') }}">Liedl 3D - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl3d_multiple') }}">Liedl 3D - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu et al. (2004) - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_multiple') }}">Chu et al. (2004) - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham et al. (2004) - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_multiple') }}">Ham et al. (2004) - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_single') }}">BIOSCREEN-AT (Single)</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_multiple') }}">BIOSCREEN-AT (Multiple)</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_single') }}">Cirpka et al. (2005) - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_multiple') }}">Cirpka et al. (2005) - Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005) 2D</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_single') }}">Cirpka et al. (2005) 2D Horizontal</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.chu_single') }}">Chu et al. (2004) 2D Horizontal</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.ham_single') }}">Ham et al. (2004) 2D Horizontal</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl3d_single') }}">Liedl et al. (2011) 3D</a></li>
+              <li><a class="dd-link" href="{{ url_for('analytical_bp.bioscreen_single') }}">BIOSCREEN-AT 3D</a></li>
             </ul>
           </li>
 
           <li class="menu-item has-dd">
             <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Empirical Models &#9662;
+              Hybrid Models &#9662;
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('empirical_bp.empirical_landing') }}">All Models</a></li>
-              <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier &amp; Grathwohl &mdash; Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_multiple') }}">Maier &amp; Grathwohl &mdash; Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. &mdash; Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_multiple') }}">Birla et al. &mdash; Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier &amp; Grathwohl (2005)</a></li>
+              <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. (2020)</a></li>
+              <li><span class="dd-link" aria-disabled="true">K&ouml;hler et al. (2024)</span></li>
             </ul>
           </li>
 
@@ -99,11 +90,8 @@
               Numerical Model &#9662;
             </button>
             <ul class="dropdown">
-              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_landing') }}">All Models</a></li>
-              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">Horizontal - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_horizontal_multiple') }}">Horizontal - Multiple</a></li>
-              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">Vertical - Single</a></li>
-              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_vertical_multiple') }}">Vertical - Multiple</a></li>
+              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">2D Horizontal</a></li>
+              <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">2D Vertical</a></li>
             </ul>
           </li>
 
@@ -179,6 +167,6 @@
     </footer>
   </div>
 
-  <script src="{{ url_for('static', filename='script.js') }}?v=20260803e"></script>
+  <script src="{{ url_for('static', filename='script.js') }}?v=20260805a"></script>
 </body>
 </html>

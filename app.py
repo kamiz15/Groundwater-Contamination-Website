@@ -30,6 +30,7 @@ from security import (
     MAX_USERNAME_LENGTH,
     csrf_protect,
     csrf_token,
+    current_email,
     is_valid_email,
     json_object_or_400,
     password_policy_error,
@@ -37,7 +38,6 @@ from security import (
     required_text_fields,
 )
 from settings import (
-    DEMO_BYPASS_LOGIN,
     DEMO_USER_EMAIL,
     CONTACT_EMAIL,
     CONTACT_FROM_EMAIL,
@@ -111,7 +111,6 @@ app.config.update(
     MAX_CONTENT_LENGTH=MAX_REQUEST_BYTES,  # reject oversized request bodies
 )
 app.jinja_env.globals["csrf_token"] = csrf_token
-app.jinja_env.globals["demo_bypass_login"] = DEMO_BYPASS_LOGIN
 app.jinja_env.globals["contact_email"] = CONTACT_EMAIL
 app.jinja_env.globals["bokeh_js_files"] = [
     f"/{js_file}" if js_file.startswith("static/extensions/panel/") else js_file
@@ -131,17 +130,6 @@ class User(UserMixin):
         self.id = id
         self.username = username
         self.email = email
-
-
-_DEMO_USER = User(0, "Demo User", DEMO_USER_EMAIL)
-
-
-@app.before_request
-def demo_login_bypass():
-    if not DEMO_BYPASS_LOGIN or app.config.get("TESTING"):
-        return
-    if not current_user.is_authenticated:
-        flask_login_user(_DEMO_USER)
 
 
 @login_manager.user_loader
@@ -352,11 +340,13 @@ def register_page():
 
 @app.route("/auth/check")
 def auth_check():
-    if not current_user.is_authenticated:
-        return ("", 401)
     # The reverse proxy copies this header into the upstream Panel request as the
     # trusted X-Auth-Email, so Panel never has to trust a client-supplied identity.
-    return ("", 204, {"X-User-Email": current_user.email})
+    #
+    # Guests are allowed through: the model pages are public, and their embedded
+    # Panel apps would otherwise be redirected to /login. They are identified by
+    # their per-session guest id, so one visitor's runs never reach another's.
+    return ("", 204, {"X-User-Email": current_email()})
 
 
 @app.route("/me")

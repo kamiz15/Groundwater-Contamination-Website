@@ -9,7 +9,8 @@ from functools import wraps
 import logging
 from threading import Lock
 
-from flask import abort, jsonify, request, session
+from flask import abort, current_app, jsonify, request, session
+from flask_login import current_user
 from mysql.connector import Error as DatabaseError
 
 from settings import TRUST_PROXY_HEADERS
@@ -48,6 +49,43 @@ def password_policy_error(password: str) -> str | None:
     if len(password) > MAX_PASSWORD_LENGTH:
         return f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
     return None
+
+
+_GUEST_SESSION_KEY = "guest_id"
+
+
+def has_account() -> bool:
+    """True when this request may read or write data owned by a user.
+
+    Mirrors what @login_required allows, including Flask-Login's LOGIN_DISABLED
+    escape hatch, so a view that guards a single branch itself stays consistent
+    with the decorator on its siblings.
+    """
+    return bool(
+        current_app.config.get("LOGIN_DISABLED") or current_user.is_authenticated
+    )
+
+
+def current_email() -> str:
+    """Identity of the whoever is making this request.
+
+    Signed-in visitors are their account email. Everyone else gets a stable
+    per-session guest id, so an anonymous visitor's model runs, background jobs
+    and exports stay their own for the life of the session without an account.
+
+    A guest id is deliberately not a row in `users`: sites.user_email is a
+    foreign key onto that table, so nothing can be persisted against a guest.
+    Saving site data is what @login_required still guards.
+    """
+    if current_user.is_authenticated:
+        return current_user.email
+    guest = session.get(_GUEST_SESSION_KEY)
+    if not guest:
+        # .invalid is reserved (RFC 2606): it can never collide with a real
+        # account email, and it is not deliverable if one ever leaks into a log.
+        guest = f"guest-{secrets.token_hex(8)}@guest.invalid"
+        session[_GUEST_SESSION_KEY] = guest
+    return guest
 
 
 def csrf_token() -> str:

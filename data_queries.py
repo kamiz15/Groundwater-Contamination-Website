@@ -1,13 +1,21 @@
+import csv
 import json
 import math
 import os
 import struct
+from functools import lru_cache
+from pathlib import Path
 from threading import Lock
 
 import mysql.connector
 from mysql.connector import pooling
 
 from settings import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER, MAX_SITE_UPLOAD_ROWS
+from symbol_registry import build_header_map, header_scale
+
+# Reference database shipped with the app. Every model page reads it when the
+# user has not uploaded sites of their own, so the app is usable out of the box.
+REFERENCE_DATABASE_PATH = Path(__file__).resolve().parent / "static" / "original.csv"
 
 
 SCHEMA_STATEMENTS = [
@@ -236,32 +244,94 @@ def _extra_data_json(payload):
     return json.dumps(cleaned)
 
 
+_PLOT_COLUMNS = [
+    "id",
+    "site_unit",
+    "compound",
+    "aquifer_thickness",
+    "plume_length",
+    "plume_width",
+    "hydraulic_conductivity",
+    "electron_donor",
+    "electron_acceptor_o2",
+    "electron_acceptor_no3",
+]
+
+
+def _plot_rows(rows):
+    """Legacy list-of-lists view of site rows, used by the plotting helpers."""
+    return [[row.get(column) for column in _PLOT_COLUMNS] for row in rows]
+
+
 def get_user_sites(email):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM sites WHERE user_email = %s ORDER BY id ASC", (email,))
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    table_data = []
-    for s in data:
-        table_data.append([
-            s["id"],
-            s["site_unit"],
-            s["compound"],
-            s["aquifer_thickness"],
-            s["plume_length"],
-            s["plume_width"],
-            s["hydraulic_conductivity"],
-            s["electron_donor"],
-            s["electron_acceptor_o2"],
-            s["electron_acceptor_no3"]
-        ])
-    return table_data
+    return _plot_rows(get_user_sites_rows(email))
 
 
-def get_user_sites_rows(email):
+def get_owned_sites(email):
+    """List-of-lists of the user's own rows — for plots that already draw the
+    reference database as their own series (see plot_functions)."""
+    return _plot_rows(get_owned_sites_rows(email))
+
+
+@lru_cache(maxsize=1)
+def _reference_sites():
+    """Parse the shipped reference CSV into rows shaped like database rows.
+
+    Uses the same catalog header matching and unit scaling as the CSV upload
+    path, so a reference site autofills a model exactly as an uploaded one does.
+    """
+    with REFERENCE_DATABASE_PATH.open("r", encoding="utf-8-sig", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = reader.fieldnames or []
+        header_map = build_header_map(fieldnames)
+        mapped = set(header_map.values())
+        extra_headers = [
+            header
+            for header in fieldnames
+            if header and header.strip() and header not in mapped
+        ]
+        scales = {
+            column: header_scale(header)
+            for column, header in header_map.items()
+            if column in NUMERIC_SITE_FIELDS
+        }
+
+        rows = []
+        for row_id, raw in enumerate(reader, start=1):
+            row = {"id": row_id, "display_id": row_id}
+            for field in SITE_FIELDS:
+                header = header_map.get(field)
+                value = (raw.get(header) or "").strip() if header else ""
+                if field in NUMERIC_SITE_FIELDS:
+                    number = _as_float(value)
+                    row[field] = (
+                        None if number is None else number * scales.get(field, 1.0)
+                    )
+                else:
+                    row[field] = value
+            row["extra_data"] = {
+                header.strip(): (raw.get(header) or "").strip()
+                for header in extra_headers
+                if (raw.get(header) or "").strip()
+            }
+            rows.append(row)
+    return rows
+
+
+def reference_sites_rows():
+    """Fresh copies of the reference rows (callers annotate the dicts they get)."""
+    return [
+        {**row, "extra_data": dict(row["extra_data"])} for row in _reference_sites()
+    ]
+
+
+def get_owned_sites_rows(email):
+    """Only the rows this user uploaded — no reference fallback.
+
+    Use this wherever the rows stand for the user's own data: their site table,
+    their exports, and duplicate detection on upload. Everything that merely
+    *reads* sites to run or plot a model wants get_user_sites_rows instead.
+    """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM sites WHERE user_email = %s ORDER BY id ASC", (email,))
@@ -280,6 +350,17 @@ def get_user_sites_rows(email):
         else:
             row["extra_data"] = {}
     return rows
+
+
+def get_user_sites_rows(email):
+    """Sites for the models: the user's own rows, else the reference database.
+
+    The ids of reference rows are CSV positions, not database keys; they only
+    ever surface while the user has no rows of their own, so nothing can be
+    deleted or matched against a real site through them.
+    """
+    owned = get_owned_sites_rows(email) if email else []
+    return owned or reference_sites_rows()
 
 
 def insert_site(email, payload):
@@ -365,7 +446,7 @@ def _signature_from_cleaned(cleaned_values, extra):
 def _existing_signatures(email):
     """Signatures of the user's current rows, for duplicate detection."""
     signatures = set()
-    for row in get_user_sites_rows(email):
+    for row in get_owned_sites_rows(email):
         text_part = tuple(str(row.get(f) or "").strip().lower() for f in TEXT_SITE_FIELDS)
         numeric_part = tuple(_f32(row.get(f)) for f in NUMERIC_SITE_FIELDS)
         signatures.add((text_part, numeric_part, _canonical_extra(row.get("extra_data"))))

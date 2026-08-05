@@ -1,6 +1,9 @@
 {% extends "model_workbench_single.html" %}
 {% block model_kicker %}Analytical Toolbox{% endblock %}
-{% block model_title %}Cirpka et al. (2005) - Single Simulation{% endblock %}
+{% block model_title %}Cirpka et al. (2006) - Single Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_cirpka.png') }}{% endblock %}
-{% block conceptual_alt %}Conceptual model diagram for Cirpka et al. (2005){% endblock %}
-{% block model_about_link %}<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='cirpka') }}">About</a>{% endblock %}
+{% block conceptual_alt %}Conceptual model diagram for Cirpka et al. (2006){% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.cirpka_multiple') }}">Multiple simulations</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='cirpka') }}">About</a>
+{% endblock %}

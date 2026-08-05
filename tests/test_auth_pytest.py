@@ -122,8 +122,12 @@ def test_register_login_logout_happy_path(monkeypatch):
     assert login.status_code == 200
     assert login.get_json()["success"] is True
     assert authenticated.status_code == 204
+    assert authenticated.headers["X-User-Email"] == "test.user@example.com"
     assert logout.status_code == 302
-    assert invalidated.status_code == 401
+    # Logging out drops the account identity but not access: the site stays
+    # usable as a guest, under a guest identity.
+    assert invalidated.status_code == 204
+    assert invalidated.headers["X-User-Email"].endswith("@guest.invalid")
 
 
 def test_login_rejects_wrong_password(monkeypatch):

@@ -4,40 +4,47 @@ import csv
 import io
 import logging
 from pathlib import Path
-import re
 from urllib.parse import urlencode
 from xml.sax.saxutils import escape as xml_escape
 
 from flask import Blueprint, Response, abort, redirect, render_template, request, jsonify, url_for
-from flask_login import current_user, login_required
+from flask_login import login_required
 
 from data_queries import (
     delete_site,
     delete_user_sites,
-    get_user_sites,
-    get_user_sites_rows,
+    get_owned_sites,
+    get_owned_sites_rows,
     insert_site,
     insert_sites_bulk,
     NUMERIC_SITE_FIELDS,
+    REFERENCE_DATABASE_PATH,
     SITE_FIELDS,
     TEXT_SITE_FIELDS,
 )
 from numerical_jobs import job_status, load_job_meta
 from pdf_report import CASTReport
 from plot_functions import create_bargraph, create_histogram, create_boxplot
-from security import csrf_protect, form_data_or_400, json_object_or_400, rate_limit
+from security import (
+    csrf_protect,
+    current_email,
+    form_data_or_400,
+    has_account,
+    json_object_or_400,
+    rate_limit,
+)
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import (
     SITE_COLUMN_DEFS,
     TEXT_COLUMN_DEFS,
-    header_match,
+    build_header_map,
+    header_scale,
     header_to_site_column,
     ui_label_markup,
 )
 
 site_bp = Blueprint("site_bp", __name__)
 logger = logging.getLogger(__name__)
-REFERENCE_DATABASE_PATH = Path(__file__).resolve().parent / "static" / "original.csv"
 DISPERSIVITY_DATABASE_PATH = (
     Path(__file__).resolve().parent / "static" / "fig1_plots.csv"
 )
@@ -241,7 +248,7 @@ def _reference_database_pdf_bytes(headers, rows, title="CAST Reference Database"
 
 # ---- column config ----
 # COLUMN_DEFS maps the legacy 9-column plot labels to their index in the
-# list-of-lists returned by get_user_sites (used by the standalone plot pages,
+# list-of-lists returned by get_owned_sites (used by the standalone plot pages,
 # which keep the original fixed layout). The input table itself is rendered
 # dynamically from the catalog (ALL_FIELD_DEFS / visible columns).
 COLUMN_DEFS = [
@@ -309,51 +316,7 @@ def _get_column_index(label: str):
 
 
 def _current_email():
-    return current_user.email
-
-
-def _build_field_to_header_map(fieldnames):
-    """Map sites columns to the original CSV header that fills them.
-
-    Every header is matched against the catalog (symbol_registry), so any
-    recognized model-parameter column — not just the original 9 — is captured.
-    Returns { sites_column: original_header }.
-
-    Collisions (two headers mapping to one column) are resolved by precedence:
-    a canonical match wins over a soft alias. This keeps "Site Unit" (the name)
-    in site_unit even when "Site No." (a row index) appears earlier.
-    """
-    mapping = {}
-    strong = {}
-    for header in fieldnames:
-        if not header or not header.strip():
-            continue
-        column, is_strong = header_match(header)
-        if not column:
-            continue
-        if column not in mapping or (is_strong and not strong.get(column)):
-            mapping[column] = header
-            strong[column] = is_strong
-    return mapping
-
-
-# Detects a power-of-ten scale declared in a header unit, e.g. "10-3", "10^-3"
-# or "1e-3" inside "Hydraulic conductivity[10-3 [m/s]]".
-_SCALE_RE = re.compile(r"10\s*\^?\s*(-?\d+)|1[eE]\s*(-?\d+)")
-
-
-def _header_scale(header: str) -> float:
-    """Return the power-of-ten factor declared in a header, or 1.0 if none."""
-    if not header:
-        return 1.0
-    match = _SCALE_RE.search(header)
-    if not match:
-        return 1.0
-    exponent = match.group(1) if match.group(1) is not None else match.group(2)
-    try:
-        return 10.0 ** int(exponent)
-    except (ValueError, OverflowError):
-        return 1.0
+    return current_email()
 
 
 _CSV_DELIMITERS = [",", ";", "\t", "|"]
@@ -395,7 +358,7 @@ def _extra_field_keys(rows):
 
 
 def _user_database_rows(email):
-    sites = get_user_sites_rows(email)
+    sites = get_owned_sites_rows(email)
     field_defs = _visible_field_defs(sites)
     extra_keys = _extra_field_keys(sites)
     headers = [label for _field, label in field_defs] + extra_keys
@@ -476,7 +439,6 @@ def _sort_sites(rows, sort_field, sort_dir):
 # -----------------------------
 
 @site_bp.route("/dispersivity-data", methods=["GET"])
-@login_required
 def dispersivity_data():
     headers, rows = _dispersivity_database_rows()
     return render_template(
@@ -524,7 +486,6 @@ def user_database_export(file_format):
 
 
 @site_bp.route("/sites/reference.<file_format>", methods=["GET"])
-@login_required
 def reference_database_export(file_format):
     file_format = file_format.lower()
     if file_format not in {"csv", "xlsx", "pdf"}:
@@ -565,7 +526,6 @@ def reference_database_export(file_format):
 
 
 @site_bp.route("/sites", methods=["GET", "POST"])
-@login_required
 @rate_limit(limit=10, window_seconds=60, methods={"POST"})
 @csrf_protect
 def site_database():
@@ -577,7 +537,15 @@ def site_database():
     message = None
     error = None
 
-    if request.method == "POST":
+    if request.method == "POST" and not has_account():
+        # Saved sites hang off a users row (sites.user_email is a foreign key),
+        # so this is the one thing a guest cannot do. Say so on the page instead
+        # of bouncing them to /login and losing what they typed.
+        error = (
+            "Log in or create a free account to save sites to your own database. "
+            "You can keep using every model with the reference database without one."
+        )
+    elif request.method == "POST":
         form = form_data_or_400()
         action = form.get("action", "").strip().lower()
         try:
@@ -606,7 +574,7 @@ def site_database():
                 # columns. Every header that does not map to a fixed field is
                 # routed into payload["extra_data"], keyed by its trimmed
                 # original name, so model pages can autofill from it later.
-                header_map = _build_field_to_header_map(reader.fieldnames)
+                header_map = build_header_map(reader.fieldnames)
                 mapped_originals = set(header_map.values())
                 extra_headers = [
                     h
@@ -618,9 +586,9 @@ def site_database():
                 # units the models expect.
                 numeric_columns = set(NUMERIC_SITE_FIELDS)
                 column_scales = {
-                    column: _header_scale(header)
+                    column: header_scale(header)
                     for column, header in header_map.items()
-                    if column in numeric_columns and _header_scale(header) != 1.0
+                    if column in numeric_columns and header_scale(header) != 1.0
                 }
 
                 payloads = []
@@ -687,7 +655,9 @@ def site_database():
 
     # Single query: the template renders from `sites`; the old second query
     # (get_user_sites -> table_data) produced a variable the template never used.
-    sites = get_user_sites_rows(email)
+    # Owned rows only: this table is the user's own data, with delete buttons.
+    # A guest owns none, so this simply comes back empty for them.
+    sites = get_owned_sites_rows(email)
     for display_id, site in enumerate(sites, start=1):
         site["display_id"] = display_id
     # Columns are formed from the data: every catalog column that any uploaded
@@ -718,6 +688,7 @@ def site_database():
         sort_field=sort_field,
         sort_dir=sort_dir,
         total_site_count=len(sites),
+        is_guest=not has_account(),
         message=message,
         error=error,
     )
@@ -746,7 +717,6 @@ def clear_site_database():
 
 
 @site_bp.route("/data_analysis", methods=["GET"])
-@login_required
 def data_analysis_workbench():
     panel_src = f"{PANEL_PUBLIC_BASE}/panel_data_analysis"
     job_id = (request.args.get("aem_job") or "").strip()
@@ -770,13 +740,12 @@ def data_analysis_workbench():
 # -----------------------------
 
 @site_bp.route("/plot_bar", methods=["GET"])
-@login_required
 def plot_bar():
     """
     Endpoint used in base.html: url_for('site_bp.plot_bar')
     Renders a bar graph page.
     """
-    table_data = get_user_sites(_current_email())
+    table_data = get_owned_sites(_current_email())
     script, div = create_bargraph(table_data)
     return render_template(
         "plot_bar.html",   # we'll create this template if it doesn't exist
@@ -786,13 +755,12 @@ def plot_bar():
 
 
 @site_bp.route("/plot_hist", methods=["GET"])
-@login_required
 def plot_hist():
     """
     Endpoint used in base.html: url_for('site_bp.plot_hist')
     Shows a histogram for a default parameter (Plume Length L_p [m]).
     """
-    table_data = get_user_sites(_current_email())
+    table_data = get_owned_sites(_current_email())
     parameter = "Plume Length L_p [m]"
     idx = _get_column_index(parameter)
     script, div = create_histogram("Gaussian", table_data, idx, parameter)
@@ -805,13 +773,12 @@ def plot_hist():
 
 
 @site_bp.route("/plot_box", methods=["GET"])
-@login_required
 def plot_box():
     """
     Endpoint used in base.html: url_for('site_bp.plot_box')
     Shows a boxplot for a default parameter (Plume Length L_p [m]).
     """
-    table_data = get_user_sites(_current_email())
+    table_data = get_owned_sites(_current_email())
     parameter = "Plume Length L_p [m]"
     idx = _get_column_index(parameter)
     script, div = create_boxplot(parameter, table_data, idx)
@@ -827,7 +794,6 @@ def plot_box():
 # OPTIONAL JSON ENDPOINTS (keep if you want AJAX later)
 # -----------------------------
 @site_bp.route("/plots/histogram", methods=["POST"])
-@login_required
 @csrf_protect
 def histogram_json():
     if request.is_json:
@@ -846,7 +812,7 @@ def histogram_json():
     if col_index is None:
         return jsonify({"success": False, "message": f"Unknown parameter '{parameter}'"}), 400
 
-    table_data = get_user_sites(_current_email())
+    table_data = get_owned_sites(_current_email())
     script, div = create_histogram(feature, table_data, col_index, parameter)
 
     return jsonify(
@@ -860,7 +826,6 @@ def histogram_json():
 
 
 @site_bp.route("/plots/boxplot", methods=["POST"])
-@login_required
 @csrf_protect
 def boxplot_json():
     if request.is_json:
@@ -877,7 +842,7 @@ def boxplot_json():
     if col_index is None:
         return jsonify({"success": False, "message": f"Unknown parameter '{parameter}'"}), 400
 
-    table_data = get_user_sites(_current_email())
+    table_data = get_owned_sites(_current_email())
     script, div = create_boxplot(parameter, table_data, col_index)
 
     return jsonify(
@@ -893,7 +858,6 @@ def boxplot_json():
 # The Panel app posts its latest run results to the parent page via
 # postMessage; the page sends them here to build the branded PDF.
 @site_bp.route("/report/export", methods=["POST"])
-@login_required
 @rate_limit(limit=10, window_seconds=60)
 @csrf_protect
 def report_export():

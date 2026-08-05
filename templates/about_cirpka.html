@@ -1,27 +1,36 @@
 {% extends "model_about_base.html" %}
 
 {% block about_category %}Analytical Model{% endblock %}
-{% block about_title %}Cirpka et al. (2005){% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
+{% block about_title %}Cirpka et al. (2006){% endblock %}
 {% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
 {% block back_label %}All analytical models{% endblock %}
 
 {% block about_lead %}
-<p>A horizontal-flow model that estimates the steady-state length of a
-mixing-controlled plume (<math><msub><mi>L</mi><mi>max</mi></msub></math>) from a
+<p>A horizontal model that estimates the steady-state length of a
+mixing-controlled plume (<math><msub><mi>L</mi><mi mathvariant="normal">max</mi></msub></math>) from a
 source of width <math><msub><mi>S</mi><mi>w</mi></msub></math>. The plume length
 follows from the inverse error function of the reactant-to-total concentration
-ratio, matching the horizontal numerical implementation used in CAST.</p>
+ratio.</p>
+{% endblock %}
+
+{% block about_figure %}
+<figure class="about-figure">
+  <img src="{{ url_for('static', filename='images/conceptual_cirpka_horizontal.png') }}"
+       alt="Conceptual horizontal model of Cirpka et al. (2006), showing a finite-width donor source, ambient acceptor concentration, and a mixing-controlled plume.">
+  <figcaption>Conceptual model &mdash; Cirpka et al. (2006).</figcaption>
+</figure>
 {% endblock %}
 
 {% block about_equation %}
 <math display="block">
   <mrow>
-    <msub><mi>L</mi><mi>max</mi></msub>
+    <msub title="Maximum plume length [L]"><mi>L</mi><mi mathvariant="normal">max</mi></msub>
     <mo>=</mo>
     <mfrac>
-      <msubsup><mi>S</mi><mi>w</mi><mn>2</mn></msubsup>
+      <msubsup title="Source width [L]"><mi>S</mi><mi>w</mi><mn>2</mn></msubsup>
       <mrow>
-        <mn>16</mn><msub><mi>α</mi><mi>Th</mi></msub>
+        <mn>16</mn><msub title="Transverse horizontal dispersivity [L]"><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub>
         <msup>
           <mrow>
             <mo>[</mo>
@@ -29,8 +38,8 @@ ratio, matching the horizontal numerical implementation used in CAST.</p>
             <mrow>
               <mo>(</mo>
               <mfrac>
-                <msub><mi>C</mi><mi>A</mi></msub>
-                <mrow><mi>γ</mi><msub><mi>C</mi><mi>D</mi></msub><mo>+</mo><msub><mi>C</mi><mi>A</mi></msub></mrow>
+                <msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup>
+                <mrow><mi title="Stoichiometry ratio [-]">γ</mi><msubsup title="Donor concentration at source [ML⁻³]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
               </mfrac>
               <mo>)</mo>
             </mrow>
@@ -45,11 +54,11 @@ ratio, matching the horizontal numerical implementation used in CAST.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><msub><mi>S</mi><mi>w</mi></msub></math></dt><dd>Source width [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
-<dt><math><mi>γ</mi></math></dt><dd>Stoichiometric ratio of the reactant [-]</dd>
-<dt><math><msub><mi>C</mi><mi>A</mi></msub></math></dt><dd>Electron acceptor (partner reactant) concentration [mg/L]</dd>
-<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>Electron donor (contaminant) concentration [mg/L]</dd>
+<dt><math><msub><mi>S</mi><mi>w</mi></msub></math></dt><dd>Source width [L]</dd>
+<dt><math><msub><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub></math></dt><dd>Transverse horizontal dispersivity [L]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry ratio [-]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [ML⁻³]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [ML⁻³]</dd>
 {% endblock %}
 
 {% block about_assumptions %}
@@ -59,7 +68,10 @@ ratio, matching the horizontal numerical implementation used in CAST.</p>
 {% endblock %}
 
 {% block about_reference %}
-<p>Cirpka et al. (2005).</p>
+<p>Cirpka, O. A., Å. Olsson, Q. Ju, Md. A. Rahman, and P. Grathwohl. 2006.
+Determination of Transverse Dispersion Coefficients from Reactive Plume Lengths.
+Groundwater 44, no. 2: 212&ndash;21,
+<a href="https://doi.org/10.1111/j.1745-6584.2005.00124.x" target="_blank" rel="noopener noreferrer">https://doi.org/10.1111/j.1745-6584.2005.00124.x</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('analytical_bp.cirpka_single') }}{% endblock %}

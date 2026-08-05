@@ -353,6 +353,50 @@ def header_to_site_column(header: str):
     return header_match(header)[0]
 
 
+def build_header_map(fieldnames):
+    """Map sites columns to the CSV header that fills them.
+
+    Every header is matched against the catalog, so any recognized
+    model-parameter column — not just the original 9 — is captured.
+    Returns { sites_column: original_header }.
+
+    Collisions (two headers mapping to one column) are resolved by precedence:
+    a canonical match wins over a soft alias. This keeps "Site Unit" (the name)
+    in site_unit even when "Site No." (a row index) appears earlier.
+    """
+    mapping = {}
+    strong = {}
+    for header in fieldnames:
+        if not header or not header.strip():
+            continue
+        column, is_strong = header_match(header)
+        if not column:
+            continue
+        if column not in mapping or (is_strong and not strong.get(column)):
+            mapping[column] = header
+            strong[column] = is_strong
+    return mapping
+
+
+# Detects a power-of-ten scale declared in a header unit, e.g. "10-3", "10^-3"
+# or "1e-3" inside "Hydraulic conductivity[10-3 [m/s]]".
+_SCALE_RE = re.compile(r"10\s*\^?\s*(-?\d+)|1[eE]\s*(-?\d+)")
+
+
+def header_scale(header: str) -> float:
+    """Return the power-of-ten factor declared in a header, or 1.0 if none."""
+    if not header:
+        return 1.0
+    match = _SCALE_RE.search(header)
+    if not match:
+        return 1.0
+    exponent = match.group(1) if match.group(1) is not None else match.group(2)
+    try:
+        return 10.0 ** int(exponent)
+    except (ValueError, OverflowError):
+        return 1.0
+
+
 def db_to_model(db_row: dict, model_name: str) -> dict:
     """
     Map a database site row to model input parameters,

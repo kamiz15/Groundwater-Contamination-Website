@@ -1,7 +1,11 @@
 {% extends "model_workbench_multiple.html" %}
-{% block model_kicker %}Empirical Toolbox{% endblock %}
-{% block model_title %}Maier &amp; Grathwohl - Multiple Simulation{% endblock %}
+{% block model_kicker %}Hybrid Toolbox{% endblock %}
+{% block model_title %}Maier &amp; Grathwohl (2006) - Multiple Simulation{% endblock %}
 {% block toolbox_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
-{% block toolbox_label %}All empirical models{% endblock %}
+{% block toolbox_label %}All hybrid models{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_maier.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Maier &amp; Grathwohl{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('empirical_bp.maier_single') }}">Single simulation</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='maier') }}">About</a>
+{% endblock %}

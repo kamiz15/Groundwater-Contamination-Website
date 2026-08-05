@@ -8,7 +8,8 @@ import pytest
 import app as app_module
 import data_queries
 import site_routes
-from site_routes import _build_field_to_header_map, _detect_delimiter, _extra_field_keys
+from site_routes import _detect_delimiter, _extra_field_keys
+from symbol_registry import build_header_map as _build_field_to_header_map
 
 
 @pytest.mark.parametrize(
@@ -184,7 +185,7 @@ def test_flexible_upload_routes_extra_column_into_extra_data():
             # The view re-renders the site table after the insert; keep that
             # off the real database.
             patches.enter_context(
-                patch.object(site_routes, "get_user_sites_rows", return_value=[])
+                patch.object(site_routes, "get_owned_sites_rows", return_value=[])
             )
             client = app_module.app.test_client()
             client.get("/login")
@@ -247,7 +248,7 @@ def _upload_csv_capture(csv_text):
             )
             patches.enter_context(patch.object(site_routes, "insert_sites_bulk", fake_bulk))
             patches.enter_context(
-                patch.object(site_routes, "get_user_sites_rows", return_value=[])
+                patch.object(site_routes, "get_owned_sites_rows", return_value=[])
             )
             client = app_module.app.test_client()
             client.get("/login")
@@ -282,7 +283,7 @@ def test_insert_sites_bulk_skips_exact_duplicates(monkeypatch):
     monkeypatch.setattr(data_queries, "get_db_connection", lambda: connection)
     existing = [{"site_unit": "Site A", "compound": "Benzene",
                  "aquifer_thickness": 10.0, "extra_data": {}}]
-    monkeypatch.setattr(data_queries, "get_user_sites_rows", lambda email: existing)
+    monkeypatch.setattr(data_queries, "get_owned_sites_rows", lambda email: existing)
 
     inserted, skipped = data_queries.insert_sites_bulk(
         "user@example.com",

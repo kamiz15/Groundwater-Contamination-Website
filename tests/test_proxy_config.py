@@ -30,6 +30,38 @@ def test_panel_frame_height_sync_reports_why_it_failed():
     assert "frame.dataset.frameSync" in source
 
 
+def test_workbench_iframes_disable_redundant_inner_scrolling():
+    for template_name in ("model_workbench_single.html", "model_workbench_multiple.html"):
+        template = (PROJECT_ROOT / "templates" / template_name).read_text(encoding="utf-8")
+        assert 'scrolling="no"' in template
+
+    source = (PROJECT_ROOT / "static" / "script.js").read_text(encoding="utf-8")
+    assert 'doc.documentElement.style.overflowY = "hidden"' in source
+    assert 'doc.body.style.overflowY = "hidden"' in source
+
+
+def test_numerical_multiple_pages_use_one_panel_frame():
+    """The numerical multiple pages now reuse the shared multiple workbench: one
+    panel frame, driven by the sidebar picker. The second (headless runner) frame
+    and its cross-frame run relay are gone."""
+    styles = (PROJECT_ROOT / "static" / "styles.css").read_text(encoding="utf-8")
+    for template_name in (
+        "panel_numerical_horizontal_multiple.html",
+        "panel_numerical_vertical_multiple.html",
+    ):
+        template = (PROJECT_ROOT / "templates" / template_name).read_text(encoding="utf-8")
+        assert '{% extends "model_workbench_multiple.html" %}' in template
+        assert "<iframe" not in template          # the shared workbench owns the frame
+        assert "postMessage" not in template      # no cross-frame run relay
+        assert "compare_submit_label" in template # the picker's submit runs the model
+
+    shared = (PROJECT_ROOT / "templates" / "model_workbench_multiple.html").read_text(encoding="utf-8")
+    assert shared.count("<iframe") == 1
+    assert 'name="compare_sites" multiple' in shared
+
+    assert "numerical-multiple" not in styles     # run-button/runner styles removed
+
+
 def test_absolute_panel_base_is_flagged_as_cross_origin():
     """An absolute PANEL_PUBLIC_BASE makes every embed cross-origin (a different
     port is a different origin), which disables the iframe height sync. Only a

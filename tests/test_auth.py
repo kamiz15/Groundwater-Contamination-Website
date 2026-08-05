@@ -53,7 +53,9 @@ class FakeConnection:
 
 class AuthenticationFlowTests(unittest.TestCase):
     def setUp(self):
-        app_module.app.config.update(TESTING=True, SECRET_KEY="test-secret-key")
+        app_module.app.config.update(
+            TESTING=True, SECRET_KEY="test-secret-key", LOGIN_DISABLED=False
+        )
         security.reset_rate_limits()
         self.client = app_module.app.test_client()
         self.connection_patch = patch.object(
@@ -79,13 +81,12 @@ class AuthenticationFlowTests(unittest.TestCase):
             headers={"X-CSRF-Token": token},
         )
 
-    def test_protected_route_redirects_when_unauthenticated(self):
+    def test_model_pages_are_usable_without_an_account(self):
         response = self.client.get("/analytical")
 
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/login?next=", response.headers["Location"])
+        self.assertEqual(response.status_code, 200)
 
-    def test_login_allows_access_to_same_protected_route(self):
+    def test_login_allows_access_to_same_route(self):
         login_response = self.login()
         protected_response = self.client.get("/analytical")
 
@@ -93,28 +94,68 @@ class AuthenticationFlowTests(unittest.TestCase):
         self.assertTrue(login_response.get_json()["success"])
         self.assertEqual(protected_response.status_code, 200)
 
-    def test_logout_invalidates_access(self):
+    def test_logout_keeps_public_pages_reachable(self):
         self.login()
         with self.client.session_transaction() as session:
             token = session["_csrf_token"]
         logout_response = self.client.post("/logout", headers={"X-CSRF-Token": token})
-        protected_response = self.client.get("/analytical")
+        public_response = self.client.get("/analytical")
 
         self.assertEqual(logout_response.status_code, 302)
-        self.assertEqual(protected_response.status_code, 302)
-        self.assertIn("/login?next=", protected_response.headers["Location"])
+        self.assertEqual(public_response.status_code, 200)
 
-    def test_proxy_auth_check_uses_flask_login_session(self):
-        unauthenticated_response = self.client.get("/auth/check")
+    def test_saving_sites_still_requires_an_account(self):
+        """Guests may browse /sites, but nothing can be written to a database
+        row that has no owning user."""
+        token = self.csrf_token()
+        with (
+            patch.object(site_routes, "get_owned_sites_rows", return_value=[]),
+            patch.object(site_routes, "insert_site") as insert,
+        ):
+            page = self.client.get("/sites")
+            response = self.client.post(
+                "/sites",
+                data={"action": "manual", "site_unit": "A", "compound": "B"},
+                headers={"X-CSRF-Token": token},
+            )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(response.status_code, 200)
+        insert.assert_not_called()
+        self.assertIn("create a free account", response.get_data(as_text=True))
+
+    def test_owned_data_routes_still_redirect_when_unauthenticated(self):
+        for path in ("/sites/user.csv", "/sites/clear"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertIn(response.status_code, (302, 405))
+                if response.status_code == 302:
+                    self.assertIn("/login?next=", response.headers["Location"])
+
+    def test_proxy_auth_check_identifies_guests_and_accounts(self):
+        guest_response = self.client.get("/auth/check")
+        guest_email = guest_response.headers["X-User-Email"]
         self.login()
         authenticated_response = self.client.get("/auth/check")
 
-        self.assertEqual(unauthenticated_response.status_code, 401)
+        # Guests are let through so the embedded Panel apps load, but with an
+        # identity of their own rather than a real account's.
+        self.assertEqual(guest_response.status_code, 204)
+        self.assertTrue(guest_email.endswith("@guest.invalid"))
         self.assertEqual(authenticated_response.status_code, 204)
+        self.assertEqual(
+            authenticated_response.headers["X-User-Email"], TEST_USER["email"]
+        )
+
+    def test_guest_identity_is_stable_within_a_session(self):
+        first = self.client.get("/auth/check").headers["X-User-Email"]
+        second = self.client.get("/auth/check").headers["X-User-Email"]
+
+        self.assertEqual(first, second)
 
     def test_site_reads_use_current_user_email(self):
         with (
-            patch.object(site_routes, "get_user_sites_rows", return_value=[]) as get_rows,
+            patch.object(site_routes, "get_owned_sites_rows", return_value=[]) as get_rows,
         ):
             self.login()
             response = self.client.get("/sites")

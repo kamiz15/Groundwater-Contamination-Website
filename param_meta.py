@@ -88,6 +88,47 @@ _CONTEXT_NAMES = {
     ("gamma", "Source Decay"): "Source Decay Coefficient",
 }
 
+_MODEL_CONTEXTS = {
+    "panel_liedl_single": "liedl",
+    "panel_liedl_multiple": "liedl",
+    "panel_liedl3d_single": "liedl3d",
+    "panel_liedl3d_multiple": "liedl3d",
+    "panel_chu_single": "chu",
+    "panel_chu_multiple": "chu",
+    "panel_ham_single": "ham",
+    "panel_ham_multiple": "ham",
+    "panel_bioscreen_single": "bioscreen",
+    "panel_bioscreen_multiple": "bioscreen",
+    "panel_cirpka_single": "cirpka",
+    "panel_cirpka_multiple": "cirpka",
+    "panel_maier_single": "maier",
+    "panel_maier_multiple": "maier",
+    "panel_birla_single": "birla",
+    "panel_birla_multiple": "birla",
+}
+
+_MODEL_DISPLAY_NAMES = {
+    "liedl": {"M": "Source Thickness", "alpha_Tv": "Vertical Transverse Dispersivity", "C_EA0": "Acceptor Concentration at Source", "C_ED0": "Donor Concentration at Source"},
+    "liedl3d": {"M": "Source Thickness", "W": "Source Width", "Cthres": "Threshold Donor Concentration", "C_EA0": "Acceptor Concentration at Source", "C_ED0": "Donor Concentration at Source"},
+    "chu": {"W": "Source Width", "epsilon": "Biological Concentration Factor", "C_EA0": "Acceptor Concentration at Source", "C_ED0": "Donor Concentration at Source"},
+    "ham": {"Q": "Source Flux", "alpha_T": "Horizontal Transverse Dispersivity", "C_EA0": "Acceptor Concentration at Source", "C_ED0": "Donor Concentration at Source"},
+    "bioscreen": {"Cthres": "Threshold Contaminant Concentration", "time": "Simulation Time", "H": "Source Thickness", "c0": "Contamination Concentration", "W": "Source Width", "v": "Groundwater Seepage Velocity", "Df": "Diffusion Coefficient", "gamma": "Source Decay Coefficient", "lam": "First-order Decay Coefficient", "ng": "Number of Gauss Points"},
+    "cirpka": {"Sw": "Source Width", "C_A": "Acceptor Concentration at Source", "C_D": "Donor Concentration at Source"},
+    "maier": {"M": "Source Thickness", "g": "Stoichiometry Coefficient", "Ca": "Acceptor Concentration at Source", "Cd": "Donor Concentration at Source"},
+    "birla": {"M": "Source Thickness", "g": "Stoichiometry Coefficient", "Ca": "Acceptor Concentration at Source", "Cd": "Donor Concentration at Source"},
+}
+
+_MODEL_SYMBOLS = {
+    "liedl": {"M": "<i>S</i><sub>T</sub>"},
+    "liedl3d": {"M": "<i>S</i><sub>T</sub>", "W": "<i>S</i><sub>W</sub>", "Cthres": "<i>C</i><sub>thres</sub>"},
+    "chu": {"W": "<i>S</i><sub>W</sub>"},
+    "ham": {"Q": "<i>q</i>", "alpha_T": "&alpha;<sub>Th</sub>"},
+    "bioscreen": {"Cthres": "<i>C</i><sub>thres</sub>", "time": "<i>t</i>", "H": "<i>S</i><sub>T</sub>", "c0": "<i>C</i><sub>D</sub><sup>0</sup>", "W": "<i>S</i><sub>W</sub>", "Df": "<i>D</i><sub>f</sub>", "gamma": "&Gamma;", "lam": "&lambda;<sub>e</sub>", "ng": "<i>n</i><sub>g</sub>"},
+    "cirpka": {"Sw": "<i>S</i><sub>w</sub>", "C_A": "<i>C</i><sub>A</sub><sup>0</sup>", "C_D": "<i>C</i><sub>D</sub><sup>0</sup>"},
+    "maier": {"M": "<i>S</i><sub>T</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
+    "birla": {"M": "<i>S</i><sub>T</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
+}
+
 _TABLE_TITLES = {
     "M": "Aquifer Thickness T_A [m]",
     "Lz": "Aquifer Thickness T_A [m]",
@@ -116,19 +157,90 @@ _TABLE_TITLES = {
 }
 
 _CONTEXT_TABLE_TITLES = {
-    "birla": {"R": "Recharge Rate R_c [m/yr]"},
+    "liedl": {"M": "Source Thickness S_T [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "liedl3d": {"M": "Source Thickness S_T [m]", "W": "Source Width S_W [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "Cthres": "Threshold Donor Concentration C_thres [mg/L]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "chu": {"W": "Source Width S_W [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]", "epsilon": "Biological Concentration Factor ε [mg/L]"},
+    "ham": {"Q": "Source Flux q [m²/yr]", "alpha_T": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "cirpka": {"Sw": "Source Width S_w [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_A": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_D": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "maier": {"M": "Source Thickness S_T [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "birla": {"M": "Source Thickness S_T [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "R": "Recharge Rate R_c [m/yr]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
     "numerical_vertical": {"grid_size": "Grid Spacing Δx = Δz [m]"},
 }
 
 
-def table_titles(columns, context=None):
+_TABLE_SYMBOL_MARKUP = {
+    "Δx = Δy": "&Delta;<i>x</i> = &Delta;<i>y</i>",
+    "Δx = Δz": "&Delta;<i>x</i> = &Delta;<i>z</i>",
+    "C_thres": "<i>C</i><sub>thres</sub>",
+    "C_A^0": "<i>C</i><sub>A</sub><sup>0</sup>",
+    "C_D^0": "<i>C</i><sub>D</sub><sup>0</sup>",
+    "α_Tv": "&alpha;<sub>Tv</sub>",
+    "α_Th": "&alpha;<sub>Th</sub>",
+    "α_L": "&alpha;<sub>L</sub>",
+    "S_T": "<i>S</i><sub>T</sub>",
+    "S_W": "<i>S</i><sub>W</sub>",
+    "S_w": "<i>S</i><sub>w</sub>",
+    "R_c": "<i>R</i><sub>c</sub>",
+    "T_A": "<i>T</i><sub>A</sub>",
+    "W_s": "<i>W</i><sub>s</sub>",
+    "C_A": "<i>C</i><sub>A</sub>",
+    "C_D": "<i>C</i><sub>D</sub>",
+    "α_T": "&alpha;<sub>T</sub>",
+    "γ": "&gamma;",
+    "ε": "&epsilon;",
+    "q": "<i>q</i>",
+}
+
+SCENARIO_TABLE_STYLESHEETS = [
+    """
+    .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .tabulator .tabulator-header .tabulator-col .tabulator-col-content .tabulator-col-title {
+      white-space: normal;
+      line-height: 1.15;
+    }
+    """
+]
+
+
+def _formatted_table_title(title):
+    body, separator, unit = title.rpartition(" [")
+    if not separator:
+        body = title
+    for symbol, markup in _TABLE_SYMBOL_MARKUP.items():
+        if body.endswith(f" {symbol}"):
+            body = f"{body[:-len(symbol)]}{markup}"
+            break
+    return f"{body}{separator}{unit}"
+
+
+def table_titles(columns, context=None, html=False):
     """Return display-only titles for a Panel scenario table."""
     overrides = _CONTEXT_TABLE_TITLES.get(context, {})
-    return {
+    titles = {
         column: overrides[column] if column in overrides else _TABLE_TITLES[column]
         for column in columns
         if column in overrides or column in _TABLE_TITLES
     }
+    if html:
+        return {column: _formatted_table_title(title) for column, title in titles.items()}
+    return titles
+
+
+def scenario_parameter_rows(dataframe, specs):
+    """Build PDF input rows for every scenario using canonical display symbols."""
+    return [
+        {
+            "symbol": symbol,
+            "name": f"Scenario {scenario_no} - {name}",
+            "value": row.get(column),
+            "unit": unit,
+        }
+        for scenario_no, (_, row) in enumerate(dataframe.iterrows(), start=1)
+        for column, symbol, name, unit in specs
+    ]
 
 # The vertical numerical model discretises x/z instead of x/y.
 GRID_SIZE_VERTICAL_SYMBOL = "&Delta;<i>x</i> = &Delta;<i>z</i>"
@@ -137,20 +249,27 @@ GRID_SIZE_VERTICAL_SYMBOL = "&Delta;<i>x</i> = &Delta;<i>z</i>"
 _DESCRIPTIONS = {}
 
 
-def attach_meta(field):
+def attach_meta(field, context=None):
     """Attach symbol + description to a built input-field dict (in place)."""
+    model_context = _MODEL_CONTEXTS.get(context, context)
     visible_name = (field.get("label") or "").split(" [", 1)[0]
-    display_name = _CONTEXT_NAMES.get(
-        (field["name"], visible_name),
-        _DISPLAY_NAMES.get(field["name"], visible_name),
+    display_name = _MODEL_DISPLAY_NAMES.get(model_context, {}).get(
+        field["name"],
+        _CONTEXT_NAMES.get(
+            (field["name"], visible_name),
+            _DISPLAY_NAMES.get(field["name"], visible_name),
+        ),
     )
     if " [" in field["label"]:
         field["label"] = display_name + " [" + field["label"].split(" [", 1)[1]
     else:
         field["label"] = display_name
-    field["symbol"] = _CONTEXT_SYMBOLS.get(
-        (field["name"], visible_name),
-        _SYMBOLS.get(field["name"], ""),
+    field["symbol"] = _MODEL_SYMBOLS.get(model_context, {}).get(
+        field["name"],
+        _CONTEXT_SYMBOLS.get(
+            (field["name"], visible_name),
+            _SYMBOLS.get(field["name"], ""),
+        ),
     )  # empty -> template shows plain label
     field["description"] = _DESCRIPTIONS.get(field["name"], "[TODO: describe %s]" % field["name"])
     return field

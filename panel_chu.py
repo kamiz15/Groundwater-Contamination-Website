@@ -1,26 +1,24 @@
 import io
 
-import pandas as pd
 import panel as pn
 
 from panel_auth import authenticated_email
 
-from analytical_models import chu_lmax, compute_chu_multiple
-from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int, summary_card
-from panel_theme import report_bridge_html
-from param_meta import table_titles
+from analytical_models import chu_lmax
+from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int
+from panel_site_comparison import site_comparison_app
 from pdf_report import CASTReport
 
-pn.extension("tabulator", sizing_mode="stretch_width")
+pn.extension(sizing_mode="stretch_width")
 
 
 def chu_single_app():
-    w = pn.widgets.FloatInput(name="Source width W [m]", value=query_float("W", 2.0), step=0.1)
+    w = pn.widgets.FloatInput(name="Source Width S_W [m]", value=query_float("W", 2.0), step=0.1)
     alpha_th = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("alpha_Th", 0.01), step=0.001)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 1.5), step=0.1)
     c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
     c_ed0 = pn.widgets.FloatInput(name="Donor Concentration at Source C_D^0 [mg/L]", value=query_float("C_ED0", 5.0), step=0.1)
-    epsilon = pn.widgets.FloatInput(name="Biological Factor \u03b5 [mg/L]", value=query_float("epsilon", 0.0), step=0.01)
+    epsilon = pn.widgets.FloatInput(name="Biological Concentration Factor \u03b5 [mg/L]", value=query_float("epsilon", 0.0), step=0.01)
     run_btn = pn.widgets.Button(name="Run Chu simulation", button_type="primary", sizing_mode="stretch_width")
 
     result_pane = pn.pane.HTML(info_card("Run the Chu model to compute plume length."), sizing_mode="stretch_width")
@@ -33,7 +31,7 @@ def chu_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Chu et al. \u2014 Single Simulation", "Chu Analytical")
+        report = CASTReport("Chu et al. (2005) \u2014 Single Simulation", "Chu et al. (2005)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(
@@ -47,18 +45,19 @@ def chu_single_app():
             lmax = chu_lmax(w.value, alpha_th.value, gamma.value, c_ea0.value, c_ed0.value, epsilon.value)
             result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
-            plot_pane.object = comparison_plot("Chu et al.", "Chu model plume length", user_x, [lmax], selected_site_id, email, "Run Number")
+            plot, plot_data = comparison_plot("Chu et al. (2005)", "Chu model plume length", user_x, [lmax], selected_site_id, email, "Run Number", return_data=True)
+            plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "W", "name": "Source Width", "value": w.value, "unit": "m"},
-                    {"symbol": "\u03b1Th", "name": "Horiz. Trans. Dispersivity", "value": alpha_th.value, "unit": "m"},
-                    {"symbol": "\u03b3", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
+                    {"symbol": "S_W", "name": "Source Width", "value": w.value, "unit": "m"},
+                    {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th.value, "unit": "m"},
+                    {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma.value, "unit": "-"},
                     {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
                     {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
-                    {"symbol": "\u03b5", "name": "Biological Factor", "value": epsilon.value, "unit": "mg/L"},
+                    {"symbol": "epsilon", "name": "Biological Concentration Factor", "value": epsilon.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
-                "plot_data": {"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Chu et al."},
+                "plot_data": plot_data,
             })
             export_btn.visible = True
         except Exception as exc:
@@ -73,7 +72,7 @@ def chu_single_app():
         return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column(
-        "## Chu et al. - Single Simulation", "### Manual inputs",
+        "### Manual inputs",
         w, alpha_th, gamma, c_ea0, c_ed0, epsilon,
         sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"},
     )
@@ -83,61 +82,5 @@ def chu_single_app():
 
 
 def chu_multiple_app():
-    default_df = pd.DataFrame([{
-        "W": query_float("W", 2.0), "alpha_Th": query_float("alpha_Th", 0.01),
-        "gamma": query_float("gamma", 1.5), "C_EA0": query_float("C_EA0", 8.0),
-        "C_ED0": query_float("C_ED0", 5.0), "epsilon": query_float("epsilon", 0.0),
-    }])
-
-    table = pn.widgets.Tabulator(default_df, titles=table_titles(default_df.columns), height=300, sizing_mode="stretch_width", name="Chu scenarios")
-    run_btn = pn.widgets.Button(name="Run Chu scenarios", button_type="primary", sizing_mode="stretch_width")
-    result_pane = pn.pane.HTML(info_card("Run the Chu scenarios to compare plume lengths."), sizing_mode="stretch_width")
-    plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    email = authenticated_email()
-    selected_site_id = query_int("site_id", 0)
-
-    _state: dict = {}
-
-    report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
-
-    def _run(_=None):
-        try:
-            df = table.value
-            if not isinstance(df, pd.DataFrame):
-                df = pd.DataFrame(df)
-            if df.empty:
-                raise ValueError("No scenarios available.")
-            entries = [[float(row.get(k, 0)) for k in ("W", "alpha_Th", "gamma", "C_EA0", "C_ED0", "epsilon")] for _, row in df.iterrows()]
-            l_vals = compute_chu_multiple(entries)
-            result_pane.object = summary_card([("Successful runs", str(len(l_vals))), ("Maximum Plume Length L_max", f"{max(l_vals):.2f} m")])
-            plot_pane.object = comparison_plot("Chu et al.", "Chu model plume length", list(range(1, len(l_vals) + 1)), l_vals, selected_site_id, email, "Scenario Number")
-            _state.update({
-                "parameters": [{"symbol": f"Sc.{i+1}", "name": f"Scenario {i+1}", "value": f"L={v:.2f}", "unit": "m"} for i, v in enumerate(l_vals)],
-                "outputs": [
-                    {"label": "Scenarios run", "value": str(len(l_vals)), "unit": ""},
-                    {"label": "Max plume length", "value": f"{max(l_vals):.2f}", "unit": "m"},
-                    {"label": "Min plume length", "value": f"{min(l_vals):.2f}", "unit": "m"},
-                ],
-                "plot_data": {"labels": [f"Sc.{i+1}" for i in range(len(l_vals))], "values": l_vals, "ylabel": "Plume Length (m)", "title": "Scenario Comparison — Chu et al."},
-            })
-            report_bridge.object = report_bridge_html(
-                "Chu et al. — Multiple Simulation", "Chu Analytical",
-                "chu_multiple_report.pdf",
-                parameters=_state["parameters"], outputs=_state["outputs"],
-                plot_data=_state.get("plot_data"),
-            )
-        except Exception as exc:
-            result_pane.object = error_card(exc)
-            plot_pane.object = None
-            report_bridge.object = report_bridge_html(clear=True)
-
-    run_btn.on_click(_run)
-    if query_int("output_only", 0):
-        if query_int("run", 0):
-            _run()
-        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
-
-    controls = pn.Column("## Chu et al. - Multiple Simulation", "### Manual scenario inputs", table, sizing_mode="stretch_width", styles={"flex": "1 1 380px", "min-width": "300px"})
-    outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})
-    body = pn.FlexBox(controls, outputs_col, sizing_mode="stretch_both", flex_wrap="wrap", styles={"gap": "16px"})
-    return pn.Column(run_btn, result_pane, body, report_bridge, sizing_mode="stretch_both", styles={"gap": "14px"})
+    """Multiple simulation: one run per site picked in the sidebar."""
+    return site_comparison_app("chu")

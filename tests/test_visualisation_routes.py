@@ -27,8 +27,8 @@ class VisualisationRouteTests(unittest.TestCase):
         self.client = app_module.app.test_client()
         self.patches = ExitStack()
         self.patches.enter_context(patch.object(site_routes, "_current_email", return_value="user@example.com"))
-        self.patches.enter_context(patch.object(site_routes, "get_user_sites", return_value=[]))
-        self.get_rows = self.patches.enter_context(patch.object(site_routes, "get_user_sites_rows", return_value=[]))
+        self.patches.enter_context(patch.object(site_routes, "get_owned_sites", return_value=[]))
+        self.get_rows = self.patches.enter_context(patch.object(site_routes, "get_owned_sites_rows", return_value=[]))
         plot_functions._REF_DF = None
 
     def tearDown(self):

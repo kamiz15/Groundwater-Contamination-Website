@@ -1,10 +1,10 @@
 # analytical_routes.py
 import logging
+from math import isfinite
 from urllib.parse import urlencode
 
 from bokeh.embed import components
 from flask import Blueprint, Response, render_template, request
-from flask_login import current_user, login_required
 
 from analytical_models import (
     chu_lmax,
@@ -17,11 +17,11 @@ from analytical_models import (
 from bioscreen_model import bio
 from data_queries import get_user_sites, get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
-from route_guards import guard_model_errors, request_finite_float, request_finite_int
+from route_guards import compare_site_ids, guard_model_errors, request_finite_float, request_finite_int
 from panel_analytical_common import comparison_plot
 from param_meta import attach_meta
 from pdf_report import CASTReport
-from security import GENERIC_DATABASE_ERROR_MESSAGE
+from security import GENERIC_DATABASE_ERROR_MESSAGE, current_email
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_to_model
 
@@ -143,7 +143,7 @@ ANALYTICAL_INPUT_SPECS = {
 
 
 def _current_email():
-    return current_user.email
+    return current_email()
 
 
 def _panel_base_url():
@@ -170,6 +170,27 @@ def _selected_site(model_name):
         if site.get("id") == selected_id:
             return sites, site
     return sites, None
+
+
+def _render_multiple(model):
+    """Every multiple page is the same page: pick sites, run the model per site.
+
+    The panel reads the ticked sites from its own query string, so they are
+    appended after _panel_src (which only carries single-valued arguments).
+    """
+    sites, selected_site = _selected_site(model)
+    ticked = compare_site_ids(sites)
+    panel_path = f"panel_{model}_multiple"
+    panel_src = _panel_src(panel_path, selected_site, output_only=False)
+    panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in ticked)})
+    return render_template(
+        f"{panel_path}.html",
+        panel_src=panel_src,
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+        compare_site_ids=ticked,
+        input_fields=_input_fields(panel_path, selected_site),
+    )
 
 
 def _model_name_from_panel_path(path):
@@ -227,7 +248,8 @@ def _panel_src(path, site, auto_run=False, output_only=True):
     query = _default_query(path)
     query.update(_build_panel_query(path, site))
     for key, value in request.args.items():
-        if key not in {"site_id", "output_only"} and value != "":
+        # compare_sites is multi-valued; the pages that use it pass it explicitly.
+        if key not in {"site_id", "output_only", "compare_sites"} and value != "":
             query[key] = value
     query["email"] = _current_email()
     query["run"] = 1
@@ -251,7 +273,7 @@ def _input_fields(path, site):
             "step": step,
             "min": minimum,
             "from_db": name in db_query,
-        }))
+        }, context=path))
     return fields
 
 
@@ -339,7 +361,7 @@ def _cirpka_single_output(params):
         lmax = cirpka_lmax(params["Sw"], params["alpha_Th"], params["gamma"], params["C_A"], params["C_D"])
         ld = cirpka_domain_length(lmax)
         plot = comparison_plot(
-            "Cirpka et al. (2005)",
+            "Cirpka et al. (2006)",
             "Cirpka Lmax",
             [params["site_id"] if params.get("site_id") else 1],
             [lmax],
@@ -370,14 +392,12 @@ def _cirpka_single_output(params):
 
 # ---------- LANDING (All models page) ----------
 @analytical_bp.route("/analytical")
-@login_required
 def analytical_landing():
     return render_template("analytical_landing.html")
 
 
 # ---------- LIEDL ----------
 @analytical_bp.route("/liedl/single")
-@login_required
 def liedl_single():
     sites, selected_site = _selected_site("liedl")
     input_fields = _input_fields("panel_liedl_single", selected_site)
@@ -392,7 +412,6 @@ def liedl_single():
 
 
 @analytical_bp.route("/liedl/single/export")
-@login_required
 @guard_model_errors
 def liedl_single_export():
     m = _request_float("M", 2.0)
@@ -401,12 +420,14 @@ def liedl_single_export():
     c_ea0 = _request_float("C_EA0", 8.0)
     c_ed0 = _request_float("C_ED0", 5.0)
     lmax = liedl_lmax(m, alpha_tv, gamma, c_ea0, c_ed0)
-    report = CASTReport("Liedl et al. (2005) — Single Simulation", "Liedl Analytical")
+    if not isfinite(lmax):
+        raise ValueError("Liedl result must be finite.")
+    report = CASTReport("Liedl et al. (2005) — Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "M", "name": "Aquifer Thickness", "value": m, "unit": "m"},
-            {"symbol": "αTv", "name": "Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
-            {"symbol": "γ", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
+            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
+            {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
             {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0, "unit": "mg/L"},
         ],
@@ -428,21 +449,12 @@ def liedl_single_export():
 
 
 @analytical_bp.route("/liedl/multiple")
-@login_required
 def liedl_multiple():
-    sites, selected_site = _selected_site("liedl")
-    return render_template(
-        "panel_liedl_multiple.html",
-        panel_src=_panel_src("panel_liedl_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_liedl_multiple", selected_site),
-    )
+    return _render_multiple("liedl")
 
 
 # ---------- CHU ----------
 @analytical_bp.route("/chu/single")
-@login_required
 def chu_single():
     sites, selected_site = _selected_site("chu")
     input_fields = _input_fields("panel_chu_single", selected_site)
@@ -457,7 +469,6 @@ def chu_single():
 
 
 @analytical_bp.route("/chu/single/export")
-@login_required
 @guard_model_errors
 def chu_single_export():
     w = _request_float("W", 2.0)
@@ -467,18 +478,21 @@ def chu_single_export():
     c_ed0 = _request_float("C_ED0", 5.0)
     epsilon = _request_float("epsilon", 0.0)
     lmax = chu_lmax(w, alpha_th, gamma, c_ea0, c_ed0, epsilon)
-    report = CASTReport("Chu et al. — Single Simulation", "Chu Analytical")
+    report = CASTReport("Chu et al. (2005) — Single Simulation", "Chu et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "W", "name": "Source Width", "value": w, "unit": "m"},
-            {"symbol": "αTh", "name": "Horiz. Trans. Dispersivity", "value": alpha_th, "unit": "m"},
-            {"symbol": "γ", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
+            {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
+            {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
+            {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
             {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0, "unit": "mg/L"},
-            {"symbol": "ε", "name": "Biological Factor", "value": epsilon, "unit": "mg/L"},
+            {"symbol": "epsilon", "name": "Biological Concentration Factor", "value": epsilon, "unit": "mg/L"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Chu et al."},
+        plot_data=_comparison_plot_data(
+            "Chu et al. (2005)", "Chu model plume length", lmax,
+            _request_int("site_id", 0), _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -488,21 +502,12 @@ def chu_single_export():
 
 
 @analytical_bp.route("/chu/multiple")
-@login_required
 def chu_multiple():
-    sites, selected_site = _selected_site("chu")
-    return render_template(
-        "panel_chu_multiple.html",
-        panel_src=_panel_src("panel_chu_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_chu_multiple", selected_site),
-    )
+    return _render_multiple("chu")
 
 
 # ---------- HAM ----------
 @analytical_bp.route("/ham/single")
-@login_required
 def ham_single():
     sites, selected_site = _selected_site("ham")
     input_fields = _input_fields("panel_ham_single", selected_site)
@@ -517,7 +522,6 @@ def ham_single():
 
 
 @analytical_bp.route("/ham/single/export")
-@login_required
 @guard_model_errors
 def ham_single_export():
     q = _request_float("Q", 5.0)
@@ -526,17 +530,20 @@ def ham_single_export():
     c_ea0 = _request_float("C_EA0", 8.0)
     c_ed0 = _request_float("C_ED0", 5.0)
     lmax = ham_lmax(q, alpha_t, gamma, c_ea0, c_ed0)
-    report = CASTReport("Ham et al. — Single Simulation", "Ham Analytical")
+    report = CASTReport("Ham et al. (2004) — Single Simulation", "Ham et al. (2004)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "Q", "name": "Source Flux", "value": q, "unit": "m²/yr"},
-            {"symbol": "αT", "name": "Transverse Dispersivity", "value": alpha_t, "unit": "m"},
-            {"symbol": "γ", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
+            {"symbol": "q", "name": "Source Flux", "value": q, "unit": "m²/yr"},
+            {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_t, "unit": "m"},
+            {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
             {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0, "unit": "mg/L"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Ham et al."},
+        plot_data=_comparison_plot_data(
+            "Ham et al. (2004)", "Ham model plume length", lmax,
+            _request_int("site_id", 0), _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -546,21 +553,12 @@ def ham_single_export():
 
 
 @analytical_bp.route("/ham/multiple")
-@login_required
 def ham_multiple():
-    sites, selected_site = _selected_site("ham")
-    return render_template(
-        "panel_ham_multiple.html",
-        panel_src=_panel_src("panel_ham_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_ham_multiple", selected_site),
-    )
+    return _render_multiple("ham")
 
 
 # ---------- BIOSCREEN ----------
 @analytical_bp.route("/bioscreen/single")
-@login_required
 def bioscreen_single():
     sites, selected_site = _selected_site("bioscreen")
     input_fields = _input_fields("panel_bioscreen_single", selected_site)
@@ -575,7 +573,6 @@ def bioscreen_single():
 
 
 @analytical_bp.route("/bioscreen/single/export")
-@login_required
 @guard_model_errors
 def bioscreen_single_export():
     cthres = _request_float("Cthres", 5e-5)
@@ -593,26 +590,29 @@ def bioscreen_single_export():
     lam = _request_float("lam", 0.445)
     ng = _request_int("ng", 60)
     lmax = float(bio(cthres, time_val, h, c0, w, v, ax, ay, az, df, r, gamma, lam, ng))
-    report = CASTReport("BIOSCREEN-AT — Single Simulation", "BIOSCREEN Analytical")
+    report = CASTReport("BIOSCREEN-AT 3D — Single Simulation", "BIOSCREEN-AT 3D")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "Cthres", "name": "Threshold Concentration", "value": cthres, "unit": "mg/L"},
+            {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres, "unit": "mg/L"},
             {"symbol": "t", "name": "Simulation Time", "value": time_val, "unit": "yr"},
-            {"symbol": "H", "name": "Source Thickness", "value": h, "unit": "m"},
-            {"symbol": "C_c", "name": "General Contaminant Concentration", "value": c0, "unit": "mg/L"},
-            {"symbol": "W", "name": "Source Width", "value": w, "unit": "m"},
-            {"symbol": "v", "name": "Groundwater Velocity", "value": v, "unit": "m/yr"},
+            {"symbol": "S_T", "name": "Source Thickness", "value": h, "unit": "m"},
+            {"symbol": "C_D0", "name": "Contamination Concentration", "value": c0, "unit": "mg/L"},
+            {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
+            {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v, "unit": "m/yr"},
             {"symbol": "alpha_L", "name": "Longitudinal Dispersivity", "value": ax, "unit": "m"},
             {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": ay, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": az, "unit": "m"},
-            {"symbol": "Df", "name": "Diffusion Coefficient", "value": df, "unit": "m²/yr"},
+            {"symbol": "D_f", "name": "Diffusion Coefficient", "value": df, "unit": "m²/yr"},
             {"symbol": "R", "name": "Retardation Factor", "value": r, "unit": "-"},
             {"symbol": "Gamma", "name": "Source Decay Coefficient", "value": gamma, "unit": "1/yr"},
             {"symbol": "lambda_e", "name": "First-order Decay Coefficient", "value": lam, "unit": "1/yr"},
-            {"symbol": "ng", "name": "Gauss Points", "value": ng, "unit": "-"},
+            {"symbol": "n_g", "name": "Number of Gauss Points", "value": ng, "unit": "-"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — BIOSCREEN-AT"},
+        plot_data=_comparison_plot_data(
+            "BIOSCREEN-AT 3D", "BIOSCREEN plume length", lmax,
+            _request_int("site_id", 0), _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -622,21 +622,12 @@ def bioscreen_single_export():
 
 
 @analytical_bp.route("/bioscreen/multiple")
-@login_required
 def bioscreen_multiple():
-    sites, selected_site = _selected_site("bioscreen")
-    return render_template(
-        "panel_bioscreen_multiple.html",
-        panel_src=_panel_src("panel_bioscreen_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_bioscreen_multiple", selected_site),
-    )
+    return _render_multiple("bioscreen")
 
 
 # ---------- LIEDL 3D ----------
 @analytical_bp.route("/liedl3d/single")
-@login_required
 def liedl3d_single():
     sites, selected_site = _selected_site("liedl3d")
     input_fields = _input_fields("panel_liedl3d_single", selected_site)
@@ -651,7 +642,6 @@ def liedl3d_single():
 
 
 @analytical_bp.route("/liedl3d/single/export")
-@login_required
 @guard_model_errors
 def liedl3d_single_export():
     m = _request_float("M", 10.0)
@@ -663,20 +653,23 @@ def liedl3d_single_export():
     c_ed0 = _request_float("C_ED0", 5.0)
     gamma = _request_float("gamma", 3.0)
     lmax = liedl3d_lmax(m, alpha_th, alpha_tv, w, cthres, c_ea0, c_ed0, gamma)
-    report = CASTReport("Liedl 3D — Single Simulation", "Liedl 3D Analytical")
+    report = CASTReport("Liedl 3D (2011) — Single Simulation", "Liedl 3D (2011)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "M", "name": "Source Thickness", "value": m, "unit": "m"},
-            {"symbol": "αTh", "name": "Horiz. Trans. Dispersivity", "value": alpha_th, "unit": "m"},
-            {"symbol": "αTv", "name": "Vert. Trans. Dispersivity", "value": alpha_tv, "unit": "m"},
-            {"symbol": "W", "name": "Source Width", "value": w, "unit": "m"},
-            {"symbol": "Cthres", "name": "Threshold Concentration", "value": cthres, "unit": "mg/L"},
+            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
+            {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
+            {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
+            {"symbol": "C_thres", "name": "Threshold Donor Concentration", "value": cthres, "unit": "mg/L"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
             {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0, "unit": "mg/L"},
-            {"symbol": "γ", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
+            {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Liedl 3D"},
+        plot_data=_comparison_plot_data(
+            "Liedl 3D (2011)", "Liedl 3D model plume length", lmax,
+            _request_int("site_id", 0), _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -686,21 +679,12 @@ def liedl3d_single_export():
 
 
 @analytical_bp.route("/liedl3d/multiple")
-@login_required
 def liedl3d_multiple():
-    sites, selected_site = _selected_site("liedl3d")
-    return render_template(
-        "panel_liedl3d_multiple.html",
-        panel_src=_panel_src("panel_liedl3d_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_liedl3d_multiple", selected_site),
-    )
+    return _render_multiple("liedl3d")
 
 
 # ---------- CIRPKA ----------
 @analytical_bp.route("/cirpka/single")
-@login_required
 def cirpka_single():
     sites, selected_site = _selected_site("cirpka")
     params = _cirpka_single_params(selected_site)
@@ -710,6 +694,8 @@ def cirpka_single():
         key: params[key]
         for key in ("Sw", "alpha_Th", "C_A", "C_D", "gamma")
     }
+    if params.get("site_id"):
+        export_query["site_id"] = params["site_id"]
     return render_template(
         "panel_cirpka_single.html",
         panel_src=_cirpka_panel_src(params),
@@ -724,7 +710,6 @@ def cirpka_single():
 
 
 @analytical_bp.route("/cirpka/single/export")
-@login_required
 @guard_model_errors
 def cirpka_single_export():
     sw = _request_float("Sw", 10.0)
@@ -735,20 +720,23 @@ def cirpka_single_export():
     lmax = cirpka_lmax(sw, alpha_th, gamma, ca, cd)
     ld = cirpka_domain_length(lmax)
 
-    report = CASTReport("Cirpka et al. (2005) - Single Simulation", "Cirpka Analytical")
+    report = CASTReport("Cirpka et al. (2006) - Single Simulation", "Cirpka et al. (2006)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "Sw", "name": "Source Width", "value": sw, "unit": "m"},
-            {"symbol": "alpha Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
-            {"symbol": "C_A", "name": "Acceptor Concentration", "value": ca, "unit": "mg/L"},
-            {"symbol": "C_D", "name": "Donor Concentration", "value": cd, "unit": "mg/L"},
+            {"symbol": "S_W", "name": "Source Width", "value": sw, "unit": "m"},
+            {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
+            {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": ca, "unit": "mg/L"},
+            {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": cd, "unit": "mg/L"},
             {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
         ],
         outputs=[
             {"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"},
             {"label": "Domain Length LD", "value": f"{ld:.2f}", "unit": "m"},
         ],
-        plot_data={"labels": ["Lmax", "Domain LD"], "values": [lmax, ld], "ylabel": "Length (m)", "title": "Cirpka Result"},
+        plot_data=_comparison_plot_data(
+            "Cirpka et al. (2006)", "Cirpka model plume length", lmax,
+            _request_int("site_id", 0), _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -758,13 +746,5 @@ def cirpka_single_export():
 
 
 @analytical_bp.route("/cirpka/multiple")
-@login_required
 def cirpka_multiple():
-    sites, selected_site = _selected_site("cirpka")
-    return render_template(
-        "panel_cirpka_multiple.html",
-        panel_src=_panel_src("panel_cirpka_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_cirpka_multiple", selected_site),
-    )
+    return _render_multiple("cirpka")

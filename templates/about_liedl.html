@@ -1,6 +1,7 @@
 {% extends "model_about_base.html" %}
 
 {% block about_category %}Analytical Model{% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
 {% block about_title %}Liedl et al. (2005){% endblock %}
 {% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
 {% block back_label %}All analytical models{% endblock %}
@@ -11,13 +12,12 @@
   <li>2D vertical</li>
   <li>Steady state</li>
   <li>Instantaneous reaction</li>
-  <li>Closed form</li>
 </ul>
 {% endblock %}
 
 {% block about_lead %}
 <p>A vertically oriented 2D model that estimates the steady-state length of a
-mixing-controlled plume (<math><msub><mi>L</mi><mi>max</mi></msub></math>). The
+mixing-controlled plume (<math><msub><mi>L</mi><mi mathvariant="normal">max</mi></msub></math>). The
 vertical orientation refers to the <math><mi>z</mi></math>-axis being aligned
 with the aquifer thickness. Degradation occurs by an instantaneous bimolecular
 reaction confined to the plume fringe.</p>
@@ -25,8 +25,8 @@ reaction confined to the plume fringe.</p>
 
 {% block about_figure %}
 <figure class="about-figure">
-  <img src="{{ url_for('static', filename='images/conceptual_liedl_2d.png') }}"
-       alt="Conceptual 2D vertical model domain of Liedl et al. (2005): a fully penetrating electron-donor source releasing a plume that thins downstream as it mixes with the ambient electron acceptor.">
+  <img src="{{ url_for('static', filename='images/conceptual_liedl_2005.png') }}"
+       alt="Conceptual model diagram for Liedl et al. (2005).">
   <figcaption>Conceptual model &mdash; Liedl et al. (2005).</figcaption>
 </figure>
 {% endblock %}
@@ -35,19 +35,19 @@ reaction confined to the plume fringe.</p>
 {# title attrs = hover tooltips; valid global attributes on MathML in HTML. #}
 <math display="block">
   <mrow>
-    <msub title="Maximum steady-state plume length [m]"><mi>L</mi><mi>max</mi></msub>
+    <msub title="Maximum steady-state plume length [L]"><mi>L</mi><mi mathvariant="normal">max</mi></msub>
     <mo>=</mo>
     <mfrac>
-      <mrow><mn>4</mn><msup><msub title="Aquifer thickness, equal to source thickness [m]"><mi>T</mi><mi>A</mi></msub><mn>2</mn></msup></mrow>
-      <mrow><msup><mi>π</mi><mn>2</mn></msup><msub title="Vertical transverse dispersivity [m]"><mi>α</mi><mi>Tv</mi></msub></mrow>
+      <mrow><mn>4</mn><msup><msub title="Source thickness [L]"><mi>S</mi><mi>T</mi></msub><mn>2</mn></msup></mrow>
+      <mrow><msup><mi>π</mi><mn>2</mn></msup><msub title="Transverse vertical dispersivity [L]"><mi>α</mi><mrow><mi>T</mi><mi>v</mi></mrow></msub></mrow>
     </mfrac>
     <mi>ln</mi><mo>&#8289;</mo>
     <mrow>
       <mo>(</mo>
       <mfrac><mn>4</mn><mi>π</mi></mfrac>
       <mfrac>
-        <mrow><mi title="Reaction stoichiometric ratio [-]">γ</mi><msubsup title="Donor concentration at source [mg/L]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup title="Acceptor concentration at source [mg/L]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
-        <msubsup title="Acceptor concentration at source [mg/L]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup>
+        <mrow><mi title="Stoichiometry ratio [-]">γ</mi><msubsup title="Donor concentration at source [ML⁻³]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+        <msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup>
       </mfrac>
       <mo>)</mo>
     </mrow>
@@ -56,11 +56,11 @@ reaction confined to the plume fringe.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
-<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
-<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [mg/L]</dd>
+<dt><math><msub><mi>S</mi><mi>T</mi></msub></math></dt><dd>Source thickness [L]</dd>
+<dt><math><msub><mi>α</mi><mrow><mi>T</mi><mi>v</mi></mrow></msub></math></dt><dd>Transverse vertical dispersivity [L]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry ratio [-]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [ML⁻³]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [ML⁻³]</dd>
 {% endblock %}
 
 {% block about_assumptions_class %} about-assumptions--check{% endblock %}
@@ -72,9 +72,9 @@ reaction confined to the plume fringe.</p>
 {% endblock %}
 
 {% block about_reference %}
-<p>Liedl, R., Valocchi, A., Dietrich, P., Grathwohl, P., 2005. Finiteness of
-steady state plumes. Water Resour. Res. 41, W12501.
-<a href="https://doi.org/10.1029/2005WR004000" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2005WR004000</a></p>
+<p>Liedl, R., A. J. Valocchi, P. Dietrich, and P. Grathwohl. 2005. Finiteness of
+steady state plumes. Water Resources Research 41, no. 12: 2005WR004000,
+<a href="https://doi.org/10.1029/2005WR004000" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2005WR004000</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('analytical_bp.liedl_single') }}{% endblock %}

@@ -6,6 +6,10 @@ def _field(name, label):
     return attach_meta({"name": name, "label": label})
 
 
+def _model_field(context, name, label):
+    return attach_meta({"name": name, "label": label}, context=context)
+
+
 def test_site_fields_follow_variable_symbol_reference():
     assert _field("M", "Aquifer thickness [m]")["symbol"] == "<i>T</i><sub>A</sub>"
     assert _field("C_EA0", "Electron acceptor [mg/L]")["symbol"] == (
@@ -27,6 +31,48 @@ def test_scenario_tables_use_the_same_display_notation():
     assert table_titles(["R"], context="birla") == {"R": "Recharge Rate R_c [m/yr]"}
     assert table_titles(["grid_size"], context="numerical_vertical") == {
         "grid_size": "Grid Spacing \u0394x = \u0394z [m]"
+    }
+
+
+def test_model_pages_use_about_page_names_and_symbols():
+    cases = [
+        ("panel_liedl_single", "M", "Aquifer Thickness [m]", "Source Thickness [m]", "<i>S</i><sub>T</sub>"),
+        ("panel_chu_single", "W", "Source Width [m]", "Source Width [m]", "<i>S</i><sub>W</sub>"),
+        ("panel_ham_single", "alpha_T", "Transverse Dispersivity [m]", "Horizontal Transverse Dispersivity [m]", "&alpha;<sub>Th</sub>"),
+        ("panel_cirpka_single", "C_A", "Electron Acceptor [mg/L]", "Acceptor Concentration at Source [mg/L]", "<i>C</i><sub>A</sub><sup>0</sup>"),
+        ("panel_maier_single", "Ca", "Contaminant Concentration [mg/L]", "Acceptor Concentration at Source [mg/L]", "<i>C</i><sub>A</sub><sup>0</sup>"),
+        ("panel_birla_single", "Cd", "Reactant Concentration [mg/L]", "Donor Concentration at Source [mg/L]", "<i>C</i><sub>D</sub><sup>0</sup>"),
+        ("panel_bioscreen_single", "c0", "Source Concentration [mg/L]", "Contamination Concentration [mg/L]", "<i>C</i><sub>D</sub><sup>0</sup>"),
+    ]
+
+    for context, name, label, expected_label, expected_symbol in cases:
+        field = _model_field(context, name, label)
+        assert field["label"] == expected_label
+        assert field["symbol"] == expected_symbol
+
+
+def test_multiple_table_headers_follow_about_pages():
+    assert table_titles(["M", "alpha_Tv", "C_ED0"], context="liedl") == {
+        "M": "Source Thickness S_T [m]",
+        "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]",
+        "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]",
+    }
+    assert table_titles(["Q", "alpha_T"], context="ham") == {
+        "Q": "Source Flux q [m²/yr]",
+        "alpha_T": "Horizontal Transverse Dispersivity α_Th [m]",
+    }
+    assert table_titles(["M", "Ca", "Cd", "R"], context="birla") == {
+        "M": "Source Thickness S_T [m]",
+        "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]",
+        "Cd": "Donor Concentration at Source C_D^0 [mg/L]",
+        "R": "Recharge Rate R_c [m/yr]",
+    }
+    assert table_titles(["g"], context="maier") == {
+        "g": "Stoichiometry Coefficient γ [-]"
+    }
+    assert table_titles(["M", "C_ED0"], context="liedl", html=True) == {
+        "M": "Source Thickness <i>S</i><sub>T</sub> [m]",
+        "C_ED0": "Donor Concentration at Source <i>C</i><sub>D</sub><sup>0</sup> [mg/L]",
     }
 
 

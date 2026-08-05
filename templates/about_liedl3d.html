@@ -1,6 +1,7 @@
 {% extends "model_about_base.html" %}
 
 {% block about_category %}Analytical Model{% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
 {% block about_title %}Liedl 3D (2011){% endblock %}
 {% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
 {% block back_label %}All analytical models{% endblock %}
@@ -8,14 +9,14 @@
 {% block about_lead %}
 <p>A 3D extension of the Liedl et al. (2005) model for a fully penetrating
 source of finite width in a domain that is infinite in length and width. The
-threshold concentration <math><msub><mi>C</mi><mi>thres</mi></msub></math> lets
-the plume length (<math><msub><mi>L</mi><mi>max</mi></msub></math>) be measured to
+threshold concentration <math><msub><mi>C</mi><mi mathvariant="normal">thres</mi></msub></math> lets
+the plume length (<math><msub><mi>L</mi><mi mathvariant="normal">max</mi></msub></math>) be measured to
 any chosen contour along the <math><mi>x</mi></math>-axis.</p>
 {% endblock %}
 
 {% block about_figure %}
 <figure class="about-figure">
-  <img src="{{ url_for('static', filename='images/conceptual_liedl_3d.png') }}"
+  <img src="{{ url_for('static', filename='images/conceptual_liedl_2011.png') }}"
        alt="Conceptual 3D model of Liedl et al. (2011): a finite-width, fully penetrating source releasing a plume that mixes in both horizontal and vertical transverse directions.">
   <figcaption>Conceptual model &mdash; Liedl et al. (2011).</figcaption>
 </figure>
@@ -28,17 +29,17 @@ any chosen contour along the <math><mi>x</mi></math>-axis.</p>
     <mrow>
       <mo>(</mo>
       <mfrac>
-        <mi>W</mi>
-        <msqrt><mrow><mn>4</mn><msub><mi>α</mi><mi>Th</mi></msub><msub><mi>L</mi><mi>max</mi></msub></mrow></msqrt>
+        <msub title="Source width [L]"><mi>S</mi><mi>W</mi></msub>
+        <msqrt><mrow><mn>4</mn><msub title="Transverse horizontal dispersivity [L]"><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub><msub title="Maximum plume length [L]"><mi>L</mi><mi mathvariant="normal">max</mi></msub></mrow></msqrt>
       </mfrac>
       <mo>)</mo>
     </mrow>
     <msup>
       <mi>e</mi>
       <mrow>
-        <mo>−</mo><msub><mi>α</mi><mi>Tv</mi></msub><msub><mi>L</mi><mi>max</mi></msub>
+        <mo>−</mo><msub title="Transverse vertical dispersivity [L]"><mi>α</mi><mrow><mi>T</mi><mi>v</mi></mrow></msub><msub title="Maximum plume length [L]"><mi>L</mi><mi mathvariant="normal">max</mi></msub>
         <msup>
-          <mrow><mo>(</mo><mfrac><mi>π</mi><mrow><mn>2</mn><msub><mi>T</mi><mi>A</mi></msub></mrow></mfrac><mo>)</mo></mrow>
+          <mrow><mo>(</mo><mfrac><mi>π</mi><mrow><mn>2</mn><msub title="Source thickness [L]"><mi>S</mi><mi>T</mi></msub></mrow></mfrac><mo>)</mo></mrow>
           <mn>2</mn>
         </msup>
       </mrow>
@@ -46,8 +47,8 @@ any chosen contour along the <math><mi>x</mi></math>-axis.</p>
     <mo>=</mo>
     <mfrac><mi>π</mi><mn>4</mn></mfrac>
     <mfrac>
-      <mrow><mi>γ</mi><msub><mi>C</mi><mi>thres</mi></msub><mo>+</mo><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
-      <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+      <mrow><mi title="Stoichiometry ratio [-]">γ</mi><msub title="Threshold donor concentration [ML⁻³]"><mi>C</mi><mi mathvariant="normal">thres</mi></msub><mo>+</mo><msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+      <mrow><mi title="Stoichiometry ratio [-]">γ</mi><msubsup title="Donor concentration at source [ML⁻³]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
     </mfrac>
   </mrow>
 </math>
@@ -55,19 +56,19 @@ any chosen contour along the <math><mi>x</mi></math>-axis.</p>
 
 {% block about_equation_note %}
 <p class="about-note">This equation is implicit in
-<math><msub><mi>L</mi><mi>max</mi></msub></math>; CAST solves it numerically by
+<math><msub><mi>L</mi><mi mathvariant="normal">max</mi></msub></math>; CAST solves it numerically by
 Newton's method.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
-<dt><math><mi>W</mi></math></dt><dd>Source width [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
-<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
-<dt><math><msub><mi>C</mi><mi>thres</mi></msub></math></dt><dd>Threshold contaminant concentration [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [mg/L]</dd>
+<dt><math><msub><mi>S</mi><mi>T</mi></msub></math></dt><dd>Source thickness [L]</dd>
+<dt><math><msub><mi>S</mi><mi>W</mi></msub></math></dt><dd>Source width [L]</dd>
+<dt><math><msub><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub></math></dt><dd>Transverse horizontal dispersivity [L]</dd>
+<dt><math><msub><mi>α</mi><mrow><mi>T</mi><mi>v</mi></mrow></msub></math></dt><dd>Transverse vertical dispersivity [L]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry ratio [-]</dd>
+<dt><math><msub><mi>C</mi><mi mathvariant="normal">thres</mi></msub></math></dt><dd>Threshold donor concentration [ML⁻³]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [ML⁻³]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [ML⁻³]</dd>
 {% endblock %}
 
 {% block about_assumptions %}
@@ -77,10 +78,10 @@ Newton's method.</p>
 {% endblock %}
 
 {% block about_reference %}
-<p>Liedl, R., Yadav, P.K., Dietrich, P., 2011. Length of 3-D mixing-controlled
+<p>Liedl, R., P. K. Yadav, and P. Dietrich. 2011. Length of 3-D mixing-controlled
 plumes for a fully penetrating contaminant source with finite width. Water
-Resour. Res. 47.
-<a href="https://doi.org/10.1029/2010WR009710" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2010WR009710</a></p>
+Resources Research 47, no. 8,
+<a href="https://doi.org/10.1029/2010WR009710" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2010WR009710</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('analytical_bp.liedl3d_single') }}{% endblock %}

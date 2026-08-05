@@ -2,14 +2,15 @@
 from urllib.parse import urlencode
 
 from flask import Blueprint, Response, render_template, request
-from flask_login import current_user, login_required
 
 from data_queries import get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
-from route_guards import guard_model_errors, request_finite_float
+from route_guards import compare_site_ids, guard_model_errors, request_finite_float
 from empirical_models import birla_lmax, maier_lmax
+from panel_empirical_common import comparison_plot_data
 from param_meta import attach_meta
 from pdf_report import CASTReport
+from security import current_email
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_to_model
 
@@ -49,8 +50,29 @@ EMPIRICAL_INPUT_SPECS = {
 }
 
 
+def _render_multiple(model):
+    """Multiple page: pick sites in the sidebar, run the model once per site.
+
+    The panel reads the ticked sites from its own query string, so they are
+    appended after _panel_src (which only carries single-valued arguments).
+    """
+    sites, selected_site = _selected_site(model)
+    ticked = compare_site_ids(sites)
+    panel_path = f"panel_{model}_multiple"
+    panel_src = _panel_src(panel_path, selected_site, output_only=False)
+    panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in ticked)})
+    return render_template(
+        f"{panel_path}.html",
+        panel_src=panel_src,
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+        compare_site_ids=ticked,
+        input_fields=_input_fields(panel_path, selected_site),
+    )
+
+
 def _current_email():
-    return current_user.email
+    return current_email()
 
 
 def _panel_base_url():
@@ -103,12 +125,15 @@ def _input_fields(path, site):
             "step": step,
             "min": minimum,
             "from_db": name in db_query,
-        }))
+        }, context=path))
     return fields
 
 
 def _export_href(input_fields):
     query = {f["name"]: f["value"] for f in input_fields}
+    site_id = request.args.get("site_id", type=int)
+    if site_id:
+        query["site_id"] = site_id
     return f"{request.path}/export?{urlencode(query)}"
 
 
@@ -148,7 +173,8 @@ def _panel_src(path, site, auto_run=False, output_only=True):
     query = _default_query(path)
     query.update(_build_panel_query(site, _model_from_path(path)))
     for key, value in request.args.items():
-        if key not in {"site_id", "output_only"} and value != "":
+        # compare_sites is multi-valued; _render_multiple passes it explicitly.
+        if key not in {"site_id", "output_only", "compare_sites"} and value != "":
             query[key] = value
     query["email"] = _current_email()
     query["run"] = 1
@@ -158,13 +184,11 @@ def _panel_src(path, site, auto_run=False, output_only=True):
 
 
 @empirical_bp.route("/empirical")
-@login_required
 def empirical_landing():
     return render_template("empirical_landing.html")
 
 
 @empirical_bp.route("/empirical/maier/single")
-@login_required
 def maier_single():
     sites, selected_site = _selected_site("maier")
     input_fields = _input_fields("panel_maier_single", selected_site)
@@ -179,7 +203,6 @@ def maier_single():
 
 
 @empirical_bp.route("/empirical/maier/single/export")
-@login_required
 @guard_model_errors
 def maier_single_export():
     m = _request_float("M", 5.0)
@@ -188,17 +211,22 @@ def maier_single_export():
     ca = _request_float("Ca", 8.0)
     cd = _request_float("Cd", 5.0)
     lmax = maier_lmax(m, tv, g, ca, cd)
-    report = CASTReport("Maier & Grathwohl — Single Simulation", "Maier Empirical")
+    selected_site_id = request.args.get("site_id", default=0, type=int)
+    report = CASTReport("Maier & Grathwohl (2006) — Single Simulation", "Maier & Grathwohl (2006)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "M", "name": "Aquifer Thickness", "value": m, "unit": "m"},
-            {"symbol": "tv", "name": "Vert. Trans. Dispersivity", "value": tv, "unit": "m"},
-            {"symbol": "g", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
-            {"symbol": "Ca", "name": "General Contaminant Concentration", "value": ca, "unit": "mg/L"},
-            {"symbol": "Cd", "name": "Partner Reactant Concentration", "value": cd, "unit": "mg/L"},
+            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
+            {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
+            {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": ca, "unit": "mg/L"},
+            {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": cd, "unit": "mg/L"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Maier & Grathwohl"},
+        plot_data=comparison_plot_data(
+            "Maier & Grathwohl (2006)", "Maier model plume length",
+            [selected_site_id or 1], [lmax],
+            selected_site_id, _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -208,20 +236,11 @@ def maier_single_export():
 
 
 @empirical_bp.route("/empirical/maier/multiple")
-@login_required
 def maier_multiple():
-    sites, selected_site = _selected_site("maier")
-    return render_template(
-        "panel_maier_multiple.html",
-        panel_src=_panel_src("panel_maier_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_maier_multiple", selected_site),
-    )
+    return _render_multiple("maier")
 
 
 @empirical_bp.route("/empirical/birla/single")
-@login_required
 def birla_single():
     sites, selected_site = _selected_site("birla")
     input_fields = _input_fields("panel_birla_single", selected_site)
@@ -236,7 +255,6 @@ def birla_single():
 
 
 @empirical_bp.route("/empirical/birla/single/export")
-@login_required
 @guard_model_errors
 def birla_single_export():
     m = _request_float("M", 2.0)
@@ -246,18 +264,23 @@ def birla_single_export():
     cd = _request_float("Cd", 5.0)
     r = _request_float("R", 1.0)
     lmax = birla_lmax(m, tv, g, ca, cd, r)
-    report = CASTReport("Birla et al. — Single Simulation", "Birla Empirical")
+    selected_site_id = request.args.get("site_id", default=0, type=int)
+    report = CASTReport("Birla et al. (2020) — Single Simulation", "Birla et al. (2020)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "M", "name": "Aquifer Thickness", "value": m, "unit": "m"},
-            {"symbol": "tv", "name": "Vert. Trans. Dispersivity", "value": tv, "unit": "m"},
-            {"symbol": "g", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
-            {"symbol": "Ca", "name": "General Contaminant Concentration", "value": ca, "unit": "mg/L"},
-            {"symbol": "Cd", "name": "Partner Reactant Concentration", "value": cd, "unit": "mg/L"},
+            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
             {"symbol": "R_c", "name": "Recharge Rate", "value": r, "unit": "m/yr"},
+            {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
+            {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": ca, "unit": "mg/L"},
+            {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": cd, "unit": "mg/L"},
         ],
         outputs=[{"label": "Maximum Plume Length Lmax", "value": f"{lmax:.2f}", "unit": "m"}],
-        plot_data={"labels": ["Lmax"], "values": [lmax], "ylabel": "Plume Length (m)", "title": "Maximum Plume Length — Birla et al."},
+        plot_data=comparison_plot_data(
+            "Birla et al. (2020)", "Birla model plume length",
+            [selected_site_id or 1], [lmax],
+            selected_site_id, _current_email(), "Run Number",
+        ),
     )
     return Response(
         pdf_bytes,
@@ -267,13 +290,5 @@ def birla_single_export():
 
 
 @empirical_bp.route("/empirical/birla/multiple")
-@login_required
 def birla_multiple():
-    sites, selected_site = _selected_site("birla")
-    return render_template(
-        "panel_birla_multiple.html",
-        panel_src=_panel_src("panel_birla_multiple", selected_site, output_only=False),
-        sites=sites,
-        selected_site_id=selected_site.get("id") if selected_site else None,
-        input_fields=_input_fields("panel_birla_multiple", selected_site),
-    )
+    return _render_multiple("birla")

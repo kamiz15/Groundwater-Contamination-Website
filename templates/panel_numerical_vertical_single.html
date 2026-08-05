@@ -5,6 +5,7 @@
 {% block model_title %}Numerical Vertical Model - Single Simulation{% endblock %}
 {% block toolbox_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
 {% block toolbox_label %}All numerical models{% endblock %}
+{% block model_about_link %}<a class="ghost-btn model-workbench-back" href="{{ url_for('numerical_bp.numerical_vertical_multiple') }}">Multiple simulations</a>{% endblock %}
 {% block output_frame_attrs %}data-min-height="560"{% endblock %}
 {% block workbench_top %}
 <div class="card-like conceptual-figure conceptual-figure--banner">

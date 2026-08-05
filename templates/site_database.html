@@ -82,6 +82,16 @@
   <script src="{{ url_for('static', filename='site_database.js') }}?v=20260803c" defer></script>
   <h2 class="site-user-database-heading">Your Database</h2>
 
+  {% if is_guest %}
+    <p class="flash flash-info">
+      You are browsing without an account. Every model above and on the model pages runs
+      on the reference database, so nothing here is required.
+      <a href="{{ url_for('login_page') }}">Log in</a> or
+      <a href="{{ url_for('register_page') }}">create a free account</a> to upload and keep
+      your own sites. We store uploaded data only to run the models for you.
+    </p>
+  {% endif %}
+
   <div class="card-like database-action-card database-upload-card data-page-card">
     <h3>Upload Site Data (CSV)</h3>
     <p class="small">

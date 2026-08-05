@@ -1,19 +1,10 @@
 {% extends "model_about_base.html" %}
 
 {% block about_category %}Analytical Model{% endblock %}
-{% block about_title %}BIOSCREEN-AT{% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
+{% block about_title %}BIOSCREEN-AT 3D{% endblock %}
 {% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
 {% block back_label %}All analytical models{% endblock %}
-
-{% block about_lead %}
-<p>An exact analytical (BIOSCREEN-AT) solution for the three-dimensional
-transient transport of a dissolved contaminant undergoing advection,
-dispersion, equilibrium sorption and first-order decay. The source is a patch
-specified-concentration boundary. CAST evaluates the solution with
-Gauss&ndash;Legendre quadrature and reports the maximum plume length
-(<math><msub><mi>L</mi><mi>max</mi></msub></math>) as the farthest point on the
-centre line where the concentration still exceeds the threshold.</p>
-{% endblock %}
 
 {% block about_figure %}
 <figure class="about-figure">
@@ -24,41 +15,25 @@ centre line where the concentration still exceeds the threshold.</p>
 {% endblock %}
 
 {% block about_equation %}
-<math display="block">
-  <mrow>
-    <msub><mi>L</mi><mi>max</mi></msub>
-    <mo>=</mo>
-    <mi>max</mi><mo>&#8289;</mo>
-    <mrow>
-      <mo>{</mo>
-      <mi>x</mi><mo>:</mo>
-      <msub><mi>C</mi><mi>c</mi></msub><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><mi>t</mi><mo>)</mo>
-      <mo>&#8805;</mo>
-      <msub><mi>C</mi><mi>thres</mi></msub>
-      <mo>}</mo>
-    </mrow>
-  </mrow>
-</math>
+<img src="{{ url_for('static', filename='images/solution_bioscreen_at.png') }}"
+     alt="BIOSCREEN-AT analytical solution for contaminant concentration C_D(x, y, z, t)."
+     style="display: block; max-width: 100%; height: auto; margin: 6px auto 2px;">
 {% endblock %}
 
-{% block about_equation_note %}
-<p class="about-note">The centre-line concentration
-<math><msub><mi>C</mi><mi>c</mi></msub><mo>&#8289;</mo><mo>(</mo><mi>x</mi><mo>,</mo><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><mi>t</mi><mo>)</mo></math>
-has no compact closed form; it is the transient advection&ndash;dispersion&ndash;decay
-integral of Newell et al. (1997) / Karanovic et al. (2007), evaluated
-numerically.</p>
+{% block about_lead %}
+<p>The quantities with prime represents the quantity normalized with the retardation factor (R) [-]</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><msub><mi>C</mi><mi>c</mi></msub></math></dt><dd>General contaminant concentration [mg/L]</dd>
-<dt><math><msub><mi>C</mi><mi>thres</mi></msub></math></dt><dd>Threshold contaminant concentration defining the plume edge [mg/L]</dd>
-<dt><math><mi>W</mi></math></dt><dd>Source width [m]</dd>
-<dt><math><mi>H</mi></math></dt><dd>Source thickness (depth) [m]</dd>
-<dt><math><mi>v</mi></math></dt><dd>Groundwater seepage velocity [m/yr]</dd>
-<dt><math><msub><mi>α</mi><mi>L</mi></msub></math>, <math><msub><mi>α</mi><mi>Th</mi></msub></math>, <math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Longitudinal, horizontal-transverse, and vertical-transverse dispersivity [m]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Contamination concentration [ML&#8315;&#179;]</dd>
+<dt><math><msub><mi>C</mi><mi>D</mi></msub></math></dt><dd>General contaminant concentration [ML&#8315;&#179;]</dd>
+<dt><math><msub><mi>S</mi><mi>W</mi></msub></math></dt><dd>Source width [L]</dd>
+<dt><math><msub><mi>S</mi><mi>T</mi></msub></math></dt><dd>Source thickness (depth) [L]</dd>
+<dt><math><mi>v</mi></math></dt><dd>Groundwater seepage velocity [LT&#8315;&#185;]</dd>
+<dt><math><msub><mi>&#945;</mi><mi>L</mi></msub></math>, <math><msub><mi>&#945;</mi><mi>Th</mi></msub></math>, <math><msub><mi>&#945;</mi><mi>Tv</mi></msub></math></dt><dd>Longitudinal, horizontal-transverse, and vertical-transverse dispersivity [L]</dd>
 <dt><math><mi>R</mi></math></dt><dd>Retardation factor [-]</dd>
-<dt><math><mi>Γ</mi></math></dt><dd>Source decay coefficient [1/yr]</dd>
-<dt><math><msub><mi>λ</mi><mi>e</mi></msub></math></dt><dd>First-order decay coefficient [1/yr]</dd>
+<dt><math><mi>&#915;</mi></math></dt><dd>Source decay coefficient [T&#8315;&#185;]</dd>
+<dt><math><msub><mi>&#955;</mi><mi>e</mi></msub></math></dt><dd>First-order decay coefficient [T&#8315;&#185;]</dd>
 {% endblock %}
 
 {% block about_assumptions %}
@@ -69,10 +44,9 @@ numerically.</p>
 {% endblock %}
 
 {% block about_reference %}
-<p>Karanovic, M., Neville, C.J., Andrews, C.B., 2007. BIOSCREEN-AT: BIOSCREEN
-with an Exact Analytical Solution. Ground Water 45 (2), 242&ndash;245.</p>
-<p>S.S. Papadopulos &amp; Associates, Inc.
-<a href="https://www.sspa.com/software/bioscreen" target="_blank" rel="noopener noreferrer">https://www.sspa.com/software/bioscreen</a></p>
+<p>Karanovic, M., C. J. Neville, and C. B. Andrews. 2007. BIOSCREEN-AT:
+BIOSCREEN with an Exact Analytical Solution. Ground Water 45, no. 2: 242&ndash;45,
+<a href="https://doi.org/10.1111/j.1745-6584.2006.00296.x" target="_blank" rel="noopener noreferrer">https://doi.org/10.1111/j.1745-6584.2006.00296.x</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('analytical_bp.bioscreen_single') }}{% endblock %}

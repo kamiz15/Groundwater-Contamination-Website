@@ -20,7 +20,7 @@
       {% block about_chips %}{% endblock %}
 
       <div class="about-equation-plate">
-        <span class="about-equation-label">Governing equation</span>
+        <span class="about-equation-label">{% block about_equation_label %}Governing equation{% endblock %}</span>
         {% block about_equation %}{% endblock %}
         {% block about_equation_note %}{% endblock %}
       </div>

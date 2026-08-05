@@ -1,89 +1,10 @@
-{% extends "base.html" %}
-{% block title %}Numerical Horizontal Model - Multiple Simulation{% endblock %}
-{% block content %}
-<section class="section-spaced model-page model-workbench numerical-horizontal-multiple-page">
-  <header class="model-workbench-header">
-    <div class="section-head">
-      <span class="kicker">Numerical Toolbox</span>
-      <h2>Numerical Horizontal Model - Multiple Simulation</h2>
-      <p class="model-workbench-hint">Load site data, then edit scenarios in the table below and click Run to compare multiple simulations.</p>
-    </div>
-    <a class="ghost-btn model-workbench-back" href="{{ url_for('numerical_bp.numerical_landing') }}">&larr; All numerical models</a>
-  </header>
-
-  <div class="numerical-multiple-top">
-    <div class="numerical-multiple-inputs">
-      <div class="card-like model-output-card">
-        <h3>Simulation Panel</h3>
-        <div class="panel-shell output-panel-shell horizontal-multiple-input-shell">
-          <iframe
-            src="{{ input_panel_src }}"
-            class="panel-frame output-panel-frame horizontal-multiple-input-frame"
-            data-min-height="480"
-            loading="eager"
-          ></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="numerical-multiple-aside">
-      <div class="card-like numerical-multiple-run-card">
-        <button type="button" id="horizontalMultipleRunButton" class="primary-btn numerical-multiple-run horizontal-multiple-run-button">
-          Run Horizontal Scenarios
-        </button>
-      </div>
-
-      <div class="card-like model-output-card horizontal-multiple-result-card">
-        <h3>Output Visualisation</h3>
-        <div class="panel-shell output-panel-shell horizontal-multiple-result-shell">
-          <iframe
-            id="horizontalMultipleResultFrame"
-            src="{{ result_panel_src }}"
-            data-base-src="{{ result_panel_src }}"
-            class="panel-frame output-panel-frame horizontal-multiple-result-frame"
-            data-min-height="320"
-            loading="eager"
-          ></iframe>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {% include "report_bridge_card.html" %}
-
-  <script>
-    window.addEventListener("message", (event) => {
-      const data = event.data;
-      if (!data || data.type !== "numerical-multiple-result" || data.orientation !== "horizontal") return;
-      // Only trust the result from the input frame we told to run.
-      const inputFrame = document.querySelector(".horizontal-multiple-input-frame");
-      if (!inputFrame || event.source !== inputFrame.contentWindow) return;
-      const runButton = document.getElementById("horizontalMultipleRunButton");
-      if (runButton) {
-        runButton.disabled = false;
-        runButton.textContent = "Run Horizontal Scenarios";
-      }
-      // Failed run: the input frame shows the error; keep the output frame as-is.
-      if (data.error) return;
-      const frame = document.getElementById("horizontalMultipleResultFrame");
-      if (!frame) return;
-      const base = frame.dataset.baseSrc || frame.src;
-      const separator = base.includes("?") ? "&" : "?";
-      const query = new URLSearchParams({
-        job_ids: JSON.stringify(data.job_ids || []),
-        scenario_rows: JSON.stringify(data.rows || []),
-      });
-      frame.src = `${base}${separator}${query.toString()}`;
-    });
-
-    document.getElementById("horizontalMultipleRunButton")?.addEventListener("click", (event) => {
-      const button = event.currentTarget;
-      const frame = document.querySelector(".horizontal-multiple-input-frame");
-      if (!frame || !frame.contentWindow) return;
-      button.disabled = true;
-      button.textContent = "Running Horizontal Scenarios...";
-      frame.contentWindow.postMessage({ type: "run-numerical-multiple", orientation: "horizontal" }, "*");
-    });
-  </script>
-</section>
+{% extends "model_workbench_multiple.html" %}
+{% block model_kicker %}Numerical Toolbox{% endblock %}
+{% block model_title %}Numerical Horizontal Model - Multiple Simulation{% endblock %}
+{% block model_hint %}Pick the sites to compare on the left and press Run. The model runs once per selected site using that site's database parameters. Nothing is selected by default because every site queues a full numerical simulation.{% endblock %}
+{% block compare_submit_label %}Run Horizontal Simulations{% endblock %}
+{% block toolbox_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
+{% block toolbox_label %}All numerical models{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">Single simulation</a>
 {% endblock %}

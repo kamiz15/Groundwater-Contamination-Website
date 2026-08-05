@@ -1,6 +1,10 @@
 {% extends "model_workbench_multiple.html" %}
 {% block model_kicker %}Analytical Toolbox{% endblock %}
-{% block model_title %}BIOSCREEN-AT - Multiple Simulation{% endblock %}
+{% block model_title %}BIOSCREEN-AT 3D - Multiple Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_bioscreen.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for BIOSCREEN-AT{% endblock %}
 {% block output_frame_attrs %}allow="clipboard-read; clipboard-write"{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.bioscreen_single') }}">Single simulation</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='bioscreen') }}">About</a>
+{% endblock %}

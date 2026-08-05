@@ -2,7 +2,6 @@ import logging
 from urllib.parse import urlencode
 
 from flask import Blueprint, Response, jsonify, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
 
 from data_queries import get_user_sites_rows
 from numerical_jobs import (
@@ -14,12 +13,12 @@ from numerical_jobs import (
     save_job_meta,
     submit_job,
 )
-from security import csrf_protect, rate_limit
-from route_guards import guard_model_errors, request_finite_float
+from security import csrf_protect, current_email, rate_limit
+from route_guards import compare_site_ids, guard_model_errors, request_finite_float
 from numerical_input_validation import format_issues, vertical_inputs_from_site
 from param_meta import GRID_SIZE_VERTICAL_SYMBOL, attach_meta
 from pdf_report import CASTReport
-from settings import PANEL_PUBLIC_BASE
+from settings import NUMERICAL_MULTIPLE_MAX_RUNS, PANEL_PUBLIC_BASE
 from symbol_registry import db_hydraulic_conductivity_to_numerical_hk, db_to_model
 
 numerical_bp = Blueprint("numerical_bp", __name__)
@@ -102,7 +101,7 @@ def _numerical_analytical_fields(orientation, input_fields):
 
 
 def _current_email():
-    return current_user.email
+    return current_email()
 
 
 def _panel_base_url():
@@ -294,7 +293,8 @@ def _panel_src(path, site, orientation=None, auto_run=False, output_only=True):
     except ValueError:
         logger.exception("Selected site could not be mapped to numerical panel inputs; using defaults.")
     for key, value in request.args.items():
-        if key not in {"site_id", "output_only"} and value != "":
+        # compare_sites is multi-valued; the multiple routes pass it explicitly.
+        if key not in {"site_id", "output_only", "compare_sites"} and value != "":
             query[key] = value
     query["email"] = _current_email()
     if request.args.get("run") == "1":
@@ -413,7 +413,6 @@ def _vertical_pdf(input_fields):
 
 
 @numerical_bp.route("/numerical/jobs")
-@login_required
 def numerical_jobs_summary():
     return jsonify(queue_counts())
 
@@ -431,7 +430,6 @@ def _job_not_found():
 
 
 @numerical_bp.route("/numerical/jobs/<job_id>")
-@login_required
 def numerical_job_status(job_id):
     if _owned_job_meta(job_id) is None:
         return _job_not_found()
@@ -456,7 +454,6 @@ def numerical_job_status(job_id):
 
 
 @numerical_bp.route("/numerical/jobs/<job_id>/cancel", methods=["POST"])
-@login_required
 @csrf_protect
 def numerical_job_cancel(job_id):
     if _owned_job_meta(job_id) is None:
@@ -465,7 +462,6 @@ def numerical_job_cancel(job_id):
 
 
 @numerical_bp.route("/numerical/jobs/<job_id>/report")
-@login_required
 def numerical_job_report(job_id):
     meta = _owned_job_meta(job_id)
     if meta is None:
@@ -520,7 +516,6 @@ def numerical_job_report(job_id):
 
 
 @numerical_bp.route("/numerical/jobs/<job_id>/download/<kind>")
-@login_required
 def numerical_job_download(job_id, kind):
     """Download the raw MODFLOW head (.hds) or concentration (.ucn) file for a finished
     job (N8). Ownership-checked via the job meta."""
@@ -550,25 +545,21 @@ def numerical_job_download(job_id, kind):
 
 
 @numerical_bp.route("/numerical")
-@login_required
 def numerical_landing():
     return render_template("numerical_landing.html")
 
 
 @numerical_bp.route("/numerical/single")
-@login_required
 def numerical_single():
     return redirect(url_for("numerical_bp.numerical_vertical_single", **request.args))
 
 
 @numerical_bp.route("/numerical/multiple")
-@login_required
 def numerical_multiple():
     return redirect(url_for("numerical_bp.numerical_vertical_multiple", **request.args))
 
 
 @numerical_bp.route("/numerical/horizontal/single")
-@login_required
 def numerical_horizontal_single():
     sites, selected_site, invalid_site_message = _selected_site("horizontal")
     orientation = "horizontal"
@@ -587,7 +578,6 @@ def numerical_horizontal_single():
 
 
 @numerical_bp.route("/numerical/horizontal/single/export")
-@login_required
 @rate_limit(limit=6, window_seconds=60)
 @guard_model_errors
 def numerical_horizontal_single_export():
@@ -596,26 +586,27 @@ def numerical_horizontal_single_export():
 
 
 @numerical_bp.route("/numerical/horizontal/multiple")
-@login_required
 def numerical_horizontal_multiple():
-    # Sites are added from inside the panel (the click-to-add picker), so this
-    # page has no server-side site loader.
-    input_panel_src = _panel_src(
-        "panel_numerical_horizontal_multiple",
-        None,
-        orientation="horizontal",
-        output_only=False,
-    )
-    input_panel_src = f"{input_panel_src}&input_only=1"
+    # One run per site picked in the sidebar. Nothing is picked by default:
+    # every selected site queues a full MODFLOW/MT3DMS job.
+    sites, _selected, _invalid = _selected_site("horizontal")
+    picked = compare_site_ids(sites, default_all=False)
+    # Submitting the picker IS the run: the panel autoruns whatever is picked.
+    panel_src = _panel_src("panel_numerical_horizontal_multiple", None, orientation="horizontal", output_only=False)
+    panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})
+    if picked:
+        panel_src += "&run=1"
     return render_template(
         "panel_numerical_horizontal_multiple.html",
-        input_panel_src=input_panel_src,
-        result_panel_src=_panel_src("panel_numerical_horizontal_multiple", None, orientation="horizontal"),
+        panel_src=panel_src,
+        sites=sites,
+        compare_site_ids=picked,
+        max_runs=NUMERICAL_MULTIPLE_MAX_RUNS,
+        show_site_loader=False,
     )
 
 
 @numerical_bp.route("/numerical/vertical/single")
-@login_required
 def numerical_vertical_single():
     sites, selected_site, invalid_site_message = _selected_site("vertical")
     orientation = "vertical"
@@ -634,7 +625,6 @@ def numerical_vertical_single():
 
 
 @numerical_bp.route("/numerical/vertical/single/export")
-@login_required
 @rate_limit(limit=6, window_seconds=60)
 @guard_model_errors
 def numerical_vertical_single_export():
@@ -643,19 +633,21 @@ def numerical_vertical_single_export():
 
 
 @numerical_bp.route("/numerical/vertical/multiple")
-@login_required
 def numerical_vertical_multiple():
-    # Sites are added from inside the panel (the click-to-add picker), so this
-    # page has no server-side site loader.
-    input_panel_src = _panel_src(
-        "panel_numerical_vertical_multiple",
-        None,
-        orientation="vertical",
-        output_only=False,
-    )
-    input_panel_src = f"{input_panel_src}&input_only=1"
+    # One run per site picked in the sidebar. Nothing is picked by default:
+    # every selected site queues a full MODFLOW/MT3DMS job.
+    sites, _selected, _invalid = _selected_site("vertical")
+    picked = compare_site_ids(sites, default_all=False)
+    # Submitting the picker IS the run: the panel autoruns whatever is picked.
+    panel_src = _panel_src("panel_numerical_vertical_multiple", None, orientation="vertical", output_only=False)
+    panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})
+    if picked:
+        panel_src += "&run=1"
     return render_template(
         "panel_numerical_vertical_multiple.html",
-        input_panel_src=input_panel_src,
-        result_panel_src=_panel_src("panel_numerical_vertical_multiple", None, orientation="vertical"),
+        panel_src=panel_src,
+        sites=sites,
+        compare_site_ids=picked,
+        max_runs=NUMERICAL_MULTIPLE_MAX_RUNS,
+        show_site_loader=False,
     )

@@ -5,14 +5,14 @@ import panel as pn
 from panel_auth import authenticated_email
 
 from analytical_models import liedl_lmax
-from panel_analytical_common import comparison_plot, error_card, info_card, load_field_points, metric_card, query_float, query_int
+from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
 
 
 def liedl_single_app():
-    m = pn.widgets.FloatInput(name="Aquifer Thickness T_A [m]", value=query_float("M", 2.0), step=0.1)
+    m = pn.widgets.FloatInput(name="Source Thickness S_T [m]", value=query_float("M", 2.0), step=0.1)
     alpha_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("alpha_Tv", 0.001), step=0.0001)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
     c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
@@ -29,7 +29,7 @@ def liedl_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Liedl et al. (2005) \u2014 Single Simulation", "Liedl Analytical")
+        report = CASTReport("Liedl et al. (2005) \u2014 Single Simulation", "Liedl et al. (2005)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(
@@ -43,33 +43,22 @@ def liedl_single_app():
             lmax = liedl_lmax(m.value, alpha_tv.value, gamma.value, c_ea0.value, c_ed0.value)
             result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
             user_x = [selected_site_id if selected_site_id > 0 else 1]
-            plot_pane.object = comparison_plot(
+            plot, plot_data = comparison_plot(
                 "Liedl et al. (2005)", "Liedl model plume length",
                 user_x, [lmax], selected_site_id, email, "Run Number",
+                return_data=True,
             )
-            field_x, field_y = load_field_points(email) if selected_site_id > 0 else ([], [])
+            plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "T_A", "name": "Aquifer Thickness", "value": m.value, "unit": "m"},
+                    {"symbol": "S_T", "name": "Source Thickness", "value": m.value, "unit": "m"},
                     {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv.value, "unit": "m"},
                     {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": gamma.value, "unit": "-"},
                     {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0.value, "unit": "mg/L"},
                     {"symbol": "C_D0", "name": "Donor Concentration at Source", "value": c_ed0.value, "unit": "mg/L"},
                 ],
                 "outputs": [{"label": "Maximum Plume Length L\u2098\u2090\u2093", "value": f"{lmax:.2f}", "unit": "m"}],
-                "plot_data": {
-                    "type": "comparison_scatter",
-                    "title": "Liedl et al. (2005)",
-                    "x_label": "Site Number" if selected_site_id > 0 else "Run Number",
-                    "y_label": "Plume Length (m)",
-                    "field_label": "Database plume length",
-                    "field_x": field_x,
-                    "field_y": field_y,
-                    "manual_label": "Liedl model plume length",
-                    "manual_x": user_x,
-                    "manual_y": [lmax],
-                    "caption": "Database plume lengths compared with the model result.",
-                },
+                "plot_data": plot_data,
             })
             export_btn.visible = True
         except Exception as exc:
@@ -84,7 +73,7 @@ def liedl_single_app():
         return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
 
     controls = pn.Column(
-        "## Liedl et al. (2005) - Single Simulation", "### Manual inputs",
+        "### Manual inputs",
         m, alpha_tv, gamma, c_ea0, c_ed0,
         sizing_mode="stretch_width",
         styles={"flex": "1 1 320px", "min-width": "280px"},

@@ -1,40 +1,41 @@
 {% extends "model_about_base.html" %}
 
 {% block about_category %}Analytical Model{% endblock %}
-{% block about_title %}Chu et al. (2004){% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
+{% block about_title %}Chu et al. (2005){% endblock %}
 {% block back_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}
 {% block back_label %}All analytical models{% endblock %}
 
 {% block about_lead %}
 <p>A horizontally oriented 2D model that estimates the steady-state plume length
-(<math><msub><mi>L</mi><mi>max</mi></msub></math>) and describes the large-time
+(<math><msub><mi>L</mi><mi mathvariant="normal">max</mi></msub></math>) and describes the large-time
 behaviour of a bioreactive transport system in which the two required substrates
 mix only in the direction transverse to groundwater flow.</p>
 {% endblock %}
 
 {% block about_figure %}
 <figure class="about-figure">
-  <img src="{{ url_for('static', filename='images/fig_chu.jpeg') }}"
-       alt="Conceptual horizontal 2D model of Chu et al. (2004): a finite-width source releasing a plume whose length is set by transverse mixing at the fringe.">
-  <figcaption>Conceptual model &mdash; Chu et al. (2004).</figcaption>
+  <img src="{{ url_for('static', filename='images/conceptual_chu_2005.png') }}"
+       alt="Conceptual horizontal 2D model of Chu et al. (2005): a finite-width source releasing a plume whose length is set by transverse mixing at the fringe.">
+  <figcaption>Conceptual model &mdash; Chu et al. (2005).</figcaption>
 </figure>
 {% endblock %}
 
 {% block about_equation %}
 <math display="block">
   <mrow>
-    <msub><mi>L</mi><mi>max</mi></msub>
+    <msub title="Maximum plume length [L]"><mi>L</mi><mi mathvariant="normal">max</mi></msub>
     <mo>=</mo>
     <mfrac>
-      <mrow><mi>π</mi><msup><mi>W</mi><mn>2</mn></msup></mrow>
-      <mrow><mn>16</mn><msub><mi>α</mi><mi>Th</mi></msub></mrow>
+      <mrow><mi>π</mi><msup><msub title="Source width [L]"><mi>S</mi><mi>W</mi></msub><mn>2</mn></msup></mrow>
+      <mrow><mn>16</mn><msub title="Transverse horizontal dispersivity [L]"><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub></mrow>
     </mfrac>
     <msup>
       <mrow>
         <mo>(</mo>
         <mfrac>
-          <mrow><mi>γ</mi><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></mrow>
-          <mrow><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup><mo>−</mo><mi>ε</mi></mrow>
+          <mrow><mi title="Stoichiometry ratio [-]">γ</mi><msubsup title="Donor concentration at source [ML⁻³]"><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></mrow>
+          <mrow><msubsup title="Acceptor concentration at source [ML⁻³]"><mi>C</mi><mi>A</mi><mn>0</mn></msubsup><mo>−</mo><mi title="Biological concentration factor [ML⁻³]">ε</mi></mrow>
         </mfrac>
         <mo>)</mo>
       </mrow>
@@ -45,12 +46,12 @@ mix only in the direction transverse to groundwater flow.</p>
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><mi>W</mi></math></dt><dd>Width of the contaminant source [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Th</mi></msub></math></dt><dd>Horizontal transverse dispersivity [m]</dd>
-<dt><math><mi>γ</mi></math></dt><dd>Reaction stoichiometric ratio [-]</dd>
-<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [mg/L]</dd>
-<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [mg/L]</dd>
-<dt><math><mi>ε</mi></math></dt><dd>Biological concentration factor [mg/L]</dd>
+<dt><math><msub><mi>S</mi><mi>W</mi></msub></math></dt><dd>Source width [L]</dd>
+<dt><math><msub><mi>α</mi><mrow><mi>T</mi><mi>h</mi></mrow></msub></math></dt><dd>Transverse horizontal dispersivity [L]</dd>
+<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry ratio [-]</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source [ML⁻³]</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source [ML⁻³]</dd>
+<dt><math><mi>ε</mi></math></dt><dd>Biological concentration factor [ML⁻³]</dd>
 {% endblock %}
 
 {% block about_assumptions %}
@@ -59,10 +60,11 @@ mix only in the direction transverse to groundwater flow.</p>
 {% endblock %}
 
 {% block about_reference %}
-<p>Chu, M., Kitanidis, P.K., McCarty, P.L., 2004. Modeling microbial reactions
+<p>Chu, M., P. Kitanidis, and P. McCarty. 2005. Modeling microbial reactions
 at the plume fringe subject to transverse mixing in porous media: When can the
-rates of microbial reaction be assumed to be instantaneous? Water Resour. Res.
-<a href="https://doi.org/10.1029/2004WR003495" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2004WR003495</a></p>
+rates of microbial reaction be assumed to be instantaneous? Water Resources
+Research 41, no. 6: W06002,
+<a href="https://doi.org/10.1029/2004wr003495" target="_blank" rel="noopener noreferrer">https://doi.org/10.1029/2004wr003495</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('analytical_bp.chu_single') }}{% endblock %}

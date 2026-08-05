@@ -298,7 +298,7 @@ Generated reports can include:
 
 - HYMCAT / CAST branding.
 - DFG and University of Tuebingen logos.
-- Model name, timestamp, report version, and page number.
+- Model name, timestamp, and page number with total page count.
 - A metadata banner.
 - An input-parameter table.
 - Output metric cards.

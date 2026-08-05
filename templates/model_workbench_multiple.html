@@ -12,14 +12,17 @@
     <div class="section-head">
       <span class="kicker">{% block model_kicker %}Toolbox{% endblock %}</span>
       <h2>{% block model_title %}Model{% endblock %}</h2>
-      <p class="model-workbench-hint">{% block model_hint %}Enter scenarios in the table inside the simulation panel and click Run to compare simulations. Uploaded database records appear as comparison points.{% endblock %}</p>
+      <p class="model-workbench-hint">{% block model_hint %}Tick the sites to compare on the left. The model runs once per selected site using that site's database parameters, and the graph plots the modelled plume length against the measured one.{% endblock %}</p>
     </div>
-    <a class="ghost-btn model-workbench-back" href="{% block toolbox_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}">&larr; {% block toolbox_label %}All analytical models{% endblock %}</a>
+    <div class="model-workbench-actions">
+      <a class="ghost-btn model-workbench-back" href="{% block toolbox_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}">&larr; {% block toolbox_label %}All analytical models{% endblock %}</a>
+      {% block model_about_link %}{% endblock %}
+    </div>
   </header>
 
   <div class="model-workbench-layout">
     <aside class="model-workbench-sidebar">
-      {% if sites %}
+      {% if sites and show_site_loader | default(true) %}
       <div class="card-like site-loader-card">
         <h3>Site Data</h3>
         <form method="GET" class="workbench-site-form">
@@ -40,6 +43,34 @@
       </div>
       {% endif %}
 
+      {# Multi-select of the sites plotted on the graph. Only pages whose route
+         passes compare_site_ids render it; the others keep their scenario table. #}
+      {% if sites and compare_site_ids is defined %}
+      <div class="card-like site-loader-card">
+        <h3>Compare Sites</h3>
+        <form method="GET" class="workbench-site-form">
+          {% if selected_site_id %}<input type="hidden" name="site_id" value="{{ selected_site_id }}">{% endif %}
+          <label for="compare_sites">Sites shown on the graph</label>
+          <select id="compare_sites" name="compare_sites" multiple size="{{ [sites|length, 8]|min }}">
+            {% for s in sites %}
+            <option value="{{ s.id }}" {% if s.id in compare_site_ids %}selected{% endif %}>{{ s.site_unit or 'Site %d'|format(s.display_id|default(s.id, true)) }}</option>
+            {% endfor %}
+          </select>
+          <p class="workbench-site-hint">Ctrl/Cmd-click to pick several.
+            {% if max_runs %}Up to {{ max_runs }} sites per run.{% else %}Select none for all sites.{% endif %}</p>
+          <div class="workbench-site-actions">
+            <button type="submit" class="primary-btn">{% block compare_submit_label %}Update Graph{% endblock %}</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if not sites %}
+      <div class="card-like">
+        <p class="model-input-empty">No uploaded sites yet. Add sites in the site database first.</p>
+      </div>
+      {% endif %}
+
       {% include "report_bridge_card.html" %}
     </aside>
 
@@ -47,7 +78,7 @@
       <div class="card-like model-output-card">
         <h3>Simulation Panel</h3>
         <div class="panel-shell output-panel-shell">
-          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
+          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
     </main>

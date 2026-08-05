@@ -99,7 +99,7 @@ def test_site_table_displays_compact_user_ids_but_deletes_by_primary_key(site_cl
         {"id": 1578, "site_unit": "Brand", "compound": "Ethyltoluol", "extra_data": {}},
         {"id": 1579, "site_unit": "Metlen", "compound": "MTBE", "extra_data": {}},
     ]
-    patches.enter_context(patch.object(site_routes, "get_user_sites_rows", return_value=rows))
+    patches.enter_context(patch.object(site_routes, "get_owned_sites_rows", return_value=rows))
 
     page = client.get("/sites").get_data(as_text=True)
 
@@ -120,7 +120,7 @@ def test_site_database_typesets_shared_parameter_labels(site_client):
         "cthres": 0.5,
         "extra_data": {},
     }]
-    patches.enter_context(patch.object(site_routes, "get_user_sites_rows", return_value=rows))
+    patches.enter_context(patch.object(site_routes, "get_owned_sites_rows", return_value=rows))
 
     page = client.get("/sites").get_data(as_text=True)
 

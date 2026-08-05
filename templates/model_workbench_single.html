@@ -65,7 +65,7 @@
       <div class="card-like model-output-card">
         <h3>Output Visualisation</h3>
         <div class="panel-shell output-panel-shell">
-          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
+          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
       {% block stage_bottom %}{% endblock %}

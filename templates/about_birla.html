@@ -1,15 +1,15 @@
 {% extends "model_about_base.html" %}
 
-{% block about_category %}Empirical Model{% endblock %}
+{% block about_category %}Hybrid Model{% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
 {% block about_title %}Birla et al. (2020){% endblock %}
 {% block back_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
-{% block back_label %}All empirical models{% endblock %}
+{% block back_label %}All hybrid models{% endblock %}
 
 {% block about_lead %}
-<p>A vertically oriented 2D empirical model that extends the Liedl (2005)
-expression with a recharge-rate correction, quantifying how vertical recharge
-shortens the steady-state plume length
-(<math><msub><mi>L</mi><mi>max</mi></msub></math>).</p>
+<p>A vertically oriented 2D hybrid model that extends the Liedl (2005)
+expression with a recharge-rate correction derived from sensitivity analysis
+of numerical simulations (MODFLOW&ndash;MTSDMS).</p>
 {% endblock %}
 
 {% block about_figure %}
@@ -27,20 +27,20 @@ shortens the steady-state plume length
     <mo>=</mo>
     <mrow>
       <mo>(</mo>
-      <mn>1</mn><mo>−</mo><mn>0.047</mn><msup><msub><mi>T</mi><mi>A</mi></msub><mn>0.404</mn></msup><msup><msub><mi>R</mi><mi>c</mi></msub><mn>1.883</mn></msup>
+      <mn>1</mn><mo>&minus;</mo><mn>0.047</mn><msup><msub><mi>S</mi><mi>T</mi></msub><mn>0.404</mn></msup><msup><msub><mi>R</mi><mi>c</mi></msub><mn>1.883</mn></msup>
       <mo>)</mo>
     </mrow>
     <mfrac>
-      <mrow><mn>4</mn><msup><msub><mi>T</mi><mi>A</mi></msub><mn>2</mn></msup></mrow>
-      <mrow><msup><mi>π</mi><mn>2</mn></msup><msub><mi>α</mi><mi>Tv</mi></msub></mrow>
+      <mrow><mn>4</mn><msup><msub><mi>S</mi><mi>T</mi></msub><mn>2</mn></msup></mrow>
+      <mrow><msup><mi>&pi;</mi><mn>2</mn></msup><msub><mi>&alpha;</mi><mi>Tv</mi></msub></mrow>
     </mfrac>
     <mi>ln</mi><mo>&#8289;</mo>
     <mrow>
       <mo>(</mo>
-      <mfrac><mn>4</mn><mi>π</mi></mfrac>
+      <mfrac><mn>4</mn><mi>&pi;</mi></mfrac>
       <mfrac>
-        <mrow><mi>γ</mi><msub><mi>C</mi><mi>r</mi></msub><mo>+</mo><msub><mi>C</mi><mi>c</mi></msub></mrow>
-        <msub><mi>C</mi><mi>c</mi></msub>
+        <mrow><mi>&gamma;</mi><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></mrow>
+        <msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup>
       </mfrac>
       <mo>)</mo>
     </mrow>
@@ -49,12 +49,12 @@ shortens the steady-state plume length
 {% endblock %}
 
 {% block about_parameters %}
-<dt><math><msub><mi>T</mi><mi>A</mi></msub></math></dt><dd>Aquifer thickness (equal to source thickness) [m]</dd>
-<dt><math><msub><mi>α</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity [m]</dd>
-<dt><math><msub><mi>R</mi><mi>c</mi></msub></math></dt><dd>Recharge rate [m/yr]</dd>
-<dt><math><mi>γ</mi></math></dt><dd>Stoichiometry coefficient [-]</dd>
-<dt><math><msub><mi>C</mi><mi>r</mi></msub></math></dt><dd>Partner reactant concentration [mg/L]</dd>
-<dt><math><msub><mi>C</mi><mi>c</mi></msub></math></dt><dd>General contaminant concentration [mg/L]</dd>
+<dt><math><msub><mi>S</mi><mi>T</mi></msub></math></dt><dd>Source thickness (equal to aquifer thickness) (m)</dd>
+<dt><math><msub><mi>&alpha;</mi><mi>Tv</mi></msub></math></dt><dd>Vertical transverse dispersivity (m)</dd>
+<dt><math><msub><mi>R</mi><mi>c</mi></msub></math></dt><dd>Recharge rate (m/yr)</dd>
+<dt><math><mi>&gamma;</mi></math></dt><dd>Stoichiometry coefficient (-)</dd>
+<dt><math><msubsup><mi>C</mi><mi>A</mi><mn>0</mn></msubsup></math></dt><dd>Acceptor concentration at source (mg/L)</dd>
+<dt><math><msubsup><mi>C</mi><mi>D</mi><mn>0</mn></msubsup></math></dt><dd>Donor concentration at source (mg/L)</dd>
 {% endblock %}
 
 {% block about_assumptions %}
@@ -63,10 +63,10 @@ shortens the steady-state plume length
 {% endblock %}
 
 {% block about_reference %}
-<p>Birla, S., Yadav, P.K., Mahalawat, P., Haendel, F., Liedl, R., Chahar, B.,
-2020. Influence of recharge rates on steady-state plume lengths. J. Contam.
-Hydrol.
-<a href="https://doi.org/10.1016/j.jconhyd.2020.103709" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.jconhyd.2020.103709</a></p>
+<p>Birla, S., P. K. Yadav, P. Mahalawat, F. H&auml;ndel, B. R. Chahar, and R. Liedl.
+2020. Influence of recharge rates on steady-state plume lengths. Journal of
+Contaminant Hydrology 235: 103709,
+<a href="https://doi.org/10.1016/j.jconhyd.2020.103709" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.jconhyd.2020.103709</a>.</p>
 {% endblock %}
 
 {% block run_single_href %}{{ url_for('empirical_bp.birla_single') }}{% endblock %}

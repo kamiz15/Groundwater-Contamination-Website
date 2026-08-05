@@ -10,7 +10,12 @@
 <body class="login-body">
     <div class="login-container">
         <h2>Create Account</h2>
-        <p class="login-subtitle">Join the CAST platform to access your dashboard</p>
+        <p class="login-subtitle">An account keeps your uploaded site data between visits</p>
+
+        <p class="login-guest-note">
+            An account is optional. Every model already runs on the reference database
+            without one — <a href="{{ url_for('home') }}">continue without an account</a>.
+        </p>
 
         <form id="registerForm">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -43,6 +48,14 @@
                 Already have an account? <a href="{{ url_for('login_page') }}">Login</a>
             </p>
         </form>
+
+        <p class="login-disclaimer">
+            <strong>How your data is used.</strong> We store your account details and any
+            site data you upload only to run the models and show you your results. Your
+            data is not sold, shared with third parties, or used for any purpose beyond
+            operating CAST. Uploaded sites stay private to your account and you can delete
+            them at any time from the Site Database page.
+        </p>
     </div>
 </body>
 </html>

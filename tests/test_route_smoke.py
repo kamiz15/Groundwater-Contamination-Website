@@ -59,6 +59,24 @@ def test_authenticated_wrapper_route_renders(path, authenticated_wrapper_client)
     assert b"<html" in response.data.lower()
 
 
+@pytest.mark.parametrize(
+    ("path", "full_name"),
+    [
+        ("/chu/single", "Chu et al. (2005) - Single Simulation"),
+        ("/ham/multiple", "Ham et al. (2004) - Multiple Simulation"),
+        ("/liedl3d/single", "Liedl 3D (2011) - Single Simulation"),
+        ("/bioscreen/single", "BIOSCREEN-AT 3D - Single Simulation"),
+        ("/cirpka/multiple", "Cirpka et al. (2006) - Multiple Simulation"),
+        ("/empirical/maier/single", "Maier &amp; Grathwohl (2006) - Single Simulation"),
+        ("/empirical/birla/multiple", "Birla et al. (2020) - Multiple Simulation"),
+    ],
+)
+def test_model_pages_use_full_about_page_names(path, full_name, authenticated_wrapper_client):
+    page = authenticated_wrapper_client.get(path).get_data(as_text=True)
+
+    assert full_name in page
+
+
 def test_headbar_contains_aem_model_dropdown(authenticated_wrapper_client):
     response = authenticated_wrapper_client.get("/")
     page = response.get_data(as_text=True)
@@ -206,91 +224,36 @@ def test_numerical_multiple_wrapper_has_only_panel_run_action(path, authenticate
 
 
 @pytest.mark.parametrize(
-    ("path", "result_frame_id"),
-    [
-        ("/numerical/vertical/multiple", "verticalMultipleResultFrame"),
-        ("/numerical/horizontal/multiple", "horizontalMultipleResultFrame"),
-    ],
+    "path",
+    ["/numerical/vertical/multiple", "/numerical/horizontal/multiple"],
 )
 def test_numerical_multiple_wrapper_places_panel_in_layout(
     path,
-    result_frame_id,
     authenticated_wrapper_client,
     monkeypatch,
 ):
-    # Sites are added from the in-panel click-to-add picker, so the wrapper has
-    # no server-side "Load Uploaded Site" loader. Layout: Simulation Panel on the
-    # left, the result frame on the right; no conceptual model.
-    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [{"id": 7}])
+    # Runs come from the sidebar's Compare Sites picker, whose submit button is
+    # the run trigger, so the wrapper has one panel frame and no separate runner
+    # frame, no single-site loader and no conceptual model.
+    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [{"id": 7, "site_unit": "Borden"}])
 
     page = authenticated_wrapper_client.get(path).get_data(as_text=True)
     iframe_srcs = [
         html.unescape(match)
-        for match in re.findall(r'<iframe\b[^>]*\bsrc="([^"]+)"', page)
+        for match in re.findall(r'<iframe\s[^>]*src="([^"]+)"', page)
     ]
-    input_query = parse_qs(urlparse(iframe_srcs[0]).query)
-    result_query = parse_qs(urlparse(iframe_srcs[1]).query)
 
+    assert len(iframe_srcs) == 1
     assert "model-input-form" not in page
     assert "Load Uploaded Site" not in page
     assert "conceptual-img" not in page
-    assert page.index("Simulation Panel") < page.index(f'id="{result_frame_id}"')
-    assert len(iframe_srcs) == 2
-    assert input_query["input_only"] == ["1"]
-    assert "output_only" not in input_query
-    assert result_query["output_only"] == ["1"]
+    assert 'name="compare_sites" multiple' in page
+    assert page.index("Compare Sites") < page.index("Simulation Panel")
 
-
-def test_vertical_database_defaults_map_aquifer_thickness_to_lz(authenticated_wrapper_client, monkeypatch):
-    site = {"id": 7, "aquifer_thickness": 3.5}
-    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
-
-    page = authenticated_wrapper_client.get("/numerical/vertical/single?site_id=7").get_data(as_text=True)
-
-    assert 'name="Lz"' in page
-    assert 'value="3.5"' in page
-
-
-def _field_markup(page, field):
-    return page.split(f'name="{field}"', 1)[0].rsplit("<label>", 1)[-1]
-
-
-def test_vertical_solver_extra_data_fields_show_db_badges(authenticated_wrapper_client, monkeypatch):
-    site = {
-        "id": 7,
-        "extra_data": {"Lz": "12", "grid_size": "0.5", "al": "2.0"},
-    }
-    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
-
-    page = authenticated_wrapper_client.get("/numerical/vertical/single?site_id=7").get_data(as_text=True)
-
-    for field, value in (("Lz", "12"), ("grid_size", "0.5"), ("al", "2")):
-        assert f'name="{field}"' in page
-        assert f'value="{value}"' in page
-        assert 'input-source-badge--db">DB</em>' in _field_markup(page, field)
-
-
-def test_horizontal_solver_extra_data_fields_show_db_badges(authenticated_wrapper_client, monkeypatch):
-    site = {
-        "id": 7,
-        "extra_data": {"grid_size": "0.75", "al": "2.5", "at": "0.25"},
-    }
-    monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [site])
-
-    page = authenticated_wrapper_client.get("/numerical/horizontal/single?site_id=7").get_data(as_text=True)
-
-    for field, value in (("grid_size", "0.75"), ("al", "2.5"), ("at", "0.25")):
-        assert f'name="{field}"' in page
-        assert f'value="{value}"' in page
-        assert 'input-source-badge--db">DB</em>' in _field_markup(page, field)
-
-
-def test_vertical_single_run_button_sits_under_conceptual_model(authenticated_wrapper_client):
-    page = authenticated_wrapper_client.get("/numerical/vertical/single").get_data(as_text=True)
-
-    assert page.count(">Run Model<") == 1
-    assert page.index('class="conceptual-img"') < page.index('id="model-input-form"')
-
+    # Nothing picked: the panel is told so (empty value, which parse_qs drops)
+    # and is NOT told to run, so a page load never queues a solver job.
+    assert "compare_sites=" in iframe_srcs[0]
+    assert "run=1" not in iframe_srcs[0]
 
 @pytest.mark.parametrize(
     "path",
@@ -361,6 +324,15 @@ ABOUT_SLUGS = [
     "numerical",
 ]
 
+ANALYTICAL_ABOUT_SLUGS = [
+    "liedl",
+    "liedl3d",
+    "chu",
+    "ham",
+    "bioscreen",
+    "cirpka",
+]
+
 
 @pytest.fixture
 def public_client():
@@ -380,6 +352,13 @@ def test_model_about_page_is_public_and_has_mathml(slug, public_client):
     assert b"<math" in response.data
 
 
+@pytest.mark.parametrize("slug", ANALYTICAL_ABOUT_SLUGS)
+def test_analytical_about_pages_label_equations_as_solutions(slug, public_client):
+    page = public_client.get(f"/models/{slug}/about").get_data(as_text=True)
+
+    assert '<span class="about-equation-label">Solution</span>' in page
+
+
 def test_model_about_unknown_slug_returns_404(public_client):
     response = public_client.get("/models/does-not-exist/about")
 
@@ -391,7 +370,51 @@ def test_liedl_about_pilot_has_chips_and_no_placeholders(public_client):
 
     assert "about-chips" in page
     assert "about-assumptions--check" in page
+    assert "conceptual_liedl_2005.png" in page
+    assert 'mathvariant="normal">max' in page
+    assert "Closed form" not in page
+    assert 'title="Source thickness [L]"><mi>S</mi><mi>T</mi>' in page
+    assert "Transverse vertical dispersivity [L]" in page
+    assert "Stoichiometry ratio [-]" in page
+    assert "Donor concentration at source [ML⁻³]" in page
+    assert "Water Resources Research 41, no. 12: 2005WR004000" in page
     assert "[TODO" not in page
+
+
+def test_liedl3d_about_uses_corrected_symbols_dimensions_and_source(public_client):
+    page = public_client.get("/models/liedl3d/about").get_data(as_text=True)
+
+    assert "conceptual_liedl_2011.png" in page
+    assert 'title="Source thickness [L]"><mi>S</mi><mi>T</mi>' in page
+    assert 'title="Source width [L]"><mi>S</mi><mi>W</mi>' in page
+    assert "Transverse horizontal dispersivity [L]" in page
+    assert "Threshold donor concentration [ML⁻³]" in page
+    assert "Liedl, R., P. K. Yadav, and P. Dietrich. 2011." in page
+    assert "Resources Research 47, no. 8" in page
+
+
+def test_chu_about_uses_corrected_symbol_dimensions_and_source(public_client):
+    page = public_client.get("/models/chu/about").get_data(as_text=True)
+
+    assert "conceptual_chu_2005.png" in page
+    assert "Chu et al. (2005)" in page
+    assert 'title="Source width [L]"><mi>S</mi><mi>W</mi>' in page
+    assert "Transverse horizontal dispersivity [L]" in page
+    assert "Biological concentration factor [ML⁻³]" in page
+    assert "Chu, M., P. Kitanidis, and P. McCarty. 2005." in page
+    assert "Research 41, no. 6: W06002" in page
+
+
+def test_ham_about_uses_corrected_symbols_dimensions_and_source(public_client):
+    page = public_client.get("/models/ham/about").get_data(as_text=True)
+
+    assert "conceptual_ham_2004.png" in page
+    assert 'title="Source flux [L²T⁻¹]">q</mi>' in page
+    assert "flux <math><mi>q</mi></math>" in page
+    assert "Transverse horizontal dispersivity [L]" in page
+    assert "Donor concentration at source [LT⁻³]" in page
+    assert "Ham, P. A. S., R. J. Schotting, H. Prommer, and G. B. Davis. 2004." in page
+    assert "Advances in Water Resources 27, no. 8: 803&ndash;13" in page
 
 
 def test_non_pilot_about_pages_stay_plain(public_client):

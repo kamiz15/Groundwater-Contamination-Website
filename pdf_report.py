@@ -23,6 +23,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.graphics import renderPDF
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.svgpath import SvgPath
@@ -97,10 +98,34 @@ DFG_LOGO_PATH = REPORT_ASSET_DIR / "dfg-logo-foerderung" / "dfg_logo_schriftzug_
 TUEBINGEN_LOGO_PATH = REPORT_ASSET_DIR / "Logo_Universitaet_Tuebingen.svg"
 
 
+class PageCountCanvas(pdfcanvas.Canvas):
+    """Canvas that adds the total page count once all pages are known."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        page_count = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.setFont(_FONT_REGULAR, 8)
+            self.setFillColor(colors.Color(0.7, 0.82, 1.0))
+            self.drawCentredString(
+                PAGE_W / 2,
+                5.5 * mm,
+                f"Page {self._pageNumber} of {page_count}  |  HYMCAT / CAST  |  DFG-funded research report",
+            )
+            super().showPage()
+        super().save()
+
+
 class CASTReport:
     """Professional PDF report for all CAST model types."""
-
-    VERSION = "2.1"
 
     def __init__(self, title: str, model_name: str, logo_path: str = None):
         self.title = title
@@ -170,20 +195,22 @@ class CASTReport:
         )
         self.s_disclaimer = ParagraphStyle(
             "CastDisclaimer", parent=ss["Normal"],
-            fontSize=7.5, leading=11, fontName=_FONT_ITALIC,
-            textColor=_GRAY,
+            fontSize=7.5, leading=11, fontName=_FONT_REGULAR,
+            textColor=_TUE_RED,
         )
 
     # ── Header / footer canvas callbacks ──────────────────────────────────────
 
-    def _draw_project_mark(self, canvas, x, y):
-        canvas.setFillColor(_WHITE)
+    def _draw_project_mark(self, canvas, x, y, on_white=False):
+        canvas.setFillColor(_NAVY if on_white else _WHITE)
         canvas.setFont(_FONT_BOLD, 13)
         canvas.drawString(x, y, "HYMCAT")
         canvas.setFont(_FONT_BOLD, 8)
-        canvas.setFillColor(colors.Color(0.78, 0.88, 1.0))
+        canvas.setFillColor(_BLUE if on_white else colors.Color(0.78, 0.88, 1.0))
         canvas.drawString(x + 24 * mm, y, "CAST")
         canvas.setFont(_FONT_REGULAR, 7)
+        if on_white:
+            canvas.setFillColor(_GRAY)
         canvas.drawString(x, y - 3.7 * mm, "Contaminant Assessment & Source Tool")
 
     def _draw_image_fit(self, canvas, path: Path, x, y, max_w, max_h):
@@ -248,8 +275,9 @@ class CASTReport:
         canvas.setFillColor(_WHITE)
         canvas.rect(0, header_bottom, w, HEADER_H, fill=1, stroke=0)
 
-        self._draw_image_fit(canvas, DFG_LOGO_PATH, 20 * mm, h - 28 * mm, 76 * mm, 20 * mm)
-        self._draw_svg_fit(canvas, TUEBINGEN_LOGO_PATH, 114 * mm, h - 28 * mm, 76 * mm, 20 * mm)
+        self._draw_image_fit(canvas, DFG_LOGO_PATH, 20 * mm, h - 25 * mm, 46 * mm, 14 * mm)
+        self._draw_project_mark(canvas, 72 * mm, h - 18 * mm, on_white=True)
+        self._draw_svg_fit(canvas, TUEBINGEN_LOGO_PATH, 140 * mm, h - 25 * mm, 50 * mm, 14 * mm)
 
         canvas.setStrokeColor(_LGRAY)
         canvas.setLineWidth(0.6)
@@ -257,7 +285,6 @@ class CASTReport:
 
         canvas.setFillColor(_NAVY)
         canvas.rect(0, header_bottom, w, 11 * mm, fill=1, stroke=0)
-        self._draw_project_mark(canvas, 20 * mm, header_bottom + 6.6 * mm)
 
         canvas.setFillColor(_WHITE)
         canvas.setFont(_FONT_BOLD, 8.5)
@@ -278,13 +305,6 @@ class CASTReport:
         canvas.line(0, FOOTER_H, w / 2, FOOTER_H)
         canvas.setStrokeColor(_TUE_RED)
         canvas.line(w / 2, FOOTER_H, w, FOOTER_H)
-
-        canvas.setFont(_FONT_REGULAR, 8)
-        canvas.setFillColor(colors.Color(0.7, 0.82, 1.0))
-        canvas.drawCentredString(
-            w / 2, 5.5 * mm,
-            f"Page {doc.page}  |  HYMCAT / CAST v{self.VERSION}  |  DFG-funded research report",
-        )
 
         canvas.restoreState()
 
@@ -316,17 +336,28 @@ class CASTReport:
         cells = [
             [
                 Paragraph(f"<b>Model:</b>  {self.model_name}", self.s_normal),
+                "",
+                "",
                 Paragraph(f"<b>Generated:</b>  {self.date}", self.s_normal),
-                Paragraph(f"<b>Report version:</b>  {self.VERSION}", self.s_normal),
+                "",
+                "",
             ],
             [
                 Paragraph("<b>Project:</b>  HYMCAT / CAST", self.s_normal),
+                "",
                 Paragraph("<b>Institution:</b>  Eberhard Karls Universit\u00e4t T\u00fcbingen", self.s_normal),
+                "",
                 Paragraph("<b>Funding:</b>  DFG - Deutsche Forschungsgemeinschaft", self.s_normal),
+                "",
             ]
         ]
-        t = Table(cells, colWidths=[CONTENT_W / 3] * 3)
+        t = Table(cells, colWidths=[CONTENT_W / 6] * 6)
         t.setStyle(TableStyle([
+            ("SPAN", (0, 0), (2, 0)),
+            ("SPAN", (3, 0), (5, 0)),
+            ("SPAN", (0, 1), (1, 1)),
+            ("SPAN", (2, 1), (3, 1)),
+            ("SPAN", (4, 1), (5, 1)),
             ("BACKGROUND", (0, 0), (-1, 0), _LIGHT),
             ("BACKGROUND", (0, 1), (-1, 1), _SOFT_BG),
             ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -347,6 +378,9 @@ class CASTReport:
         compact = compact.replace("\u03b1", "alpha_").replace("\u00ce\u00b1", "alpha_")
         compact = compact.replace("\u03b3", "gamma").replace("\u00ce\u00b3", "gamma")
         mapping = {
+            "S_T": "<i>S</i><sub>T</sub>",
+            "ST": "<i>S</i><sub>T</sub>",
+            "S_W": "<i>S</i><sub>W</sub>",
             "M": "<i>T</i><sub>A</sub>",
             "Lz": "<i>T</i><sub>A</sub>",
             "T_A": "<i>T</i><sub>A</sub>",
@@ -383,6 +417,12 @@ class CASTReport:
             "C_c": "<i>C</i><sub>c</sub>",
             "C_r": "<i>C</i><sub>r</sub>",
             "Cthres": "<i>C</i><sub>thres</sub>",
+            "C_thres": "<i>C</i><sub>thres</sub>",
+            "q": "<i>q</i>",
+            "t": "<i>t</i>",
+            "epsilon": "&#949;",
+            "D_f": "<i>D</i><sub>f</sub>",
+            "n_g": "<i>n</i><sub>g</sub>",
             "C0": "<i>C</i><sub>c</sub>",
             "c0": "<i>C</i><sub>c</sub>",
             "prsity": "&#951;",
@@ -698,9 +738,7 @@ class CASTReport:
         story.append(Paragraph("Simulation Report", self.s_subtitle))
         story.append(Spacer(1, 6 * mm))
         story.append(self._hr(color=_TEAL, thickness=1.5))
-        story.append(Spacer(1, 1 * mm))
-        story.append(self._metadata_banner())
-        story.append(Spacer(1, 10 * mm))
+        story.append(Spacer(1, 4 * mm))
 
         # ── Input Parameters ──────────────────────────────────────────────────
         story.append(self._section_header("Input Parameters"))
@@ -776,17 +814,17 @@ class CASTReport:
                 story.append(Spacer(1, 4 * mm))
 
         # ── Disclaimer ────────────────────────────────────────────────────────
-        story.append(Spacer(1, 4 * mm))
+        story.append(Spacer(1, 6 * mm))
+        story.append(self._metadata_banner())
+        story.append(Spacer(1, 3 * mm))
         story.append(self._hr(color=_LGRAY, thickness=0.5))
         story.append(Paragraph(
-            "This report was generated automatically by the CAST (Contaminant Assessment &amp; Source Tool) "
-            "platform. Results are provided for research and educational purposes only and must not be used "
-            "as the sole basis for remediation or regulatory decisions. Always validate model outputs against "
-            "site-specific field data and consult a qualified professional.",
+            "Disclamer: the author of the CAST is not responsible for the results.",
             self.s_disclaimer,
         ))
 
         doc.build(story,
                   onFirstPage=self._header_footer,
-                  onLaterPages=self._header_footer)
+                  onLaterPages=self._header_footer,
+                  canvasmaker=PageCountCanvas)
         return buffer.getvalue()

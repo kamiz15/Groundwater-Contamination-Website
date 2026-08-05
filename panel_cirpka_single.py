@@ -49,10 +49,10 @@ def cirpka_single_app():
                     ("Maximum Plume Length L_max", f"{lmax:.2f} m"),
                     ("Domain Length L_D", f"{ld:.2f} m"),
                 ],
-                title="Cirpka et al. (2005) Result",
+                title="Cirpka et al. (2006) Result",
             )
             plot_pane.object = comparison_plot(
-                "Cirpka et al. (2005)",
+                "Cirpka et al. (2006)",
                 "Cirpka Lmax",
                 [selected_site_id if selected_site_id > 0 else 1],
                 [lmax],
