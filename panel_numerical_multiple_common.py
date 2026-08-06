@@ -253,7 +253,7 @@ def numerical_multiple_app(mod):
         labels = [row.get("label", f"Run {idx + 1}") for idx, row in enumerate(rows)]
         values = [float(result.plume_length) for result in results]
         outputs = [
-            {"label": f"{labels[idx]} Lmax", "value": f"{value:.2f}", "unit": "m"}
+            {"label": f"{labels[idx]} Lₘₐₓ", "value": f"{value:.2f}", "unit": "m"}
             for idx, value in enumerate(values)
         ]
         result_pane.object = summary_card(

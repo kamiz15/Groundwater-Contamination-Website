@@ -50,7 +50,7 @@ def liedl3d_single_app():
             lmax = liedl3d_lmax(m.value, alpha_th.value, alpha_tv.value, w.value, cthres.value, c_ea0.value, c_ed0.value, gamma.value)
             _baseline.setdefault("lmax", lmax)
             result_pane.object = metric_card(
-                "Maximum Plume Length L_max", f"{lmax:.2f}",
+                "Maximum Plume Length Lₘₐₓ", f"{lmax:.2f}",
                 delta=baseline_delta(lmax, _baseline["lmax"]),
             )
             user_x = [selected_site_id if selected_site_id > 0 else 1]

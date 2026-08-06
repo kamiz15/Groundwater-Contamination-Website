@@ -112,7 +112,7 @@ def numerical_horizontal_single_app():
         logger.info("Horizontal single graph_pane.object assigned")
         comparison_pane.object = None
         _rows = [
-            ("Maximum Plume Length L_max", f"{result.plume_length:.2f} m"),
+            ("Maximum Plume Length Lₘₐₓ", f"{result.plume_length:.2f} m"),
             ("Domain Length L_D", f"{result.domain_length:.2f} m"),
             ("Domain Width W_D", f"{result.domain_width:.2f} m"),
             ("Peclet", f"{result.peclet:.2f}"),
@@ -137,7 +137,7 @@ def numerical_horizontal_single_app():
                 {"symbol": "Pe", "name": "Peclet Number", "value": result.peclet, "unit": "-"},
             ],
             "outputs": [
-                {"label": "Maximum Plume Length L_max", "value": f"{result.plume_length:.2f}", "unit": "m"},
+                {"label": "Maximum Plume Length Lₘₐₓ", "value": f"{result.plume_length:.2f}", "unit": "m"},
                 {"label": "Domain Length L_D", "value": f"{result.domain_length:.2f}", "unit": "m"},
                 {"label": "Domain Width W_D", "value": f"{result.domain_width:.2f}", "unit": "m"},
                 {"label": "Peclet", "value": f"{result.peclet:.2f}", "unit": "-"},

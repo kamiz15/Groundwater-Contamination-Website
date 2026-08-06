@@ -49,7 +49,7 @@ def birla_single_app():
             lmax_current = birla_lmax(w_M.value, w_tv.value, w_g.value, w_Ca.value, w_Cd.value, w_R.value)
             _baseline.setdefault("lmax", lmax_current)
             result_pane.object = metric_card(
-                "Maximum Plume Length L_max", f"{lmax_current:.2f}",
+                "Maximum Plume Length Lₘₐₓ", f"{lmax_current:.2f}",
                 delta=baseline_delta(lmax_current, _baseline["lmax"]),
             )
             user_x = [selected_site_id if selected_site_id > 0 else 1]

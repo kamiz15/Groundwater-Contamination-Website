@@ -49,7 +49,7 @@ def chu_single_app():
             lmax = chu_lmax(w.value, alpha_th.value, gamma.value, c_ea0.value, c_ed0.value, epsilon.value)
             _baseline.setdefault("lmax", lmax)
             result_pane.object = metric_card(
-                "Maximum Plume Length L_max", f"{lmax:.2f}",
+                "Maximum Plume Length Lₘₐₓ", f"{lmax:.2f}",
                 delta=baseline_delta(lmax, _baseline["lmax"]),
             )
             user_x = [selected_site_id if selected_site_id > 0 else 1]

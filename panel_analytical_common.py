@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import panel as pn
-from bokeh.models import Range1d
+from bokeh.models import HoverTool, Range1d
 from bokeh.plotting import figure
 
 from data_queries import get_user_sites
@@ -361,8 +361,19 @@ def comparison_plot(title: str, manual_label: str, manual_x, manual_y,
         low, high = _held_y_range(plot_data, frame)
         p.y_range = Range1d(low, high)
     if plot_data["field_x"] and plot_data["field_y"]:
-        p.scatter(plot_data["field_x"], plot_data["field_y"], size=12, marker="circle", color="#5598e3", legend_label=plot_data["field_label"])
-    p.scatter(plot_data["manual_x"], plot_data["manual_y"], size=14 if len(plot_data["manual_y"]) == 1 else 12, marker="circle", color="#0e3a69", legend_label=plot_data["manual_label"])
+        field = p.scatter(plot_data["field_x"], plot_data["field_y"], size=12, marker="circle", color="#f59e0b", legend_label=plot_data["field_label"])
+        # Only the database points get the tooltip: their x IS the site number
+        # (load_field_points numbers them 1..N). The model point is parked past
+        # the last site on a manual run, so a site number there would be a lie.
+        p.add_tools(HoverTool(
+            renderers=[field],
+            tooltips=[("Site", "@x{0}"), ("Plume length", "@y{0.00} m")],
+        ))
+    # Dark green against the amber database points: opposite hue and a wide
+    # lightness gap, so the two series stay apart on a projector and under
+    # red-green colour blindness (which flattens the hue but not the lightness).
+    # The old pairing was two blues differing only in lightness.
+    p.scatter(plot_data["manual_x"], plot_data["manual_y"], size=14 if len(plot_data["manual_y"]) == 1 else 12, marker="circle", color="#1b5e20", legend_label=plot_data["manual_label"])
     # Top left, not top right: the model result is parked past the last site, so
     # a top-right legend sits exactly where a large plume length lands and hides
     # the one point the sliders are moving.

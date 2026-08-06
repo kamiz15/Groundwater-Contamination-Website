@@ -46,7 +46,7 @@ def cirpka_single_app():
             ld = cirpka_domain_length(lmax)
             result_pane.object = summary_card(
                 [
-                    ("Maximum Plume Length L_max", f"{lmax:.2f} m"),
+                    ("Maximum Plume Length Lₘₐₓ", f"{lmax:.2f} m"),
                     ("Domain Length L_D", f"{ld:.2f} m"),
                 ],
                 title="Cirpka et al. (2006) Result",

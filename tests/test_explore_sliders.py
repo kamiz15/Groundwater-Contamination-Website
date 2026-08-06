@@ -71,6 +71,67 @@ def test_selected_site_plots_at_its_position_not_its_primary_key():
         common.load_field_points = original_points
 
 
+def test_model_dot_is_green_and_only_sites_carry_the_hover():
+    # Dark green vs amber: opposite hue plus a wide lightness gap, so the pair
+    # survives a projector and red-green colour blindness. The old two-blues
+    # pairing separated on lightness alone.
+    # The tooltip stays off the model renderer: on a manual run that point is
+    # parked past the last site, so "Site N" there would name a site that is
+    # not the one it sits next to.
+    from bokeh.models import HoverTool
+    from panel_analytical_common import comparison_plot
+    import panel_analytical_common as common
+
+    original = common.load_field_points
+    common.load_field_points = lambda email: ([1, 2, 3], [40.0, 55.0, 61.0])
+    try:
+        p = comparison_plot("t", "model", [1], [50.0], 0, "", "Run Number")
+        field, manual = p.renderers[0], p.renderers[1]
+        assert manual.glyph.fill_color == "#1b5e20"
+        assert field.glyph.fill_color == "#f59e0b"
+
+        hovers = [t for t in p.tools if isinstance(t, HoverTool)]
+        assert len(hovers) == 1
+        assert hovers[0].renderers == [field]
+        assert [label for label, _ in hovers[0].tooltips] == ["Site", "Plume length"]
+    finally:
+        common.load_field_points = original
+
+
+def test_a_plot_with_no_sites_has_no_site_hover():
+    from bokeh.models import HoverTool
+    from panel_analytical_common import comparison_plot
+    import panel_analytical_common as common
+
+    original = common.load_field_points
+    common.load_field_points = lambda email: ([], [])
+    try:
+        p = comparison_plot("t", "model", [1], [50.0], 0, "", "Run Number")
+        assert not [t for t in p.tools if isinstance(t, HoverTool)]
+    finally:
+        common.load_field_points = original
+
+
+def test_result_boxes_say_lmax_with_a_subscript():
+    # Every model's result card, not just the analytical ones.
+    import pathlib
+
+    pages = [
+        "bioscreen_panel.py", "panel_birla_single.py", "panel_chu.py",
+        "panel_cirpka_single.py", "panel_ham_single.py", "panel_liedl3d_single.py",
+        "panel_liedl_single.py", "panel_maier_single.py",
+        "panel_numerical_horizontal_single.py", "panel_numerical_vertical_single.py",
+        "panel_numerical_horizontal_multiple.py", "panel_numerical_vertical_multiple.py",
+        "panel_numerical_multiple_common.py",
+    ]
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for page in pages:
+        source = (root / page).read_text(encoding="utf-8")
+        assert "Lₘₐₓ" in source, f"{page} lost the subscript label"
+        # The ylabel/axis strings keep L_max; only the result-box labels changed.
+        assert "Plume Length L_max\"" not in source, f"{page} still labels a card L_max"
+
+
 def test_database_points_are_inside_the_frame():
     # Field points are what the model result is being compared against, so the
     # frame has to be sized on them too, not only on the manual value.
