@@ -34,6 +34,14 @@ try:
 except Exception:  # pragma: no cover
     _nd_zoom = None
 
+from numerical_input_validation import (
+    COARSER_GRID,
+    ENGINE_UNAVAILABLE,
+    FINER_GRID,
+    POSITIVE_INPUTS,
+    UserMessageError,
+)
+
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     console_handler = logging.StreamHandler()
@@ -83,16 +91,19 @@ def _resolve_executable(env_name: str, fallback_names: list[str]) -> str:
     if configured:
         configured_path = Path(configured).expanduser()
         if not configured_path.exists():
-            raise RuntimeError(
-                f"Executable not found for {env_name}: configured path '{configured_path}'. "
-                f"Searched configured path, .modflow_bin/, solvers/, bin/, and PATH. "
-                f"Set {env_name} to an existing MODFLOW 6 executable."
+            logger.error(
+                "Executable not found for %s: configured path '%s'. Searched configured path, "
+                ".modflow_bin/, solvers/, bin/, and PATH. Set %s to an existing MODFLOW 6 executable.",
+                env_name, configured_path, env_name,
             )
+            raise UserMessageError(ENGINE_UNAVAILABLE)
         if os.name != "nt" and configured_path.suffix.lower() == ".exe":
-            raise RuntimeError(
-                f"{env_name} points to a Windows executable ({configured_path.name}), "
-                "which cannot run inside Docker/Linux. Provide a Linux binary instead."
+            logger.error(
+                "%s points to a Windows executable (%s), which cannot run inside Docker/Linux. "
+                "Provide a Linux binary instead.",
+                env_name, configured_path.name,
             )
+            raise UserMessageError(ENGINE_UNAVAILABLE)
         resolved = str(configured_path.resolve())
         logger.info("Resolved %s executable: %s", env_name, resolved)
         return resolved
@@ -125,14 +136,18 @@ def _resolve_executable(env_name: str, fallback_names: list[str]) -> str:
                 return resolved
 
     if os.name != "nt" and windows_only:
-        raise RuntimeError(
-            f"Only Windows solver binaries were found for {env_name}: {windows_only}. "
-            "Docker numerical runs require Linux solver binaries in solvers/ or on PATH."
+        logger.error(
+            "Only Windows solver binaries were found for %s: %s. Docker numerical runs require "
+            "Linux solver binaries in solvers/ or on PATH.",
+            env_name, windows_only,
         )
-    raise RuntimeError(
-        f"Executable not found for {env_name}. Searched .modflow_bin/, solvers/, bin/, and PATH "
-        f"for {fallback_names}. Set {env_name} to an existing MODFLOW 6 executable."
+        raise UserMessageError(ENGINE_UNAVAILABLE)
+    logger.error(
+        "Executable not found for %s. Searched .modflow_bin/, solvers/, bin/, and PATH for %s. "
+        "Set %s to an existing MODFLOW 6 executable.",
+        env_name, fallback_names, env_name,
     )
+    raise UserMessageError(ENGINE_UNAVAILABLE)
 
 
 def _mf6_exe() -> str:
@@ -145,7 +160,7 @@ def _nstp(Lx: float, ncol: int, prsity: float, al: float, h1: float, h2: float, 
     q = hk * gradient
     v = q / prsity
     if v <= 0:
-        raise ValueError("Head at left boundary must be greater than head at right boundary.")
+        raise UserMessageError("Set the left boundary head higher than the right boundary head.")
     delr = Lx / ncol
     dt_target = delr / v
     return max(int(math.ceil(perlen / dt_target)), 1)
@@ -159,16 +174,16 @@ def _steady_state_perlen(Lx, prsity, h1, h2, hk, plume_length, buffer_days=1000.
     gradient = (h1 - h2) / Lx
     v = hk * gradient / prsity
     if v <= 0:
-        raise ValueError("Head at left boundary must be greater than head at right boundary.")
+        raise UserMessageError("Set the left boundary head higher than the right boundary head.")
     return (float(plume_length) / v) + float(buffer_days)
 
 
 def balanced_source_buffers(domain_thickness: float, source_thickness: float) -> tuple[float, float]:
     """Center a source vertically when the user has not supplied buffer overrides."""
     if domain_thickness <= 0 or source_thickness <= 0:
-        raise ValueError("Domain thickness and source thickness must be positive.")
+        raise UserMessageError("Enter an aquifer thickness and source thickness greater than zero.")
     if source_thickness > domain_thickness:
-        raise ValueError("Source thickness must fit within aquifer thickness.")
+        raise UserMessageError("Enter a source thickness smaller than the aquifer thickness.")
     buffer = (domain_thickness - source_thickness) / 2.0
     return buffer, buffer
 
@@ -190,7 +205,8 @@ def _plume_length(x_grid: np.ndarray, y_grid: np.ndarray, concentration: np.ndar
 def _check_run(success: bool, buff, label: str) -> None:
     if not success:
         detail = "\n".join(str(line) for line in (buff or []))
-        raise RuntimeError(f"{label} execution failed.\n{detail}")
+        logger.error("%s execution failed.\n%s", label, detail)
+        raise UserMessageError(f"The simulation did not converge. {COARSER_GRID}")
 
 
 def _numerical_max_cells() -> int:
@@ -232,19 +248,15 @@ def _check_grid_size(ncol: int, nrow: int, *, grid_size=None, domain_length=None
     total = ncol * nrow
     max_cells = _numerical_max_cells()
     if total > max_cells:
-        detail = ""
+        logger.error(
+            "Grid too large: %d x %d = %d cells exceeds the %d-cell limit (grid size %s, "
+            "domain length %s, cross extent %s).",
+            ncol, nrow, total, max_cells, grid_size, domain_length, cross_extent,
+        )
         if grid_size is not None and domain_length is not None and cross_extent is not None:
             recommended = math.sqrt((float(domain_length) * float(cross_extent)) / float(max_cells))
-            detail = (
-                f" Derived domain is L_D={float(domain_length):.2f} m by {float(cross_extent):.2f} m "
-                f"with grid size {float(grid_size):.6g} m. Use grid size >= {recommended:.2f} m "
-                "for this domain, or reduce the source/chemistry values that set L_D and width."
-            )
-        raise ValueError(
-            f"Grid too large: {ncol} x {nrow} = {total:,} cells exceeds the "
-            f"{max_cells:,}-cell limit. Increase Delta X / Delta Z "
-            f"(or Delta Y for horizontal runs) to coarsen the grid.{detail}"
-        )
+            raise UserMessageError(f"Increase the grid size to at least {recommended:.2f} m and run it again.")
+        raise UserMessageError(COARSER_GRID)
 
 
 def _grid_points(length: float, count: int) -> np.ndarray:
@@ -349,10 +361,8 @@ def _checked_run_sim(sim, label: str) -> None:
                 _terminate_solver_process(proc)
                 stdout, stderr = proc.communicate()
                 _log_solver_output(label, stdout, stderr)
-                raise RuntimeError(
-                    f"{label} timed out after {timeout:g} s and was terminated. "
-                    "Use a coarser grid or a shorter simulation time."
-                )
+                logger.error("%s timed out after %g s and was terminated.", label, timeout)
+                raise UserMessageError(f"The simulation took too long. {COARSER_GRID}")
         else:
             stdout, stderr = proc.communicate()
         _log_solver_output(label, stdout, stderr)
@@ -394,11 +404,13 @@ def run_numerical_model_horizontal(
     porosity, K and gradient are standard defaults the caller may override.
     """
     if flopy is None:
-        raise RuntimeError("flopy is not installed.")
+        logger.error("flopy is not installed.")
+        raise UserMessageError(ENGINE_UNAVAILABLE)
     if erfinv is None:
-        raise RuntimeError("scipy is required for the horizontal analytical domain length.")
+        logger.error("scipy is required for the horizontal analytical domain length.")
+        raise UserMessageError(ENGINE_UNAVAILABLE)
     if min(source_thickness, grid_size, al, at, gamma, cd, ca, prsity, hk) <= 0:
-        raise ValueError("All horizontal inputs must be positive.")
+        raise UserMessageError(POSITIVE_INPUTS)
 
     delr = delc = float(grid_size)
     nlay = 1
@@ -410,14 +422,14 @@ def run_numerical_model_horizontal(
     ncol = int(Lx / delr)
     nrow = int(Ly / delc)
     if ncol < 2 or nrow < 2:
-        raise ValueError("Derived grid is too small; reduce the grid size.")
+        raise UserMessageError(FINER_GRID)
     _log_grid("Horizontal", Lx, Ly, ncol, nrow)
     _check_grid_size(ncol, nrow, grid_size=grid_size, domain_length=Lx, cross_extent=Ly)
 
     q = hk * gradient
     v = q / prsity
     if v <= 0:
-        raise ValueError("Seepage velocity must be positive (check K and gradient).")
+        raise UserMessageError("Enter a hydraulic conductivity and gradient greater than zero.")
     peclet = delr / al
     perlen = float(int(Lx / v + 1000.0))
     dt_target = 5.0 * delr / v                    # Courant target = 5
@@ -618,9 +630,10 @@ def run_numerical_model(
     full thickness (top cell kept clean); no right-hand boundary (Orlando's choice).
     """
     if flopy is None:
-        raise RuntimeError("flopy is not installed.")
+        logger.error("flopy is not installed.")
+        raise UserMessageError(ENGINE_UNAVAILABLE)
     if min(Lz, grid_size, al, atv, gamma, cd, ca, prsity, hk) <= 0:
-        raise ValueError("All vertical inputs must be positive.")
+        raise UserMessageError(POSITIVE_INPUTS)
 
     model_nrow = 1
     delc = 1.0
@@ -628,24 +641,27 @@ def run_numerical_model(
     delr = delv
     nlay = int(Lz / delv)
     if nlay < 2:
-        raise ValueError("Derived layer count is too small; reduce the grid size.")
+        raise UserMessageError(FINER_GRID)
     botm = np.linspace(0.0 - delv, -Lz, nlay)
     # domain_factor multiplies the analytical L_max to give the simulated domain.
     # 1.5 is the published sizing; raising it is the only way to see the plume
     # continue past L_max, at proportionally more cells.
     Lx = domain_factor * (4.0 * Lz ** 2) / (np.pi ** 2 * atv) * np.log((4.0 * gamma * cd + ca) / (np.pi * ca))
     if not np.isfinite(Lx) or Lx <= 0:
-        raise ValueError("Vertical analytical domain length is invalid for these inputs.")
+        raise UserMessageError(
+            "Increase the electron donor concentration or reduce the electron acceptor "
+            "concentration, then run it again."
+        )
     ncol = int(Lx / delr)
     if ncol < 2:
-        raise ValueError("Derived column count is too small; reduce the grid size.")
+        raise UserMessageError(FINER_GRID)
     _log_grid("Vertical", Lx, Lz, ncol, nlay)
     _check_grid_size(ncol, nlay, grid_size=grid_size, domain_length=Lx, cross_extent=Lz)
 
     q = hk * gradient
     v = q / prsity
     if v <= 0:
-        raise ValueError("Seepage velocity must be positive (check K and gradient).")
+        raise UserMessageError("Enter a hydraulic conductivity and gradient greater than zero.")
     peclet = delr / al
     perlen = float(int(Lx / v + 1000.0))
     dt_target = 5.0 * delr / v                    # Courant target = 5

@@ -5,6 +5,7 @@ import os
 import panel as pn
 
 from data_queries import get_user_sites_rows
+from numerical_input_validation import user_instruction
 from numerical_jobs import fetch_result, job_status, submit_job
 from panel_analytical_common import comparison_plot, error_card, info_card, query_int, query_str, summary_card
 from panel_auth import authenticated_email
@@ -49,40 +50,33 @@ def _vertical_feasibility_issues(rows):
                 "C_A": float(row["C_A"]),
             }
         except (KeyError, TypeError, ValueError):
-            issues.append(f"{label}: all scenario inputs must be numeric.")
+            issues.append(f"{label}: enter a number for every input.")
             continue
         if any(not math.isfinite(value) or value <= 0 for value in values.values()):
-            issues.append(f"{label}: all scenario inputs must be positive finite numbers.")
+            issues.append(f"{label}: enter a value greater than zero for every input.")
             continue
 
         lz = values["Lz"]
         grid_size = values["grid_size"]
         nlay = int(lz / grid_size)
         if nlay < 2:
-            issues.append(f"{label}: grid_size {grid_size:.3g} m leaves fewer than 2 vertical layers; reduce grid_size.")
+            issues.append(f"{label}: reduce the grid size.")
             continue
 
         domain_length = _vertical_domain_length(values)
         if not math.isfinite(domain_length) or domain_length <= 0:
-            issues.append(
-                f"{label}: chemistry produces an invalid vertical domain length; "
-                "increase C_D or gamma, or reduce C_A."
-            )
+            issues.append(f"{label}: increase C_D or gamma, or reduce C_A.")
             continue
 
         ncol = int(domain_length / grid_size)
         if ncol < 2:
-            issues.append(f"{label}: grid_size {grid_size:.3g} m leaves fewer than 2 columns; reduce grid_size.")
+            issues.append(f"{label}: reduce the grid size.")
             continue
 
         total_cells = ncol * nlay
         if total_cells > max_cells:
             recommended = math.sqrt((domain_length * lz) / max_cells)
-            issues.append(
-                f"{label}: derived domain is L_D={domain_length:.2f} m by Lz={lz:.2f} m; "
-                f"grid_size {grid_size:.3g} m creates {ncol:,} x {nlay:,} = {total_cells:,} cells, "
-                f"above the {max_cells:,}-cell limit. Use grid_size >= {recommended:.2f} m."
-            )
+            issues.append(f"{label}: increase the grid size to at least {recommended:.2f} m.")
     return issues
 
 
@@ -205,7 +199,7 @@ def numerical_vertical_multiple_app():
         rows = _scenarios_from_sites()
         feasibility_issues = _vertical_feasibility_issues(rows)
         if feasibility_issues:
-            raise ValueError("Adjust these vertical scenarios before running: " + " ".join(feasibility_issues))
+            raise ValueError("Fix these scenarios, then run again. " + " ".join(feasibility_issues))
         return rows
 
     def _render_completed_results(rows, results):
@@ -277,7 +271,7 @@ def numerical_vertical_multiple_app():
                 )
                 if any(status["status"] == "failed" for status in statuses):
                     failed = next(status for status in statuses if status["status"] == "failed")
-                    message = failed.get("error") or "A numerical scenario failed."
+                    message = user_instruction(failed.get("error"))
                     result_pane.object = error_card(message)
                     _stop_polling()
                 elif all(status["status"] == "done" for status in statuses):
@@ -288,7 +282,7 @@ def numerical_vertical_multiple_app():
             _poll()
         except Exception as exc:
             logger.exception("Vertical numerical scenario run failed")
-            result_pane.object = error_card(exc)
+            result_pane.object = error_card(user_instruction(exc))
             plot_pane.object = None
             report_bridge.object = report_bridge_html(clear=True)
             _stop_polling()

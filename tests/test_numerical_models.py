@@ -31,15 +31,27 @@ def test_solver_resolution_raises_clear_error_when_executable_is_missing(monkeyp
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("MF6_EXE", str(tmp_path / "missing-mf6"))
 
-    with pytest.raises(RuntimeError, match="Executable not found for MF6_EXE.*\\.modflow_bin/.*, solvers/.*, bin/.*, and PATH"):
+    with pytest.raises(RuntimeError, match="engine is unavailable"):
         _resolve_executable("MF6_EXE", ["mf6.exe", "mf6"])
 
 
 def test_grid_cap_rejects_oversized_run_before_solver(monkeypatch):
     monkeypatch.setenv("NUMERICAL_MAX_CELLS", "100")
 
-    with pytest.raises(ValueError, match="Grid too large: 11 x 10 = 110 cells.*Increase Delta X / Delta Z"):
+    with pytest.raises(ValueError, match="^Increase the grid size and run it again.$"):
         _check_grid_size(11, 10)
+
+
+def test_only_our_own_messages_reach_the_reader():
+    from numerical_input_validation import NUMERICAL_FAILED, UserMessageError, user_instruction
+
+    assert user_instruction(UserMessageError("Reduce the grid size and run it again.")) == "Reduce the grid size and run it again."
+    assert user_instruction(ValueError("Pick at least one site.")) == "Pick at least one site."
+    assert user_instruction("The simulation stopped unexpectedly.") == "The simulation stopped unexpectedly."
+    # A crash, a traceback or an empty message never reaches the screen.
+    assert user_instruction(KeyError("C:/app/.numerical_runs/tmp7/mf6.nam")) == NUMERICAL_FAILED
+    assert user_instruction(RuntimeError("Traceback (most recent call last): ...")) == NUMERICAL_FAILED
+    assert user_instruction("") == NUMERICAL_FAILED
 
 
 def test_solver_timeout_is_disabled_by_default(monkeypatch):
@@ -79,7 +91,7 @@ def test_solver_timeout_terminates_external_process(monkeypatch, tmp_path):
     monkeypatch.setattr("numerical_models.subprocess.Popen", lambda *args, **kwargs: process)
     monkeypatch.setattr("numerical_models._terminate_solver_process", lambda proc: setattr(proc, "returncode", -9))
 
-    with pytest.raises(RuntimeError, match="timed out after 0.01 s and was terminated"):
+    with pytest.raises(RuntimeError, match="took too long. Increase the grid size"):
         _checked_run_sim(FakeSimulation(), "MF6 test")
 
 

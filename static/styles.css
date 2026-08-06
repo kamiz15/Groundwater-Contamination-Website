@@ -2106,8 +2106,12 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 
 /* Stage */
 .model-workbench-stage .model-output-card{ margin-bottom: 0; }
+/* Result card (~90) + Bokeh figure (420) + the Explore slider strip below it
+   (~170 at two sliders per row) + gaps. PANEL_PUBLIC_BASE is usually a separate
+   origin from Flask, so script.js cannot measure the frame and this floor is
+   the only thing holding the strip open - it has to clear the whole stack. */
 .model-workbench-stage .model-output-card:last-child .panel-shell,
-.model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 680px; }
+.model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 860px; }
 /* Numerical single output. The Bokeh figures are NOT aspect-locked: they are
    stretch_width with a fixed pixel height (430 for the plume view, 350 for the
    vertical reactive one), so a correct floor is knowable. script.js still grows
@@ -2120,8 +2124,10 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 
 @media (max-width: 1080px){
   .model-workbench-layout{ grid-template-columns: 1fr; }
+  /* The slider strip folds to one column here, so the stage gets taller, not
+     shorter - four stacked sliders need more room than two rows of two. */
   .model-workbench-stage .model-output-card:last-child .panel-shell,
-  .model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 560px; }
+  .model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 940px; }
 }
 
 /* Numerical multiple pages: inputs (site loader + scenario editor) on the left,

@@ -5,9 +5,11 @@ import panel as pn
 # The cards and the comparison chart are identical for analytical and empirical
 # pages; only the query-parameter aliases below differ.
 from panel_analytical_common import (  # noqa: F401  (re-exported for the panels)
+    baseline_delta,
     comparison_plot,
     comparison_plot_data,
     error_card,
+    explore_sliders,
     info_card,
     load_field_points,
     metric_card,

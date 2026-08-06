@@ -4,6 +4,7 @@ import logging
 
 import panel as pn
 
+from numerical_input_validation import POSITIVE_INPUTS, user_instruction
 from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
 from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
 from panel_theme import report_bridge_html
@@ -181,7 +182,7 @@ def numerical_vertical_single_app():
     def _poll(job_id):
         status = job_status(job_id)
         if not status:
-            result_pane.object = error_card(f"Unknown numerical job {job_id}")
+            result_pane.object = error_card("This simulation is no longer available. Please run it again.")
             _stop_polling()
             return
         fields = [("Job", job_id[:8]), ("Status", status["status"])]
@@ -195,7 +196,7 @@ def numerical_vertical_single_app():
             _render_completed_result(fetch_result(job_id))
             _stop_polling()
         elif status["status"] == "failed":
-            result_pane.object = error_card(status.get("error") or "Numerical job failed.")
+            result_pane.object = error_card(user_instruction(status.get("error")))
             _stop_polling()
         elif status["status"] == "cancelled":
             result_pane.object = summary_card([("Job", job_id[:8]), ("Status", "cancelled")], title="Vertical Simulation Cancelled")
@@ -210,7 +211,7 @@ def numerical_vertical_single_app():
         try:
             if min(lz.value, grid_size.value, alpha_l.value, atv.value, gamma.value,
                    cd.value, ca.value, prsity.value, hk.value) <= 0:
-                raise ValueError("All vertical inputs must be positive.")
+                raise ValueError(POSITIVE_INPUTS)
             params = {
                 "Lz": lz.value,
                 "grid_size": grid_size.value,
@@ -233,7 +234,7 @@ def numerical_vertical_single_app():
             _poll(job_id)
         except Exception as exc:
             logger.exception("Vertical numerical single simulation failed")
-            result_pane.object = error_card(exc)
+            result_pane.object = error_card(user_instruction(exc))
             graph_pane.object = None
             comparison_pane.object = None
             report_bridge.object = report_bridge_html(clear=True)

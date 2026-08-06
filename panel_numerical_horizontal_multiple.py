@@ -4,6 +4,7 @@ import math
 import panel as pn
 
 from data_queries import get_user_sites_rows
+from numerical_input_validation import user_instruction
 from numerical_jobs import fetch_result, job_status, submit_job
 from panel_analytical_common import comparison_plot, error_card, info_card, query_int, query_str, summary_card
 from panel_auth import authenticated_email
@@ -212,7 +213,7 @@ def numerical_horizontal_multiple_app():
                 )
                 if any(status["status"] == "failed" for status in statuses):
                     failed = next(status for status in statuses if status["status"] == "failed")
-                    message = failed.get("error") or "A numerical scenario failed."
+                    message = user_instruction(failed.get("error"))
                     result_pane.object = error_card(message)
                     _stop_polling()
                 elif all(status["status"] == "done" for status in statuses):
@@ -223,7 +224,7 @@ def numerical_horizontal_multiple_app():
             _poll()
         except Exception as exc:
             logger.exception("Horizontal numerical scenario run failed")
-            result_pane.object = error_card(exc)
+            result_pane.object = error_card(user_instruction(exc))
             plot_pane.object = None
             report_bridge.object = report_bridge_html(clear=True)
             _stop_polling()

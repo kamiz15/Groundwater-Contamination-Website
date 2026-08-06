@@ -286,30 +286,47 @@ def _export_href(path, input_fields, selected_site_id=None):
 
 
 def _comparison_plot_data(title, manual_label, manual_y, selected_site_id, email, manual_axis_label):
+    # Mirrors panel_analytical_common.comparison_plot_data so the exported report
+    # shows the same chart as the page: database points always, the model result
+    # parked past the last site when the run is not tied to one.
     field_x, field_y = [], []
-    if selected_site_id > 0:
-        try:
-            for i, row in enumerate(get_user_sites(email), start=1):
-                try:
-                    plume = float(row[4])
-                except (TypeError, ValueError):
-                    continue
-                field_x.append(i)
-                field_y.append(plume)
-        except Exception:
-            logger.exception("Database comparison points could not be loaded for PDF report")
-            field_x, field_y = [], []
+    # The axis counts sites by position, not by primary key, so capture where the
+    # selected site sits while walking the rows - passing its id through put the
+    # model point thousands of ticks off the end of the chart.
+    position = None
+    try:
+        for i, row in enumerate(get_user_sites(email), start=1):
+            if selected_site_id > 0 and row[0] == selected_site_id:
+                position = i
+            try:
+                plume = float(row[4])
+            except (TypeError, ValueError):
+                continue
+            field_x.append(i)
+            field_y.append(plume)
+    except Exception:
+        logger.exception("Database comparison points could not be loaded for PDF report")
+        field_x, field_y = [], []
+
+    if position is not None:
+        manual_x = [position]
+    elif selected_site_id > 0:
+        manual_x = [selected_site_id]
+    elif field_x:
+        manual_x = [max(field_x) + 1]
+    else:
+        manual_x = [1]
 
     return {
         "type": "comparison_scatter",
         "title": title,
-        "x_label": "Site Number" if selected_site_id > 0 else manual_axis_label,
+        "x_label": "Site Number" if field_x else manual_axis_label,
         "y_label": "Plume Length (m)",
         "field_label": "Database plume length",
         "field_x": field_x,
         "field_y": field_y,
         "manual_label": manual_label,
-        "manual_x": [selected_site_id if selected_site_id > 0 else 1],
+        "manual_x": manual_x,
         "manual_y": [manual_y],
         "caption": "Database plume lengths compared with the model result.",
     }

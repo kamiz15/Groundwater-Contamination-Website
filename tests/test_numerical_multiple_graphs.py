@@ -74,8 +74,7 @@ def test_vertical_feasibility_filter_recommends_grid_size_for_large_domain(monke
 
     assert len(issues) == 1
     assert "Large Site" in issues[0]
-    assert "40,000-cell limit" in issues[0]
-    assert "Use grid_size >=" in issues[0]
+    assert "increase the grid size to at least" in issues[0]
 
 
 def test_vertical_feasibility_filter_flags_invalid_chemistry():
@@ -88,7 +87,7 @@ def test_vertical_feasibility_filter_flags_invalid_chemistry():
 
     assert len(issues) == 1
     assert "Weak Donor" in issues[0]
-    assert "invalid vertical domain length" in issues[0]
+    assert "increase C_D or gamma, or reduce C_A" in issues[0]
 
 
 def test_vertical_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch):

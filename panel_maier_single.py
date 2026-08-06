@@ -5,7 +5,10 @@ import panel as pn
 from panel_auth import authenticated_email
 
 from empirical_models import maier_lmax
-from panel_empirical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int
+from panel_empirical_common import (
+    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    metric_card, query_float, query_int,
+)
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
@@ -25,6 +28,7 @@ def maier_single_app():
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
+    _baseline: dict = {}
 
     def _pdf_callback():
         if not _state:
@@ -41,9 +45,13 @@ def maier_single_app():
     def _run(_=None):
         try:
             lmax_current = maier_lmax(w_M.value, w_tv.value, w_g.value, w_Ca.value, w_Cd.value)
-            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax_current:.2f}")
+            _baseline.setdefault("lmax", lmax_current)
+            result_pane.object = metric_card(
+                "Maximum Plume Length L_max", f"{lmax_current:.2f}",
+                delta=baseline_delta(lmax_current, _baseline["lmax"]),
+            )
             user_x = [selected_site_id if selected_site_id > 0 else 1]
-            plot, plot_data = comparison_plot("Maier & Grathwohl (2006)", "Maier model plume length", user_x, [lmax_current], selected_site_id, email, "Run Number", return_data=True)
+            plot, plot_data = comparison_plot("Maier & Grathwohl (2006)", "Maier model plume length", user_x, [lmax_current], selected_site_id, email, "Run Number", return_data=True, frame=_baseline)
             plot_pane.object = plot
             _state.update({
                 "parameters": [
@@ -66,7 +74,11 @@ def maier_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
+        return pn.Column(
+            result_pane, plot_pane,
+            explore_sliders([("M", w_M), ("tv", w_tv), ("g", w_g)], _run),
+            sizing_mode="stretch_width", styles={"gap": "14px"},
+        )
 
     controls = pn.Column("### Manual inputs", w_M, w_tv, w_g, w_Ca, w_Cd, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})
     outputs_col = pn.Column(plot_pane, sizing_mode="stretch_both", styles={"flex": "2 1 540px", "min-width": "340px"})

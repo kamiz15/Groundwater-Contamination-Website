@@ -85,6 +85,61 @@ label {
 }
 """ % {"font": FONT_FAMILY}
 
+# Sliders. Bokeh builds these on noUiSlider, so INPUT_CSS (.bk-input) never
+# reaches them - they kept the stock grey bar. A 4px track with the CAST accent
+# on the travelled portion reads as an instrument next to the plot rather than
+# as one more form control.
+SLIDER_CSS = """
+:host { font-family: %(font)s; }
+.bk-slider-title {
+  font-family: %(font)s;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: #5b6b7f;
+  margin-bottom: 2px;
+  /* CAST parameter names are long ("Horizontal Transverse Dispersivity a_Th
+     [m]"). Bokeh keeps the title on one line, so side-by-side sliders bleed
+     into each other; wrap instead. */
+  white-space: normal;
+  line-height: 1.35;
+}
+.bk-slider-value, .bk-slider-title .bk-slider-value {
+  font-weight: 700;
+  color: #0b2c4f;
+}
+.noUi-target {
+  background: #dfe5ee;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  height: 4px;
+  margin: 10px 8px 14px;
+}
+.noUi-connect { background: #1f72cd; }
+.noUi-handle {
+  width: 16px;
+  height: 16px;
+  right: -8px;
+  top: -6px;
+  border: 2px solid #fff;
+  border-radius: 50%%;
+  background: #155da9;
+  box-shadow: 0 1px 3px rgba(11, 44, 79, 0.35);
+  cursor: grab;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.noUi-handle:hover { background: #114b88; }
+.noUi-handle:active { cursor: grabbing; }
+.noUi-handle::before, .noUi-handle::after { display: none; }
+.noUi-handle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 114, 205, 0.28);
+}
+@media (prefers-reduced-motion: reduce) {
+  .noUi-handle { transition: none; }
+}
+""" % {"font": FONT_FAMILY}
+
 # Tabulator scenario tables
 TABULATOR_CSS = """
 :host { font-family: %(font)s; }
@@ -140,25 +195,25 @@ h3 {
 """ % {"font": FONT_FAMILY}
 
 
+# One sheet for every component, not one per class.
+#
+# `stylesheets` is a single param.Parameter owned by panel.viewable.Layoutable
+# and shared down the whole hierarchy, so `SomeWidget.param.stylesheets.default
+# = [...]` does not scope to that widget - it reassigns the default for every
+# Layoutable. Setting it per class therefore just let each assignment overwrite
+# the previous one, and only the last (Markdown) survived. The blocks above are
+# already scoped by component-internal selectors (.bk-btn, .bk-input, .noUi-*,
+# .tabulator), so concatenating them is safe: a component matches its own rules
+# and ignores the rest.
+COMPONENT_CSS = "\n".join([BUTTON_CSS, INPUT_CSS, SLIDER_CSS, TABULATOR_CSS, MARKDOWN_CSS])
+
+
 def apply_theme() -> None:
     """Inject CAST styling into every Panel app served by this process."""
     if GLOBAL_CSS not in pn.config.raw_css:
         pn.config.raw_css.append(GLOBAL_CSS)
 
-    pn.widgets.Button.param.stylesheets.default = [BUTTON_CSS]
-    pn.widgets.FileDownload.param.stylesheets.default = [BUTTON_CSS]
-
-    for cls in (
-        pn.widgets.FloatInput,
-        pn.widgets.IntInput,
-        pn.widgets.TextInput,
-        pn.widgets.Select,
-        pn.widgets.FloatSlider,
-    ):
-        cls.param.stylesheets.default = [INPUT_CSS]
-
-    pn.widgets.Tabulator.param.stylesheets.default = [TABULATOR_CSS]
-    pn.pane.Markdown.param.stylesheets.default = [MARKDOWN_CSS]
+    pn.viewable.Layoutable.param.stylesheets.default = [COMPONENT_CSS]
 
 
 def report_bridge_html(title="", subtitle="", filename="", parameters=None,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import traceback
 
+from numerical_input_validation import user_instruction
 from numerical_jobs import load_job_payload, mark_done, mark_failed
 from numerical_models import run_numerical_model, run_numerical_model_horizontal
 
@@ -35,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
         mark_done(job_id, result)
         return 0
     except Exception as exc:
-        mark_failed(job_id, f"{exc}\n{traceback.format_exc()}")
+        # The traceback goes to this worker's stderr log; the reader gets the instruction.
+        traceback.print_exc()
+        mark_failed(job_id, user_instruction(exc))
         return 1
 
 

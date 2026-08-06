@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pickle
 import signal
@@ -14,6 +15,11 @@ from typing import Any
 
 
 STATUSES = {"queued", "running", "done", "failed", "cancelled"}
+
+logger = logging.getLogger(__name__)
+
+# Shown when the run died for a reason the reader cannot act on; the cause is logged.
+STOPPED_MESSAGE = "The simulation stopped unexpectedly. Please run it again."
 
 
 def _job_root() -> Path:
@@ -246,13 +252,15 @@ def _reap_stale_jobs(conn: sqlite3.Connection) -> None:
             # Just claimed by pump_queue; give the worker time to register its pid.
             if age is not None and age < grace:
                 continue
-            reason = "Worker process never started (reaped)."
+            detail = "Worker process never started (reaped)."
         elif not _pid_alive(row["pid"]):
-            reason = "Worker process exited before completing (reaped)."
+            detail = "Worker process exited before completing (reaped)."
         elif age is not None and age > timeout:
-            reason = f"Worker exceeded the {int(timeout)}s timeout (reaped)."
+            detail = f"Worker exceeded the {int(timeout)}s timeout (reaped)."
         else:
             continue
+        logger.warning("Job %s failed: %s", row["id"], detail)
+        reason = STOPPED_MESSAGE
         conn.execute(
             "UPDATE numerical_jobs SET status = 'failed', updated_at = ?, finished_at = ?, error = ? "
             "WHERE id = ? AND status = 'running'",
@@ -304,7 +312,8 @@ def _start_worker(job_id: str) -> None:
     except Exception as exc:
         stdout.close()
         stderr.close()
-        mark_failed(job_id, f"Unable to start numerical worker: {exc}")
+        logger.exception("Unable to start numerical worker for job %s", job_id)
+        mark_failed(job_id, STOPPED_MESSAGE)
         return
     with _connect() as conn:
         updated = conn.execute(

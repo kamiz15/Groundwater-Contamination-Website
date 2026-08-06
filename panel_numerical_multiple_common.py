@@ -22,6 +22,7 @@ import math
 import pandas as pd
 import panel as pn
 
+from numerical_input_validation import user_instruction
 from panel_analytical_common import comparison_plot, error_card, info_card, summary_card
 from panel_theme import report_bridge_html
 
@@ -318,7 +319,7 @@ def numerical_multiple_app(mod):
                     )
                 if any(status["status"] == "failed" for status in statuses):
                     failed = next(status for status in statuses if status["status"] == "failed")
-                    message = failed.get("error") or "A numerical scenario failed."
+                    message = user_instruction(failed.get("error"))
                     result_pane.object = error_card(message)
                     if input_only:
                         _post_to_parent([], [], error=message)
@@ -335,11 +336,11 @@ def numerical_multiple_app(mod):
             _poll()
         except Exception as exc:
             logger.exception("%s numerical scenario run failed", word)
-            result_pane.object = error_card(exc)
+            result_pane.object = error_card(user_instruction(exc))
             plot_pane.object = None
             report_bridge.object = report_bridge_html(clear=True)
             if input_only:
-                _post_to_parent([], [], error=exc)
+                _post_to_parent([], [], error=user_instruction(exc))
             _stop_polling()
 
     run_btn.on_click(_run)
@@ -381,7 +382,7 @@ def numerical_multiple_app(mod):
                 _render_completed_results(rows or [{} for _ in job_ids], [mod.fetch_result(job_id) for job_id in job_ids])
             except Exception as exc:
                 logger.exception("%s numerical scenario results could not be loaded", word)
-                result_pane.object = error_card(exc)
+                result_pane.object = error_card(user_instruction(exc))
         elif mod.query_int("run", 0):
             _run()
         else:

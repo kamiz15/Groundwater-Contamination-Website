@@ -5,7 +5,10 @@ import panel as pn
 from panel_auth import authenticated_email
 
 from analytical_models import liedl3d_lmax
-from panel_analytical_common import comparison_plot, error_card, info_card, metric_card, query_float, query_int
+from panel_analytical_common import (
+    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    metric_card, query_float, query_int,
+)
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
@@ -28,6 +31,7 @@ def liedl3d_single_app():
     selected_site_id = query_int("site_id", 0)
 
     _state: dict = {}
+    _baseline: dict = {}
 
     def _pdf_callback():
         if not _state:
@@ -44,9 +48,13 @@ def liedl3d_single_app():
     def _run(_=None):
         try:
             lmax = liedl3d_lmax(m.value, alpha_th.value, alpha_tv.value, w.value, cthres.value, c_ea0.value, c_ed0.value, gamma.value)
-            result_pane.object = metric_card("Maximum Plume Length L_max", f"{lmax:.2f}")
+            _baseline.setdefault("lmax", lmax)
+            result_pane.object = metric_card(
+                "Maximum Plume Length L_max", f"{lmax:.2f}",
+                delta=baseline_delta(lmax, _baseline["lmax"]),
+            )
             user_x = [selected_site_id if selected_site_id > 0 else 1]
-            plot, plot_data = comparison_plot("Liedl 3D (2011)", "Liedl 3D model plume length", user_x, [lmax], selected_site_id, email, "Run Number", return_data=True)
+            plot, plot_data = comparison_plot("Liedl 3D (2011)", "Liedl 3D model plume length", user_x, [lmax], selected_site_id, email, "Run Number", return_data=True, frame=_baseline)
             plot_pane.object = plot
             _state.update({
                 "parameters": [
@@ -72,7 +80,12 @@ def liedl3d_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(result_pane, plot_pane, sizing_mode="stretch_width", styles={"gap": "14px"})
+        return pn.Column(
+            result_pane, plot_pane,
+            explore_sliders(
+                [("M", m), ("alpha_Th", alpha_th), ("alpha_Tv", alpha_tv), ("W", w)], _run),
+            sizing_mode="stretch_width", styles={"gap": "14px"},
+        )
 
     controls = pn.Column(
         "### Manual inputs",

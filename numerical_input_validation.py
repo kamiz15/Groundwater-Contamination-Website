@@ -16,6 +16,38 @@ class ValidationIssue:
     reason: str
 
 
+# Everything a numerical run can tell the reader, in one place. Each message is
+# the instruction alone: what to change and run again. Solver output, file paths
+# and tracebacks belong in the log, never on screen.
+ENGINE_UNAVAILABLE = "The simulation engine is unavailable. Please try again later."
+NUMERICAL_FAILED = "The simulation could not be completed. Check your inputs and run it again."
+COARSER_GRID = "Increase the grid size and run it again."
+FINER_GRID = "Reduce the grid size and run it again."
+POSITIVE_INPUTS = "Enter a value greater than zero for every input."
+
+
+class UserMessageError(ValueError, RuntimeError):
+    """Failure whose message is already the instruction for the reader.
+
+    Subclasses both builtins so existing `except ValueError` / `except RuntimeError`
+    callers keep catching what they caught before.
+    """
+
+
+def user_instruction(error) -> str:
+    """The one line to show the reader.
+
+    Our own refusals (ValueError, raised where an input cannot work) carry the
+    instruction. Anything else - a solver crash, a missing binary, a bug - is
+    already logged, so the reader gets the generic line instead of a traceback.
+    """
+    if isinstance(error, str):
+        return error.strip() or NUMERICAL_FAILED
+    if isinstance(error, (ValueError, UserMessageError)):
+        return str(error) or NUMERICAL_FAILED
+    return NUMERICAL_FAILED
+
+
 def _float_env(name: str, default: float) -> float:
     return float(os.getenv(name, str(default)))
 
