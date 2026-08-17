@@ -168,6 +168,20 @@ class CASTReport:
             fontSize=9, leading=13, fontName=_FONT_BOLD,
             textColor=_WHITE,
         )
+        # Compact variants for the multiple-run site table, which is many
+        # columns wide where the single-run table is four.
+        # 6pt, so parameter names ("Stoichiometry Ratio") fit a column instead
+        # of being broken mid-word.
+        self.s_th_sm = ParagraphStyle(
+            "CastTHSmall", parent=ss["Normal"],
+            fontSize=6, leading=8, fontName=_FONT_BOLD,
+            textColor=_WHITE,
+        )
+        self.s_td_sm = ParagraphStyle(
+            "CastTDSmall", parent=ss["Normal"],
+            fontSize=7, leading=9, fontName=_FONT_REGULAR,
+            textColor=_DARK,
+        )
         self.s_metric_label = ParagraphStyle(
             "MetricLabel", parent=ss["Normal"],
             fontSize=8, leading=11, fontName=_FONT_REGULAR,
@@ -514,6 +528,76 @@ class CASTReport:
         t.setStyle(TableStyle(style))
         return t
 
+    # ── Multiple-run input table (site database layout) ────────────────────────
+
+    # Parameter columns beyond this and the table splits, repeating the site
+    # columns. BIOSCREEN reports 14 parameters; squeezed into one row they are
+    # too narrow to read.
+    MAX_SITE_TABLE_PARAMS = 7
+
+    def build_site_input_tables(self, parameters: list) -> list:
+        """One row per site, one column per parameter - the site database layout.
+
+        A multiple run reports the same handful of parameters for every site,
+        which as a flat Parameter/Value list runs to hundreds of rows. Pivoting
+        it gives back the table the user already reads in the site database.
+
+        Parameters carry a "site" key here; the order they arrive in is the
+        order they were plotted, so a row's Site No. is its x position on the
+        graph.
+        """
+        sites, columns, units, cells = [], [], {}, {}
+        for p in parameters:
+            site = str(p.get("site") or "")
+            name = str(p["name"])
+            if site not in sites:
+                sites.append(site)
+            if name not in columns:
+                columns.append(name)
+                units[name] = str(p.get("unit") or "")
+            cells[(site, name)] = p["value"]
+
+        tables = []
+        for start in range(0, len(columns), self.MAX_SITE_TABLE_PARAMS):
+            chunk = columns[start:start + self.MAX_SITE_TABLE_PARAMS]
+            header = [Paragraph("Site No.", self.s_th_sm), Paragraph("Site Unit", self.s_th_sm)]
+            header += [
+                Paragraph(f"{name}{' [' + units[name] + ']' if units[name] else ''}", self.s_th_sm)
+                for name in chunk
+            ]
+            rows = [header]
+            for n, site in enumerate(sites, start=1):
+                row = [Paragraph(str(n), self.s_td_sm), Paragraph(site, self.s_td_sm)]
+                row += [
+                    Paragraph(
+                        self._fmt_value(cells[(site, name)]) if (site, name) in cells else "-",
+                        self.s_td_sm,
+                    )
+                    for name in chunk
+                ]
+                rows.append(row)
+
+            # Site columns take a fixed share; the parameters split what is left.
+            param_w = (CONTENT_W * 0.75) / len(chunk)
+            col_w = [CONTENT_W * 0.07, CONTENT_W * 0.18] + [param_w] * len(chunk)
+            t = Table(rows, colWidths=col_w, repeatRows=1)
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), _WHITE),
+                ("LINEBELOW", (0, 0), (-1, 0), 2, _TEAL),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, _LIGHT]),
+                ("GRID", (0, 0), (-1, -1), 0.3, _LGRAY),
+                ("LINEBELOW", (0, -1), (-1, -1), 1, _BLUE),
+                ("TEXTCOLOR", (2, 1), (-1, -1), _NAVY),
+            ]))
+            tables.append(t)
+        return tables
+
     # ── Results metrics grid ───────────────────────────────────────────────────
 
     def build_results_grid(self, outputs: list) -> Table:
@@ -743,7 +827,14 @@ class CASTReport:
         # ── Input Parameters ──────────────────────────────────────────────────
         story.append(self._section_header("Input Parameters"))
         story.append(Spacer(1, 3 * mm))
-        story.append(self.build_input_table(parameters))
+        # A multiple run tags every parameter with its site, and pivots to the
+        # site database layout instead of one row per site per parameter.
+        if any(isinstance(p, dict) and p.get("site") for p in parameters):
+            for table in self.build_site_input_tables(parameters):
+                story.append(table)
+                story.append(Spacer(1, 4 * mm))
+        else:
+            story.append(self.build_input_table(parameters))
         story.append(Spacer(1, 10 * mm))
 
         # ── Computed Results ──────────────────────────────────────────────────

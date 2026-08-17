@@ -222,7 +222,8 @@ def site_comparison_app(model: str):
             f"{spec['title']} - Multiple Simulation", spec["title"],
             f"{model}_multiple_report.pdf",
             parameters=[
-                {"symbol": symbol, "name": f"{label} - {name}", "value": params[key], "unit": unit}
+                {"symbol": symbol, "name": name, "value": params[key], "unit": unit,
+                 "site": label}
                 for label, params in zip(labels, param_sets)
                 for key, symbol, name, unit in spec["report"]
             ],
