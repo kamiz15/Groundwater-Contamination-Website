@@ -590,7 +590,7 @@ def numerical_horizontal_multiple():
     # One run per site picked in the sidebar. Nothing is picked by default:
     # every selected site queues a full MODFLOW/MT3DMS job.
     sites, _selected, _invalid = _selected_site("horizontal")
-    picked = compare_site_ids(sites, default_all=False)
+    picked = compare_site_ids(sites)
     # Submitting the picker IS the run: the panel autoruns whatever is picked.
     panel_src = _panel_src("panel_numerical_horizontal_multiple", None, orientation="horizontal", output_only=False)
     panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})
@@ -637,7 +637,7 @@ def numerical_vertical_multiple():
     # One run per site picked in the sidebar. Nothing is picked by default:
     # every selected site queues a full MODFLOW/MT3DMS job.
     sites, _selected, _invalid = _selected_site("vertical")
-    picked = compare_site_ids(sites, default_all=False)
+    picked = compare_site_ids(sites)
     # Submitting the picker IS the run: the panel autoruns whatever is picked.
     panel_src = _panel_src("panel_numerical_vertical_multiple", None, orientation="vertical", output_only=False)
     panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})

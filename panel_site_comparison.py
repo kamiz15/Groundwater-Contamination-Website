@@ -164,7 +164,7 @@ MODEL_SPECS = {
 
 
 def selected_site_ids() -> set[int]:
-    """Site ids from ?compare_sites=1,2,3. Empty means every usable site."""
+    """Site ids from ?compare_sites=1,2,3. Nothing picked means nothing plotted."""
     ids = set()
     for part in query_str("compare_sites").split(","):
         try:
@@ -204,8 +204,7 @@ def site_comparison_app(model: str):
 
         sites, _invalid = filter_valid_sites_for_model(get_user_sites_rows(email), model)
         wanted = selected_site_ids()
-        if wanted:
-            sites = [s for s in sites if int(s["id"]) in wanted]
+        sites = [s for s in sites if int(s["id"]) in wanted]
         if not sites:
             raise ValueError("No sites selected. Pick sites in the Compare Sites list.")
 

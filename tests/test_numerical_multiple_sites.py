@@ -72,12 +72,11 @@ def test_unknown_site_ids_are_dropped(panel, size_key, monkeypatch):
 
 
 def test_numerical_pages_default_to_no_selection():
-    """default_all=False is what keeps a page load from queueing 336 solver runs."""
+    """An empty default is what keeps a page load from queueing 336 solver runs."""
     import app as flask_app
 
     usable = [{"id": 1}, {"id": 2}]
     with flask_app.app.test_request_context("/numerical/vertical/multiple"):
-        assert compare_site_ids(usable, default_all=False) == []
-        assert compare_site_ids(usable) == [1, 2]          # analytical pages unchanged
+        assert compare_site_ids(usable) == []
     with flask_app.app.test_request_context("/numerical/vertical/multiple?compare_sites=2"):
-        assert compare_site_ids(usable, default_all=False) == [2]
+        assert compare_site_ids(usable) == [2]

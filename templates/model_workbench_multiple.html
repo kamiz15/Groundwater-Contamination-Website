@@ -57,7 +57,7 @@
             {% endfor %}
           </select>
           <p class="workbench-site-hint">Ctrl/Cmd-click to pick several.
-            {% if max_runs %}Up to {{ max_runs }} sites per run.{% else %}Select none for all sites.{% endif %}</p>
+            {% if max_runs %}Up to {{ max_runs }} sites per run.{% else %}Nothing is selected until you pick.{% endif %}</p>
           <div class="workbench-site-actions">
             <button type="submit" class="primary-btn">{% block compare_submit_label %}Update Graph{% endblock %}</button>
           </div>

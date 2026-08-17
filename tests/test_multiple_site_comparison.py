@@ -103,6 +103,7 @@ def test_panel_plots_one_model_point_per_selected_site(model, monkeypatch):
     rows = [_site(id=1, display_id=1, site_unit="Borden", plume_length=120.0),
             _site(id=2, display_id=2, site_unit="Vejen", plume_length=None)]
     monkeypatch.setattr(psc, "get_user_sites_rows", lambda _email: rows)
+    monkeypatch.setattr(psc, "selected_site_ids", lambda: {1, 2})   # nothing is ticked by default
     captured = {}
     real_plot = psc.comparison_plot
     monkeypatch.setattr(psc, "comparison_plot", lambda *a, **k: (captured.update(k, args=a), real_plot(*a, **k))[1])
@@ -113,6 +114,19 @@ def test_panel_plots_one_model_point_per_selected_site(model, monkeypatch):
     assert captured["args"][2] == [1, 2]              # one x position per site
     assert len(captured["args"][3]) == 2              # one Lmax per site
     assert len(app.select(pn.pane.Bokeh)) == 1
+
+
+def test_panel_plots_nothing_until_sites_are_picked(monkeypatch):
+    """Landing on a multiple page starts empty, not with every site on the graph."""
+    import panel_site_comparison as psc
+
+    monkeypatch.setattr(psc, "get_user_sites_rows", lambda _email: [_site(id=1), _site(id=2)])
+    monkeypatch.setattr(psc, "selected_site_ids", lambda: set())
+    monkeypatch.setattr(psc, "comparison_plot", lambda *a, **k: pytest.fail("plotted with no sites picked"))
+
+    app = psc.site_comparison_app("liedl")
+
+    assert app.select(pn.pane.Bokeh)[0].object is None
 
 
 # --- site filtering ---------------------------------------------------------
@@ -133,8 +147,8 @@ def test_compare_site_ids_ignores_sites_the_model_rejected():
     with flask_app.app.test_request_context("/liedl/multiple?compare_sites=2&compare_sites=99"):
         assert compare_site_ids(usable) == [2]
     with flask_app.app.test_request_context("/liedl/multiple?compare_sites=99"):
-        assert compare_site_ids(usable) == [1, 2]      # nothing valid ticked -> all
+        assert compare_site_ids(usable) == []          # nothing valid ticked -> none
     with flask_app.app.test_request_context("/liedl/multiple"):
-        assert compare_site_ids(usable) == [1, 2]      # nothing ticked -> all
+        assert compare_site_ids(usable) == []          # nothing ticked -> none
     with flask_app.app.test_request_context("/liedl/multiple?compare_sites=abc"):
-        assert compare_site_ids(usable) == [1, 2]      # non-numeric -> all
+        assert compare_site_ids(usable) == []          # non-numeric -> none
