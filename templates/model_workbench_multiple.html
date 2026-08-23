@@ -86,8 +86,12 @@
         </div>
       </div>
       {# Manual inputs sit under the graph, as on the original CAST site. They
-         fill in whatever the site database does not carry for a picked site. #}
-      {% include "model_input_form.html" %}
+         fill in whatever the site database does not carry for a picked site.
+
+         Pages whose Panel owns editable state (a scenario table typed into the
+         Panel session) override this to empty: submitting the form is a GET
+         that reloads the page, which would throw that state away. #}
+      {% block stage_inputs %}{% include "model_input_form.html" %}{% endblock %}
     </main>
   </div>
 </section>
