@@ -48,6 +48,11 @@
     {% if selected_site_id %}
     <input type="hidden" name="site_id" value="{{ selected_site_id }}">
     {% endif %}
+    {# On a multiple page the picked sites live in the sidebar's own form. Carry
+       them, or running the model would submit an empty pick and blank the graph. #}
+    {% for sid in compare_site_ids | default([]) %}
+    <input type="hidden" name="compare_sites" value="{{ sid }}">
+    {% endfor %}
 
     {% if analytical_fields is defined %}
     {# Numerical form: editable inputs grouped by kind, two columns of grouped cards

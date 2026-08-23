@@ -291,6 +291,45 @@ document.addEventListener("DOMContentLoaded", () => {
   updateTitle();
 });
 
+// Compare Sites: type-to-filter over the multi-select. Options are detached and
+// re-appended rather than hidden, because `display:none` on an <option> is
+// ignored by Safari - and a detached option keeps its `selected` flag, so
+// filtering never silently drops a site the user already ticked.
+document.addEventListener("DOMContentLoaded", () => {
+  const search = document.getElementById("compare_sites_search");
+  const select = document.getElementById("compare_sites");
+  if (!search || !select) return;
+
+  const options = Array.from(select.options);
+  search.addEventListener("input", () => {
+    const needle = search.value.trim().toLowerCase();
+    select.textContent = "";
+    options
+      .filter((option) => !needle || option.textContent.toLowerCase().includes(needle))
+      .forEach((option) => select.appendChild(option));
+  });
+});
+
+// "Run Scenarios" on a scenario-table page: hand the ticked site ids to the
+// Panel iframe instead of submitting the form. A submit would reload the page,
+// and the manually added rows only live in the Panel session.
+document.addEventListener("DOMContentLoaded", () => {
+  const button = document.getElementById("runScenariosBtn");
+  const select = document.getElementById("compare_sites");
+  const frame = document.querySelector("iframe.panel-frame");
+  if (!button || !frame) return;
+
+  button.addEventListener("click", () => {
+    const siteIds = select
+      ? Array.from(select.options).filter((o) => o.selected).map((o) => Number(o.value))
+      : [];
+    frame.contentWindow.postMessage(
+      { type: "run-scenarios", model: button.dataset.model, site_ids: siteIds },
+      "*",
+    );
+  });
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   const frames = document.querySelectorAll("iframe.panel-frame");
   if (!frames.length) return;

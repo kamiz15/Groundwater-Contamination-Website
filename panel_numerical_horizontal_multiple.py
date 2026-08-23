@@ -164,6 +164,7 @@ def numerical_horizontal_multiple_app():
             0,
             "",
             "Site Number",
+            show_database=False,
         )
         logger.info("Horizontal multiple Lmax comparison rendered for %d run(s)", len(values))
 

@@ -72,5 +72,43 @@ class MultipleWrapperTests(unittest.TestCase):
                 self.assertEqual(iframe_query["output_only"], ["1"])
 
 
+class CompareSitesSidebarTests(unittest.TestCase):
+    """The Compare Sites card: searchable, and on Liedl it runs the panel in place."""
+
+    SITE = {
+        "id": 1, "display_id": 1, "site_unit": "Borden", "compound": "Benzene",
+        "aquifer_thickness": 2.0, "plume_length": 120.0, "electron_donor": 5.0,
+        "electron_acceptor_o2": 8.0, "alpha_tv": 0.001, "gamma": 3.5, "extra_data": {},
+    }
+
+    def setUp(self):
+        app_module.app.config.update(TESTING=True, LOGIN_DISABLED=True)
+        self.client = app_module.app.test_client()
+        self.patches = ExitStack()
+        self.patches.enter_context(patch.object(analytical_routes, "_current_email", return_value="user@example.com"))
+        self.patches.enter_context(patch.object(analytical_routes, "get_user_sites_rows", return_value=[self.SITE]))
+
+    def tearDown(self):
+        self.patches.close()
+        app_module.app.config["LOGIN_DISABLED"] = False
+
+    def test_the_site_list_has_a_search_box(self):
+        page = self.client.get("/chu/multiple").get_data(as_text=True)
+        self.assertIn('id="compare_sites_search"', page)
+
+    def test_liedl_runs_the_panel_in_place_instead_of_reloading(self):
+        # A submit would reload the page and drop the scenario rows, which only
+        # exist in the Panel session.
+        page = self.client.get("/liedl/multiple").get_data(as_text=True)
+        self.assertIn('id="runScenariosBtn"', page)
+        self.assertIn('type="button"', page)
+        self.assertNotIn("Update Graph", page)
+
+    def test_the_other_models_keep_the_submit_button(self):
+        page = self.client.get("/chu/multiple").get_data(as_text=True)
+        self.assertIn("Update Graph", page)
+        self.assertNotIn("runScenariosBtn", page)
+
+
 if __name__ == "__main__":
     unittest.main()

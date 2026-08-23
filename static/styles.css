@@ -2078,6 +2078,18 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
   background: var(--panel); color: var(--text);
 }
 .workbench-site-hint{ margin: 0; font-size: 0.78rem; color: var(--muted); }
+.site-search-input{
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  font: inherit; font-size: 0.86rem;
+  border: 1px solid var(--panel-border); border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--text);
+}
+.site-search-input:focus-visible{
+  outline: none;
+  border-color: var(--brand, #1f72cd);
+  box-shadow: 0 0 0 3px rgba(31, 114, 205, 0.22);
+}
 .workbench-site-form select[multiple]{ padding: 0.25rem; }
 .workbench-site-form select[multiple] option{ padding: 3px 5px; }
 .workbench-site-actions{ display: flex; gap: 8px; }
@@ -2121,6 +2133,17 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 .numerical-single-page .model-workbench-stage .model-output-card .panel-frame{ min-height: 560px; }
 /* Numerical multiples stack an input panel above the result panel in the stage;
    the input editor keeps its own 480px floor instead of the 680px result height. */
+
+/* Analytical / empirical multiples: graph on top, input form under it. The card
+   is no longer :last-child, so this floor - not the rule above - is what holds
+   the graph box open. It has to be a floor rather than a height: the panel is
+   usually a separate origin, so script.js cannot measure the frame, and the box
+   must already be the size of the finished graph before anything loads or the
+   form below it jumps down when the plot arrives. Bokeh figure 420 + the status
+   line and padding around it. */
+.model-workbench-stage--multiple .model-output-card .panel-shell,
+.model-workbench-stage--multiple .model-output-card .panel-frame{ min-height: 520px; }
+.model-workbench-stage--multiple .external-input-card{ margin-top: 16px; }
 
 @media (max-width: 1080px){
   .model-workbench-layout{ grid-template-columns: 1fr; }

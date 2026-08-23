@@ -12,7 +12,7 @@
     <div class="section-head">
       <span class="kicker">{% block model_kicker %}Toolbox{% endblock %}</span>
       <h2>{% block model_title %}Model{% endblock %}</h2>
-      <p class="model-workbench-hint">{% block model_hint %}Tick the sites to compare on the left. The model runs once per selected site using that site's database parameters, and the graph plots the modelled plume length against the measured one.{% endblock %}</p>
+      <p class="model-workbench-hint">{% block model_hint %}Tick the sites to compare on the left. The model runs once per selected site using that site's database parameters, and the graph plots one modelled plume length per selected site.{% endblock %}</p>
     </div>
     <div class="model-workbench-actions">
       <a class="ghost-btn model-workbench-back" href="{% block toolbox_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}">&larr; {% block toolbox_label %}All analytical models{% endblock %}</a>
@@ -50,16 +50,22 @@
         <h3>Compare Sites</h3>
         <form method="GET" class="workbench-site-form">
           {% if selected_site_id %}<input type="hidden" name="site_id" value="{{ selected_site_id }}">{% endif %}
+          {# Mirror of the hidden sites in the input form: changing the picked
+             sites must not throw away manual values typed under the graph. #}
+          {% for f in input_fields | default([]) %}{% if f.value is not none %}
+          <input type="hidden" name="{{ f.name }}" value="{{ '%.6g'|format(f.value) }}">{% endif %}{% endfor %}
           <label for="compare_sites">Sites shown on the graph</label>
+          <input type="search" id="compare_sites_search" class="site-search-input"
+                 placeholder="Search sites&hellip;" autocomplete="off" aria-label="Filter the site list">
           <select id="compare_sites" name="compare_sites" multiple size="{{ [sites|length, 8]|min }}">
             {% for s in sites %}
             <option value="{{ s.id }}" {% if s.id in compare_site_ids %}selected{% endif %}>{{ s.site_unit or 'Site %d'|format(s.display_id|default(s.id, true)) }}</option>
             {% endfor %}
           </select>
-          <p class="workbench-site-hint">Ctrl/Cmd-click to pick several.
-            {% if max_runs %}Up to {{ max_runs }} sites per run.{% else %}Select none for all sites.{% endif %}</p>
+          <p class="workbench-site-hint">Ctrl/Cmd-click to pick several. Filtering does not clear what is already picked.
+            {% if max_runs %}Up to {{ max_runs }} sites per run.{% else %}Nothing is selected until you pick.{% endif %}</p>
           <div class="workbench-site-actions">
-            <button type="submit" class="primary-btn">{% block compare_submit_label %}Update Graph{% endblock %}</button>
+            {% block compare_submit %}<button type="submit" class="primary-btn">{% block compare_submit_label %}Update Graph{% endblock %}</button>{% endblock %}
           </div>
         </form>
       </div>
@@ -74,13 +80,20 @@
       {% include "report_bridge_card.html" %}
     </aside>
 
-    <main class="model-workbench-stage">
+    <main class="model-workbench-stage model-workbench-stage--multiple">
       <div class="card-like model-output-card">
         <h3>Simulation Panel</h3>
         <div class="panel-shell output-panel-shell">
           <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
+      {# Manual inputs sit under the graph, as on the original CAST site. They
+         fill in whatever the site database does not carry for a picked site.
+
+         Pages whose Panel owns editable state (a scenario table typed into the
+         Panel session) override this to empty: submitting the form is a GET
+         that reloads the page, which would throw that state away. #}
+      {% block stage_inputs %}{% include "model_input_form.html" %}{% endblock %}
     </main>
   </div>
 </section>

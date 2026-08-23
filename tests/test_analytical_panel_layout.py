@@ -17,9 +17,11 @@ from panel_maier_multiple import maier_multiple_app
 from panel_maier_single import maier_single_app
 
 
+# Liedl is deliberately absent: it has moved to the scenario-table multiple mode
+# (panel_model_scenarios) and is covered by test_model_scenarios. The rest still
+# run purely from the sidebar's site checklist.
 MULTIPLE_APPS = [
     bioscreen_multiple_app,
-    liedl_multiple_app,
     liedl3d_multiple_app,
     chu_multiple_app,
     ham_multiple_app,
@@ -55,6 +57,14 @@ def test_multiple_panels_show_only_the_graph(app_factory):
     app = app_factory()
 
     assert app.select(pn.widgets.Tabulator) == []
+    assert len(app.select(pn.pane.Bokeh)) == 1
+
+
+def test_liedl_multiple_carries_an_editable_scenario_table():
+    app = liedl_multiple_app()
+
+    table = app.select(pn.widgets.Tabulator)
+    assert len(table) == 1 and not table[0].disabled
     assert len(app.select(pn.pane.Bokeh)) == 1
 
 

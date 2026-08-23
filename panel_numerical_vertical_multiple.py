@@ -222,6 +222,7 @@ def numerical_vertical_multiple_app():
             0,
             "",
             "Site Number",
+            show_database=False,
         )
         logger.info("Vertical multiple Lmax comparison rendered for %d run(s)", len(values))
 

@@ -289,29 +289,45 @@ def error_card(message) -> str:
 
 
 def comparison_plot_data(title: str, manual_label: str, manual_x, manual_y,
-                         selected_site_id: int, email: str, manual_axis_label: str):
-    # The database series is the point of this chart, so it loads whether or not
-    # a site has been picked: landing on the page shows the database plume
-    # lengths next to the model result from the default inputs. get_user_sites
-    # falls back to the reference database, so this works without an account.
-    field_x, field_y = load_field_points(email)
+                         selected_site_id: int, email: str, manual_axis_label: str,
+                         show_database: bool = True, field_points=None,
+                         field_label: str = "Database plume length"):
+    # The database series is the point of this chart on the single pages, so it
+    # loads whether or not a site has been picked: landing on the page shows the
+    # database plume lengths next to the model result from the default inputs.
+    # get_user_sites falls back to the reference database, so this works without
+    # an account.
+    #
+    # The multiple pages pass show_database=False. They already plot one point
+    # per site the user picked, and drawing every other site in the database on
+    # top of that is the whole dataset, not a comparison.
+    #
+    # field_points overrides both: the scenario pages already know which measured
+    # value belongs on which x, so they hand the series over ready-made and keep
+    # their own axis labelling instead of the 1..N site numbering.
     manual_x = list(manual_x)
-    position = site_position(selected_site_id, email)
-    if position is not None:
-        # Loaded site: put the model result on that site's own tick so the two
-        # markers line up for a direct comparison.
-        manual_x = [position] * len(manual_x)
-    elif field_x and selected_site_id <= 0:
-        # A manual run is not one of the sites. Park it just past the last one
-        # rather than letting it sit on top of site 1 and read as that site.
-        last = max(field_x)
-        manual_x = [last + i for i in range(1, len(manual_x) + 1)]
+    if field_points is not None:
+        field_x, field_y = list(field_points[0]), list(field_points[1])
+        axis_label = manual_axis_label
+    else:
+        field_x, field_y = load_field_points(email) if show_database else ([], [])
+        axis_label = "Site Number" if field_x else manual_axis_label
+        position = site_position(selected_site_id, email)
+        if position is not None:
+            # Loaded site: put the model result on that site's own tick so the two
+            # markers line up for a direct comparison.
+            manual_x = [position] * len(manual_x)
+        elif field_x and selected_site_id <= 0:
+            # A manual run is not one of the sites. Park it just past the last one
+            # rather than letting it sit on top of site 1 and read as that site.
+            last = max(field_x)
+            manual_x = [last + i for i in range(1, len(manual_x) + 1)]
     return {
         "type": "comparison_scatter",
         "title": title,
-        "x_label": "Site Number" if field_x else manual_axis_label,
+        "x_label": axis_label,
         "y_label": "Plume Length (m)",
-        "field_label": "Database plume length",
+        "field_label": field_label,
         "field_x": field_x,
         "field_y": field_y,
         "manual_label": manual_label,
@@ -345,10 +361,14 @@ def _held_y_range(plot_data, frame: dict) -> tuple[float, float]:
 
 def comparison_plot(title: str, manual_label: str, manual_x, manual_y,
                     selected_site_id: int, email: str, manual_axis_label: str,
-                    return_data: bool = False, frame: dict | None = None):
+                    return_data: bool = False, frame: dict | None = None,
+                    show_database: bool = True, field_points=None,
+                    field_label: str = "Database plume length"):
     plot_data = comparison_plot_data(
         title, manual_label, manual_x, manual_y,
         selected_site_id, email, manual_axis_label,
+        show_database=show_database, field_points=field_points,
+        field_label=field_label,
     )
     p = figure(
         title=plot_data["title"],

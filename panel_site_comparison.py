@@ -162,9 +162,37 @@ MODEL_SPECS = {
     },
 }
 
+# The workbench input form kept the original CAST field names, which are not the
+# canonical symbols this module runs on - a form posting ?tv=0.002 has to reach
+# alpha_Tv here or editing it would silently do nothing. Only the names that
+# differ are listed; the rest already match.
+FORM_ALIASES = {
+    "liedl": {"C_A": "C_EA0", "C_D": "C_ED0"},
+    "liedl3d": {"S_w": "W", "C_A": "C_EA0", "C_D": "C_ED0"},
+    "chu": {"S_w": "W", "C_A": "C_EA0", "C_D": "C_ED0"},
+    "cirpka": {"S_w": "Sw"},
+    "ham": {"C_A": "C_EA0", "C_D": "C_ED0"},
+    "maier": {"alpha_Tv": "tv", "gamma": "g", "C_A": "Ca", "C_D": "Cd"},
+    "birla": {"alpha_Tv": "tv", "gamma": "g", "C_A": "Ca", "C_D": "Cd"},
+    "bioscreen": {"M": "H", "C_D": "c0", "S_w": "W"},
+}
+
+
+def manual_fallback(model: str) -> dict:
+    """Values the form supplies for parameters the site database does not carry.
+
+    Read under the canonical name first, then under the form's own name, so a
+    URL written either way works.
+    """
+    aliases = FORM_ALIASES.get(model, {})
+    return {
+        key: query_float(key, query_float(aliases.get(key, key), default))
+        for key, default in MODEL_SPECS[model]["defaults"].items()
+    }
+
 
 def selected_site_ids() -> set[int]:
-    """Site ids from ?compare_sites=1,2,3. Empty means every usable site."""
+    """Site ids from ?compare_sites=1,2,3. Nothing picked means nothing plotted."""
     ids = set()
     for part in query_str("compare_sites").split(","):
         try:
@@ -200,12 +228,11 @@ def site_comparison_app(model: str):
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
     try:
-        fallback = {k: query_float(k, v) for k, v in spec["defaults"].items()}
+        fallback = manual_fallback(model)
 
         sites, _invalid = filter_valid_sites_for_model(get_user_sites_rows(email), model)
         wanted = selected_site_ids()
-        if wanted:
-            sites = [s for s in sites if int(s["id"]) in wanted]
+        sites = [s for s in sites if int(s["id"]) in wanted]
         if not sites:
             raise ValueError("No sites selected. Pick sites in the Compare Sites list.")
 
@@ -215,14 +242,15 @@ def site_comparison_app(model: str):
         plot, plot_data = comparison_plot(
             spec["title"], f"{spec['title']} model plume length",
             list(range(1, len(sites) + 1)), lengths,
-            0, email, "Site Number", return_data=True,
+            0, email, "Site Number", return_data=True, show_database=False,
         )
         plot_pane.object = plot
         report_bridge.object = report_bridge_html(
             f"{spec['title']} - Multiple Simulation", spec["title"],
             f"{model}_multiple_report.pdf",
             parameters=[
-                {"symbol": symbol, "name": f"{label} - {name}", "value": params[key], "unit": unit}
+                {"symbol": symbol, "name": name, "value": params[key], "unit": unit,
+                 "site": label}
                 for label, params in zip(labels, param_sets)
                 for key, symbol, name, unit in spec["report"]
             ],
