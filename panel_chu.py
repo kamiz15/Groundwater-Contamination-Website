@@ -9,7 +9,7 @@ from panel_analytical_common import (
     baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
     metric_card, query_float, query_int,
 )
-from panel_site_comparison import site_comparison_app
+from panel_model_scenarios import scenario_app
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
@@ -95,4 +95,4 @@ def chu_single_app():
 
 def chu_multiple_app():
     """Multiple simulation: one run per site picked in the sidebar."""
-    return site_comparison_app("chu")
+    return scenario_app("chu")

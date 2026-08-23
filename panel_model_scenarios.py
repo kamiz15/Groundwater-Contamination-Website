@@ -20,7 +20,6 @@ Wired to Liedl first; the other models are one call each.
 from __future__ import annotations
 
 import io
-import json
 import logging
 
 import pandas as pd
@@ -28,9 +27,9 @@ import panel as pn
 
 from data_queries import get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
-from panel_analytical_common import comparison_plot, error_card, info_card, query_float, summary_card
+from panel_analytical_common import comparison_plot, error_card, info_card, summary_card
 from panel_auth import authenticated_email
-from panel_site_comparison import MODEL_SPECS, selected_site_ids, site_label
+from panel_site_comparison import MODEL_SPECS, manual_fallback, selected_site_ids, site_label
 from panel_theme import report_bridge_html
 from symbol_registry import db_to_model
 
@@ -125,51 +124,6 @@ def read_scenario_csv(model: str, data: bytes) -> pd.DataFrame:
     return frame[scenario_columns(model)]
 
 
-# The parent page owns the site list (and its search box), so the single "Run
-# Scenarios" button lives out there. It cannot submit the form - a reload would
-# throw away the rows typed in here - so it posts the ticked ids into this
-# document instead. The listener writes them onto an off-screen TextInput, and
-# the value arriving over the websocket is what starts the run, so there is no
-# race between a click and a value that is still in flight.
-#
-# Bokeh renders every widget inside a shadow root, so the search has to walk into
-# each shadowRoot rather than use a plain querySelectorAll.
-_RUN_LISTENER_HTML = """
-<img src="data:," style="display:none" alt="" onerror='
-if (!window.__castScenarioListener__MODEL__) {
-  window.__castScenarioListener__MODEL__ = true;
-  window.addEventListener("message", function(event) {
-    var data = event.data;
-    if (!data || data.type !== "run-scenarios" || data.model !== "__MODEL__") return;
-    var stack = [document];
-    while (stack.length) {
-      var root = stack.pop();
-      var host = root.querySelector && root.querySelector(".cast-scenario-trigger");
-      // css_classes land on the host div; the <input> itself is one shadow root
-      // further in, which a plain descendant selector cannot reach.
-      var hit = host && host.shadowRoot && host.shadowRoot.querySelector("input");
-      if (hit) {
-        window.__castScenarioSeq = (window.__castScenarioSeq || 0) + 1;
-        hit.value = JSON.stringify({ids: data.site_ids || [], seq: window.__castScenarioSeq});
-        hit.dispatchEvent(new Event("input", {bubbles: true}));
-        hit.dispatchEvent(new Event("change", {bubbles: true}));
-        return;
-      }
-      var nodes = root.querySelectorAll("*");
-      for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].shadowRoot) stack.push(nodes[i].shadowRoot);
-      }
-    }
-  });
-}
-'>
-"""
-
-_OFF_SCREEN = {
-    "position": "absolute", "left": "-9999px", "width": "1px", "height": "1px",
-    "overflow": "hidden", "opacity": "0",
-}
-
 # Old CAST kept the scenario table and its buttons on a card under the graph;
 # these hold that shape in the current palette.
 _CARD = {
@@ -188,12 +142,32 @@ _SECTION_TITLE = (
 )
 
 
-def parse_trigger(raw: str):
-    """Site ids posted by the page. Anything malformed means no sites."""
-    try:
-        return [int(i) for i in json.loads(raw).get("ids", [])]
-    except (TypeError, ValueError, AttributeError):
-        return []
+def site_options(sites) -> dict:
+    """{label: id} for the picker, with duplicate site units kept apart.
+
+    Two sites can carry the same unit name; collapsing them into one option
+    would silently drop a site from the list.
+    """
+    options, seen = {}, {}
+    for site in sites:
+        label = site_label(site)
+        seen[label] = seen.get(label, 0) + 1
+        if seen[label] > 1:
+            label = f"{label} (#{site.get('display_id') or site['id']})"
+        options[label] = int(site["id"])
+    return options
+
+
+def visible_options(options: dict, query: str, picked) -> dict:
+    """Options matching `query`, plus whatever is already picked.
+
+    Filtering must never unpick a site: the picked ids are the run, and an
+    option that disappears takes its selection with it.
+    """
+    text = (query or "").strip().lower()
+    chosen = set(picked or ())
+    return {label: value for label, value in options.items()
+            if not text or text in label.lower() or value in chosen}
 
 
 def scenario_app(model: str):
@@ -203,25 +177,30 @@ def scenario_app(model: str):
 
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
     status = pn.pane.HTML(
-        info_card("Tick sites on the left, or add scenarios below, then press Run Scenarios."),
+        info_card("Pick sites below, or add your own scenarios, then press Run Scenarios."),
         sizing_mode="stretch_width", margin=0,
     )
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
-    fallback = {key: query_float(key, value) for key, value in spec["defaults"].items()}
-    # Ticked sites are resolved fresh on every run, so re-ticking needs no reload.
-    picked = {"ids": sorted(selected_site_ids())}
+    # manual_fallback, not a plain read: a link written with the old CAST field
+    # names (?tv=, ?Ca=) still has to land on the right parameters.
+    fallback = manual_fallback(model)
+
+    # The site list lives on this card, not on the page: the page has no sidebar
+    # any more, and a picker in here can run without a reload throwing away the
+    # rows typed into the table.
+    try:
+        sites, _invalid = filter_valid_sites_for_model(get_user_sites_rows(email), model)
+    except Exception:
+        logger.exception("Sites could not be loaded for the %s scenario page", model)
+        sites = []
+    by_id = {int(site["id"]): site for site in sites}
+    all_options = site_options(sites)
+    # ?compare_sites=1,2 still seeds the picker, so a shared link opens on its run.
+    seeded = [i for i in sorted(selected_site_ids()) if i in by_id]
 
     def _picked_sites():
-        if not picked["ids"]:
-            return []
-        try:
-            sites, _invalid = filter_valid_sites_for_model(get_user_sites_rows(email), model)
-        except Exception:
-            logger.exception("Sites could not be loaded for the %s scenario run", model)
-            return []
-        wanted = set(picked["ids"])
-        return [site for site in sites if int(site["id"]) in wanted]
+        return [by_id[i] for i in site_select.value if i in by_id]
 
     # The table holds the user's own scenarios only; site rows are rebuilt at run
     # time, so ticking a different site never rewrites what was typed in here.
@@ -231,13 +210,16 @@ def scenario_app(model: str):
         name=f"{spec['title']} scenarios",
     )
 
+    site_search = pn.widgets.TextInput(placeholder="Search sites…", sizing_mode="stretch_width")
+    site_select = pn.widgets.MultiSelect(
+        options=dict(all_options), value=seeded, size=8, sizing_mode="stretch_width",
+    )
+    run_btn = pn.widgets.Button(name="Run Scenarios", button_type="primary",
+                                width=160, sizing_mode="fixed")
+
     add_btn = pn.widgets.Button(name="+ Add row", width=120, sizing_mode="fixed")
     clear_btn = pn.widgets.Button(name="Clear rows", width=120, sizing_mode="fixed")
     upload = pn.widgets.FileInput(accept=".csv", sizing_mode="stretch_width")
-    trigger = pn.widgets.TextInput(value="", css_classes=["cast-scenario-trigger"],
-                                   styles=_OFF_SCREEN, sizing_mode="fixed", width=1)
-    run_listener = pn.pane.HTML(_RUN_LISTENER_HTML.replace("__MODEL__", model),
-                                height=0, margin=0, sizing_mode="fixed")
     results = {"frame": None}
 
     template_btn = pn.widgets.FileDownload(
@@ -328,11 +310,11 @@ def scenario_app(model: str):
 
     def _run(_=None):
         try:
-            site_rows = seed_rows(model, _picked_sites(), fallback) if picked["ids"] else []
+            site_rows = seed_rows(model, _picked_sites(), fallback) if site_select.value else []
             manual = pd.DataFrame(table.value, columns=columns)
             frame = pd.concat([pd.DataFrame(site_rows, columns=columns), manual], ignore_index=True)
             if frame.empty:
-                raise ValueError("Nothing to run: tick a site on the left, or add a scenario row.")
+                raise ValueError("Nothing to run: pick a site above, or add a scenario row.")
 
             labels, lengths, measured = run_rows(model, frame)
             plot, plot_data = comparison_plot(
@@ -373,23 +355,30 @@ def scenario_app(model: str):
             results_btn.visible = False
             report_bridge.object = report_bridge_html(clear=True)
 
-    def _on_trigger(event):
-        picked["ids"] = parse_trigger(event.new)
-        _run()
+    def _filter_sites(event):
+        site_select.options = visible_options(all_options, event.new, site_select.value)
 
     add_btn.on_click(_open_dialog)
     cancel_btn.on_click(_close_dialog)
     confirm_btn.on_click(_confirm)
     clear_btn.on_click(_clear)
+    run_btn.on_click(_run)
     upload.param.watch(_on_upload, "value")
-    trigger.param.watch(_on_trigger, "value")
+    site_search.param.watch(_filter_sites, "value")
 
-    if picked["ids"]:
-        # Sites arrived in the page URL (a Load Site submit, or a shared link):
-        # draw them straight away rather than opening on an empty graph.
+    if seeded:
+        # Sites arrived in the page URL (a shared link): draw them straight away
+        # rather than opening on an empty graph.
         _run()
 
+    sites_note = ("Ctrl/Cmd-click to pick several. Filtering does not clear what is "
+                  "already picked. Nothing is selected until you pick.")
     scenario_card = pn.Column(
+        pn.pane.HTML(_SECTION_TITLE % "Sites", sizing_mode="stretch_width"),
+        site_search,
+        site_select,
+        pn.pane.HTML(f'<span style="font-size:0.78rem;color:#5b6b7f;">{sites_note}</span>',
+                     sizing_mode="stretch_width"),
         pn.pane.HTML(_SECTION_TITLE % "Scenario table", sizing_mode="stretch_width"),
         table,
         pn.Row(add_btn, clear_btn, template_btn, results_btn,
@@ -398,6 +387,7 @@ def scenario_app(model: str):
                             'Upload scenarios (CSV)</span>', sizing_mode="fixed", width=190),
                upload, sizing_mode="stretch_width",
                styles={"align-items": "center", "gap": "8px"}),
+        pn.Row(run_btn, sizing_mode="stretch_width", styles={"padding-top": "4px"}),
         dialog,
         sizing_mode="stretch_width",
         styles=dict(_CARD),
@@ -410,8 +400,6 @@ def scenario_app(model: str):
         status,
         plot_pane,
         scenario_card,
-        trigger,
-        run_listener,
         report_bridge,
         sizing_mode="stretch_width",
         styles={"gap": "14px"},

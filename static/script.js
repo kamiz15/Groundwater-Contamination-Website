@@ -310,26 +310,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// "Run Scenarios" on a scenario-table page: hand the ticked site ids to the
-// Panel iframe instead of submitting the form. A submit would reload the page,
-// and the manually added rows only live in the Panel session.
-document.addEventListener("DOMContentLoaded", () => {
-  const button = document.getElementById("runScenariosBtn");
-  const select = document.getElementById("compare_sites");
-  const frame = document.querySelector("iframe.panel-frame");
-  if (!button || !frame) return;
-
-  button.addEventListener("click", () => {
-    const siteIds = select
-      ? Array.from(select.options).filter((o) => o.selected).map((o) => Number(o.value))
-      : [];
-    frame.contentWindow.postMessage(
-      { type: "run-scenarios", model: button.dataset.model, site_ids: siteIds },
-      "*",
-    );
-  });
-});
-
 document.addEventListener("DOMContentLoaded", () => {
   const frames = document.querySelectorAll("iframe.panel-frame");
   if (!frames.length) return;

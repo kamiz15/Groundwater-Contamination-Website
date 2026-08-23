@@ -2014,6 +2014,9 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   gap: 16px;
   align-items: start;
 }
+/* Multiple pages that carry their picker and scenario table inside the Panel:
+   no sidebar column, so the stage takes the whole width. */
+.model-workbench-layout--full{ grid-template-columns: minmax(0, 1fr); }
 .model-workbench-sidebar{ display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .model-workbench-stage{ min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 

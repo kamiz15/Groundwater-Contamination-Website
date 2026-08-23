@@ -189,7 +189,9 @@ def _render_multiple(model):
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         compare_site_ids=ticked,
-        input_fields=_input_fields(panel_path, selected_site),
+        # Sites, scenarios and the Run button are all on the Panel card under the
+        # graph now, so the page has no sidebar of its own.
+        show_sidebar=False,
     )
 
 

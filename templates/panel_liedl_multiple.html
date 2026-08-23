@@ -3,14 +3,7 @@
 {% block model_title %}Liedl et al. (2005) - Multiple Simulation{% endblock %}
 {% block conceptual_image %}{{ url_for('static', filename='images/conceptual_liedl_2d.png') }}{% endblock %}
 {% block conceptual_alt %}Conceptual model diagram for Liedl 2D{% endblock %}
-{% block model_hint %}Tick sites on the left and add your own scenarios under the graph. Run Scenarios computes both together - one modelled plume length per row, plotted against the measured value where the site has one.{% endblock %}
-{# Runs the panel in place (script.js) instead of submitting the form: a reload
-   would throw away the scenario rows, which live in the Panel session. #}
-{% block compare_submit %}<button type="button" class="primary-btn" id="runScenariosBtn" data-model="liedl">Run Scenarios</button>{% endblock %}
-{# No manual input form under the graph here: this page's Panel holds an
-   editable scenario table, and the form's Run Model is a GET that reloads the
-   page - which would drop rows that only exist in the Panel session. #}
-{% block stage_inputs %}{% endblock %}
+{% block model_hint %}Pick sites and add your own scenarios on the card under the graph, then press Run Scenarios. Every row is one run, plotted against the measured plume length where the site has one.{% endblock %}
 {% block model_about_link %}
 <a class="ghost-btn model-workbench-back" href="{{ url_for('analytical_bp.liedl_single') }}">Single simulation</a>
 <a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='liedl') }}">About</a>

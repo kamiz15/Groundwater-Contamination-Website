@@ -17,10 +17,11 @@ from panel_maier_multiple import maier_multiple_app
 from panel_maier_single import maier_single_app
 
 
-# Liedl is deliberately absent: it has moved to the scenario-table multiple mode
-# (panel_model_scenarios) and is covered by test_model_scenarios. The rest still
-# run purely from the sidebar's site checklist.
+# Every multiple page now runs the scenario-table mode (panel_model_scenarios):
+# the site picker, the table and the Run button all live inside the panel, since
+# these pages no longer have a sidebar.
 MULTIPLE_APPS = [
+    liedl_multiple_app,
     bioscreen_multiple_app,
     liedl3d_multiple_app,
     chu_multiple_app,
@@ -51,21 +52,16 @@ ALL_APPS = [
 
 
 @pytest.mark.parametrize("app_factory", MULTIPLE_APPS)
-def test_multiple_panels_show_only_the_graph(app_factory):
-    """Multiple pages drive their runs from the sidebar's site checklist, so the
-    panel holds the comparison graph and no scenario table."""
+def test_multiple_panels_carry_the_graph_and_an_editable_scenario_table(app_factory):
+    """The page around them is just a shell now, so each panel holds the graph,
+    the site picker and the table that drives it."""
     app = app_factory()
-
-    assert app.select(pn.widgets.Tabulator) == []
-    assert len(app.select(pn.pane.Bokeh)) == 1
-
-
-def test_liedl_multiple_carries_an_editable_scenario_table():
-    app = liedl_multiple_app()
 
     table = app.select(pn.widgets.Tabulator)
     assert len(table) == 1 and not table[0].disabled
     assert len(app.select(pn.pane.Bokeh)) == 1
+    assert len(app.select(pn.widgets.MultiSelect)) == 1        # the site picker
+    assert "Run Scenarios" in [w.name for w in app.select(pn.widgets.Button)]
 
 
 @pytest.mark.parametrize("app_factory", ALL_APPS)

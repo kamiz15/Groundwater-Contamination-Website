@@ -12,7 +12,7 @@
     <div class="section-head">
       <span class="kicker">{% block model_kicker %}Toolbox{% endblock %}</span>
       <h2>{% block model_title %}Model{% endblock %}</h2>
-      <p class="model-workbench-hint">{% block model_hint %}Tick the sites to compare on the left. The model runs once per selected site using that site's database parameters, and the graph plots one modelled plume length per selected site.{% endblock %}</p>
+      <p class="model-workbench-hint">{% block model_hint %}Pick sites and add your own scenarios on the card under the graph, then press Run Scenarios. Every row is one run, plotted against the measured plume length where the site has one.{% endblock %}</p>
     </div>
     <div class="model-workbench-actions">
       <a class="ghost-btn model-workbench-back" href="{% block toolbox_href %}{{ url_for('analytical_bp.analytical_landing') }}{% endblock %}">&larr; {% block toolbox_label %}All analytical models{% endblock %}</a>
@@ -20,7 +20,12 @@
     </div>
   </header>
 
-  <div class="model-workbench-layout">
+  {# The analytical / empirical multiples pass show_sidebar=False: their site
+     picker, scenario table and Run button all live on the card under the graph,
+     the way the original CAST page was laid out. The numerical multiples still
+     use the sidebar - submitting its picker is what queues their solver runs. #}
+  <div class="model-workbench-layout {% if not show_sidebar | default(true) %}model-workbench-layout--full{% endif %}">
+    {% if show_sidebar | default(true) %}
     <aside class="model-workbench-sidebar">
       {% if sites and show_site_loader | default(true) %}
       <div class="card-like site-loader-card">
@@ -79,6 +84,7 @@
 
       {% include "report_bridge_card.html" %}
     </aside>
+    {% endif %}
 
     <main class="model-workbench-stage model-workbench-stage--multiple">
       <div class="card-like model-output-card">
@@ -87,13 +93,11 @@
           <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
-      {# Manual inputs sit under the graph, as on the original CAST site. They
-         fill in whatever the site database does not carry for a picked site.
-
-         Pages whose Panel owns editable state (a scenario table typed into the
-         Panel session) override this to empty: submitting the form is a GET
-         that reloads the page, which would throw that state away. #}
-      {% block stage_inputs %}{% include "model_input_form.html" %}{% endblock %}
+      {# With no sidebar the report card has nowhere else to go, and it belongs
+         under the run it exports anyway. #}
+      {% if not show_sidebar | default(true) %}
+      {% include "report_bridge_card.html" %}
+      {% endif %}
     </main>
   </div>
 </section>

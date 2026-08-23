@@ -8,8 +8,8 @@ import pytest
 from analytical_models import liedl_lmax
 from panel_analytical_common import comparison_plot_data
 from panel_model_scenarios import (
-    MEASURED_COLUMN, SITE_COLUMN, measured_series, parse_trigger, read_scenario_csv,
-    run_rows, scenario_app, scenario_columns, seed_rows,
+    MEASURED_COLUMN, SITE_COLUMN, measured_series, read_scenario_csv,
+    run_rows, scenario_app, scenario_columns, seed_rows, site_options, visible_options,
 )
 from panel_site_comparison import MODEL_SPECS
 
@@ -94,24 +94,45 @@ def test_uploaded_csv_missing_a_parameter_is_rejected():
         read_scenario_csv("liedl", b"M,gamma,C_A,C_D\n2,3.5,8,5\n")
 
 
-# --- the single run button --------------------------------------------------
+# --- the site picker on the card ---------------------------------------------
 
-def test_site_ids_posted_by_the_page_are_read_back():
-    assert parse_trigger('{"ids": [3, 7], "seq": 2}') == [3, 7]
+def test_sites_sharing_a_unit_name_stay_apart_in_the_picker():
+    options = site_options([_site(id=1, site_unit="Borden"),
+                            _site(id=2, display_id=2, site_unit="Borden")])
 
-
-@pytest.mark.parametrize("raw", ["", "not json", '{"seq": 1}', '{"ids": ["x"]}'])
-def test_a_malformed_post_runs_no_sites_rather_than_crashing(raw):
-    assert parse_trigger(raw) == []
+    assert sorted(options.values()) == [1, 2]      # neither site is swallowed
 
 
-def test_the_panel_carries_no_run_button_of_its_own():
-    """One Run Scenarios button, and it lives on the page - not in the iframe."""
+def test_filtering_never_unpicks_a_site():
+    options = {"Borden": 1, "Vejen": 2, "Hill AFB": 3}
+
+    visible = visible_options(options, "vej", picked=[1])
+
+    assert visible == {"Borden": 1, "Vejen": 2}    # the match, plus what is picked
+
+
+def test_the_panel_owns_its_run_button():
+    """The page has no sidebar any more, so Run Scenarios lives in here."""
     app = scenario_app("liedl")
     names = [w.name for w in app.select(pn.widgets.Button)]
 
-    assert not any("run" in name.lower() for name in names)
-    assert names == ["+ Add row", "Clear rows", "Add scenario", "Cancel"]
+    assert "Run Scenarios" in names
+
+
+@pytest.mark.parametrize("model", sorted(MODEL_SPECS))
+def test_every_model_builds_this_panel(model):
+    """All eight multiple pages run through here now, not just Liedl."""
+    app = scenario_app(model)
+
+    assert app.select(pn.widgets.Tabulator)[0].value.columns.tolist() == scenario_columns(model)
+    assert "Run Scenarios" in [w.name for w in app.select(pn.widgets.Button)]
+
+
+def test_the_picker_starts_empty_when_the_url_names_no_sites():
+    app = scenario_app("liedl")
+    picker = app.select(pn.widgets.MultiSelect)[0]
+
+    assert picker.value == []
 
 
 def test_the_scenario_table_starts_empty_and_the_dialog_starts_closed():

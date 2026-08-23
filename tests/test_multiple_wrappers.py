@@ -72,8 +72,8 @@ class MultipleWrapperTests(unittest.TestCase):
                 self.assertEqual(iframe_query["output_only"], ["1"])
 
 
-class CompareSitesSidebarTests(unittest.TestCase):
-    """The Compare Sites card: searchable, and on Liedl it runs the panel in place."""
+class StageLayoutTests(unittest.TestCase):
+    """Analytical / empirical multiples: no sidebar - graph, then the Panel card."""
 
     SITE = {
         "id": 1, "display_id": 1, "site_unit": "Borden", "compound": "Benzene",
@@ -85,29 +85,43 @@ class CompareSitesSidebarTests(unittest.TestCase):
         app_module.app.config.update(TESTING=True, LOGIN_DISABLED=True)
         self.client = app_module.app.test_client()
         self.patches = ExitStack()
-        self.patches.enter_context(patch.object(analytical_routes, "_current_email", return_value="user@example.com"))
-        self.patches.enter_context(patch.object(analytical_routes, "get_user_sites_rows", return_value=[self.SITE]))
+        for module in (analytical_routes, empirical_routes, numerical_routes):
+            self.patches.enter_context(patch.object(module, "_current_email", return_value="user@example.com"))
+            self.patches.enter_context(patch.object(module, "get_user_sites_rows", return_value=[self.SITE]))
 
     def tearDown(self):
         self.patches.close()
         app_module.app.config["LOGIN_DISABLED"] = False
 
-    def test_the_site_list_has_a_search_box(self):
-        page = self.client.get("/chu/multiple").get_data(as_text=True)
-        self.assertIn('id="compare_sites_search"', page)
+    ANALYTICAL = [p for p in MULTIPLE_WRAPPERS if not p.startswith("/numerical/")]
 
-    def test_liedl_runs_the_panel_in_place_instead_of_reloading(self):
-        # A submit would reload the page and drop the scenario rows, which only
-        # exist in the Panel session.
-        page = self.client.get("/liedl/multiple").get_data(as_text=True)
-        self.assertIn('id="runScenariosBtn"', page)
-        self.assertIn('type="button"', page)
-        self.assertNotIn("Update Graph", page)
+    def test_no_sidebar_survives_on_the_multiple_pages(self):
+        """Every input lives on the Panel card under the graph now."""
+        for path in self.ANALYTICAL:
+            with self.subTest(path=path):
+                page = self.client.get(path).get_data(as_text=True)
 
-    def test_the_other_models_keep_the_submit_button(self):
+                self.assertNotIn("model-workbench-sidebar", page)
+                self.assertNotIn('name="compare_sites"', page)   # picker moved into the Panel
+                self.assertNotIn("Update Graph", page)
+                self.assertNotIn("runScenariosBtn", page)        # the button moved too
+                self.assertNotIn("model-input-form", page)
+                self.assertIn("model-workbench-layout--full", page)
+
+    def test_the_report_card_follows_the_graph(self):
+        """It was in the sidebar; without one it belongs under the run it exports."""
         page = self.client.get("/chu/multiple").get_data(as_text=True)
-        self.assertIn("Update Graph", page)
-        self.assertNotIn("runScenariosBtn", page)
+
+        self.assertIn("report", page.lower())
+        self.assertLess(page.index("Simulation Panel"), page.lower().index("report export"))
+
+    def test_numerical_multiples_keep_their_sidebar(self):
+        """Their run trigger is the sidebar picker's submit, so it stays."""
+        page = self.client.get("/numerical/vertical/multiple").get_data(as_text=True)
+
+        self.assertIn("model-workbench-sidebar", page)
+        self.assertIn('name="compare_sites"', page)
+        self.assertNotIn("model-workbench-layout--full", page)
 
 
 if __name__ == "__main__":
