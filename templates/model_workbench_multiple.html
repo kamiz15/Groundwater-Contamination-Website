@@ -90,7 +90,16 @@
       <div class="card-like model-output-card">
         <h3>Simulation Panel</h3>
         <div class="panel-shell output-panel-shell">
-          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
+          {# data-min-height is the floor script.js will not shrink below, and it
+             has to clear the whole panel document - graph plus the toolbar, site
+             list and scenario table under it. When the frame cannot be measured
+             (a cross-origin PANEL_PUBLIC_BASE) this floor is the only thing
+             keeping the card from being cut off the moment a graph is drawn.
+             clipboard-write is for the card's Copy button. #}
+          <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no"
+                  data-min-height="{{ panel_min_height | default(1400) }}"
+                  allow="clipboard-read; clipboard-write"
+                  {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
       {# With no sidebar the report card has nowhere else to go, and it belongs

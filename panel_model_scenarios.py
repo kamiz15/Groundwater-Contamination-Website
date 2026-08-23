@@ -31,6 +31,7 @@ from panel_analytical_common import comparison_plot, error_card, info_card, summ
 from panel_auth import authenticated_email
 from panel_site_comparison import MODEL_SPECS, manual_fallback, selected_site_ids, site_label
 from panel_theme import report_bridge_html
+from pdf_report import dataframe_pdf
 from symbol_registry import db_to_model
 
 pn.extension("tabulator", sizing_mode="stretch_width")
@@ -104,6 +105,17 @@ def measured_series(measured):
 
 def _csv_bytes(frame: pd.DataFrame) -> io.BytesIO:
     return io.BytesIO(frame.to_csv(index=False).encode("utf-8"))
+
+
+def _excel_bytes(frame: pd.DataFrame) -> io.BytesIO:
+    buffer = io.BytesIO()
+    frame.to_excel(buffer, index=False, sheet_name="Scenarios")
+    buffer.seek(0)
+    return buffer
+
+
+def _pdf_bytes(frame: pd.DataFrame, title: str) -> io.BytesIO:
+    return io.BytesIO(dataframe_pdf(frame, title))
 
 
 def read_scenario_csv(model: str, data: bytes) -> pd.DataFrame:
@@ -217,21 +229,64 @@ def scenario_app(model: str):
     run_btn = pn.widgets.Button(name="Run Scenarios", button_type="primary",
                                 width=160, sizing_mode="fixed")
 
-    add_btn = pn.widgets.Button(name="+ Add row", width=120, sizing_mode="fixed")
-    clear_btn = pn.widgets.Button(name="Clear rows", width=120, sizing_mode="fixed")
+    # The old CAST toolbar, in its original order and wording. Every one of these
+    # stays put and stays enabled for the life of the page: they sit above the
+    # site list so a finished run growing the document cannot push them out of
+    # sight, and none of them is hidden until a run has happened.
+    add_btn = pn.widgets.Button(name="Add Data", width=130, sizing_mode="fixed")
+    clear_btn = pn.widgets.Button(name="Delete table data", width=150, sizing_mode="fixed")
     upload = pn.widgets.FileInput(accept=".csv", sizing_mode="stretch_width")
+    upload_btn = pn.widgets.Button(name="Upload", width=110, sizing_mode="fixed")
     results = {"frame": None}
+
+    def _export_frame() -> pd.DataFrame:
+        """What the export buttons write: the last run if there is one, else the
+        rows as they stand. Never nothing - the buttons work before a run too."""
+        if results["frame"] is not None:
+            return results["frame"]
+        return pd.DataFrame(table.value, columns=columns)
 
     template_btn = pn.widgets.FileDownload(
         callback=lambda: _csv_bytes(pd.DataFrame([_default_row(model, spec["defaults"])], columns=columns)),
-        filename=f"{model}_scenarios_template.csv", label="↓ CSV template",
-        button_type="default", width=150, sizing_mode="fixed",
+        filename=f"{model}_scenarios_template.csv", label="Download Sample File",
+        button_type="default", width=190, sizing_mode="fixed",
     )
-    results_btn = pn.widgets.FileDownload(
-        callback=lambda: _csv_bytes(results["frame"] if results["frame"] is not None else pd.DataFrame()),
-        filename=f"{model}_scenario_results.csv", label="↓ Results CSV",
-        button_type="default", width=150, sizing_mode="fixed", visible=False,
+    csv_btn = pn.widgets.FileDownload(
+        callback=lambda: _csv_bytes(_export_frame()),
+        filename=f"{model}_scenarios.csv", label="CSV",
+        button_type="default", width=80, sizing_mode="fixed",
     )
+    excel_btn = pn.widgets.FileDownload(
+        callback=lambda: _excel_bytes(_export_frame()),
+        filename=f"{model}_scenarios.xlsx", label="Excel",
+        button_type="default", width=80, sizing_mode="fixed",
+    )
+    pdf_btn = pn.widgets.FileDownload(
+        callback=lambda: _pdf_bytes(_export_frame(), f"{spec['title']} - Scenarios"),
+        filename=f"{model}_scenarios.pdf", label="PDF",
+        button_type="default", width=80, sizing_mode="fixed",
+    )
+
+    # Copy and Print are browser-side. The clipboard text is kept on an off-screen
+    # widget because the button's JS runs in the browser and cannot call back here.
+    copy_src = pn.widgets.TextAreaInput(value="", visible=False, sizing_mode="fixed", width=0, height=0)
+    copy_btn = pn.widgets.Button(name="Copy", width=80, sizing_mode="fixed")
+    copy_btn.js_on_click(args={"src": copy_src}, code="""
+    const text = src.value || "";
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text);
+    } else {
+      // Older browsers, and any context the Clipboard API refuses.
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    """)
+    print_btn = pn.widgets.Button(name="Print", width=80, sizing_mode="fixed")
+    print_btn.js_on_click(code="window.print()")
 
     # --- "Add row" dialog -----------------------------------------------------
     # A Column pinned over the card rather than pn.Modal: Modal needs Panel >= 1.5
@@ -297,7 +352,10 @@ def scenario_app(model: str):
         table.value = pd.DataFrame([], columns=columns)
 
     def _on_upload(_=None):
+        # Wired to the Upload button, not to picking a file: old CAST chose the
+        # file first and uploaded on a second, deliberate click.
         if not upload.value:
+            status.object = info_card("Choose a CSV file first, then press Upload.")
             return
         try:
             table.value = read_scenario_csv(model, upload.value)
@@ -335,7 +393,7 @@ def scenario_app(model: str):
             )
 
             results["frame"] = frame.assign(**{RESULT_COLUMN: lengths})
-            results_btn.visible = True
+            _refresh_clipboard()
             report_bridge.object = report_bridge_html(
                 f"{spec['title']} - Multiple Simulation", spec["title"],
                 f"{model}_multiple_report.pdf",
@@ -352,19 +410,24 @@ def scenario_app(model: str):
             logger.exception("%s scenario run failed", model)
             status.object = error_card(exc)
             plot_pane.object = None
-            results_btn.visible = False
             report_bridge.object = report_bridge_html(clear=True)
 
     def _filter_sites(event):
         site_select.options = visible_options(all_options, event.new, site_select.value)
+
+    def _refresh_clipboard(*_events):
+        """Keep the Copy button's payload in step with what is on screen."""
+        copy_src.value = _export_frame().to_csv(index=False)
 
     add_btn.on_click(_open_dialog)
     cancel_btn.on_click(_close_dialog)
     confirm_btn.on_click(_confirm)
     clear_btn.on_click(_clear)
     run_btn.on_click(_run)
-    upload.param.watch(_on_upload, "value")
+    upload_btn.on_click(_on_upload)
     site_search.param.watch(_filter_sites, "value")
+    table.param.watch(_refresh_clipboard, "value")
+    _refresh_clipboard()
 
     if seeded:
         # Sites arrived in the page URL (a shared link): draw them straight away
@@ -373,7 +436,16 @@ def scenario_app(model: str):
 
     sites_note = ("Ctrl/Cmd-click to pick several. Filtering does not clear what is "
                   "already picked. Nothing is selected until you pick.")
+    row_styles = {"gap": "8px", "flex-wrap": "wrap", "align-items": "center"}
     scenario_card = pn.Column(
+        # The toolbar sits at the very top of the card, ahead of the site list,
+        # so it holds the same place whether or not a graph has been drawn.
+        pn.Row(template_btn, sizing_mode="stretch_width", styles=row_styles),
+        pn.Row(upload, sizing_mode="stretch_width", styles=row_styles),
+        pn.Row(upload_btn, clear_btn, add_btn, sizing_mode="stretch_width", styles=row_styles),
+        pn.Row(copy_btn, csv_btn, excel_btn, pdf_btn, print_btn,
+               sizing_mode="stretch_width", styles=row_styles),
+
         pn.pane.HTML(_SECTION_TITLE % "Sites", sizing_mode="stretch_width"),
         site_search,
         site_select,
@@ -381,13 +453,8 @@ def scenario_app(model: str):
                      sizing_mode="stretch_width"),
         pn.pane.HTML(_SECTION_TITLE % "Scenario table", sizing_mode="stretch_width"),
         table,
-        pn.Row(add_btn, clear_btn, template_btn, results_btn,
-               sizing_mode="stretch_width", styles={"gap": "8px", "flex-wrap": "wrap"}),
-        pn.Row(pn.pane.HTML('<span style="font-size:0.85rem;color:#5b6b7f;font-weight:600;">'
-                            'Upload scenarios (CSV)</span>', sizing_mode="fixed", width=190),
-               upload, sizing_mode="stretch_width",
-               styles={"align-items": "center", "gap": "8px"}),
         pn.Row(run_btn, sizing_mode="stretch_width", styles={"padding-top": "4px"}),
+        copy_src,
         dialog,
         sizing_mode="stretch_width",
         styles=dict(_CARD),

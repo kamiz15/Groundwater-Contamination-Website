@@ -19,7 +19,7 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -919,3 +919,49 @@ class CASTReport:
                   onLaterPages=self._header_footer,
                   canvasmaker=PageCountCanvas)
         return buffer.getvalue()
+
+
+def dataframe_pdf(frame, title: str) -> bytes:
+    """A plain landscape table of `frame` - what the scenario card's PDF button
+    hands back.
+
+    Deliberately not a CASTReport: this is the table export sitting next to
+    Copy / CSV / Excel, not the branded simulation report the page exports.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=15 * mm, bottomMargin=15 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
+        title=title, author="HYMCAT / CAST Platform",
+    )
+    styles = getSampleStyleSheet()
+    head = ParagraphStyle("ExportTH", parent=styles["Normal"], fontSize=7, leading=9,
+                          fontName=_FONT_BOLD, textColor=_WHITE)
+    cell = ParagraphStyle("ExportTD", parent=styles["Normal"], fontSize=7, leading=9,
+                          fontName=_FONT_REGULAR, textColor=_DARK)
+
+    columns = [str(c) for c in frame.columns] or ["(no columns)"]
+    rows = [[Paragraph(escape(c), head) for c in columns]]
+    for _index, record in frame.iterrows():
+        rows.append([Paragraph(escape("" if value is None or value != value else str(value)), cell)
+                     for value in record.tolist()])
+    if len(rows) == 1:
+        rows.append([Paragraph("No rows", cell)] + [Paragraph("", cell)] * (len(columns) - 1))
+
+    width = landscape(A4)[0] - 24 * mm
+    table = Table(rows, colWidths=[width / len(columns)] * len(columns), repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), _WHITE),
+        ("LINEBELOW", (0, 0), (-1, 0), 2, _TEAL),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, _LIGHT]),
+        ("GRID", (0, 0), (-1, -1), 0.3, _LGRAY),
+    ]))
+
+    title_style = ParagraphStyle("ExportTitle", parent=styles["Normal"], fontSize=12,
+                                 leading=16, fontName=_FONT_BOLD, textColor=_NAVY)
+    doc.build([Paragraph(escape(title), title_style), Spacer(1, 4 * mm), table])
+    return buffer.getvalue()

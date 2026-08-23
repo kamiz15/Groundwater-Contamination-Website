@@ -119,6 +119,72 @@ def test_the_panel_owns_its_run_button():
     assert "Run Scenarios" in names
 
 
+# --- the toolbar --------------------------------------------------------------
+
+TOOLBAR = ["Download Sample File", "Upload", "Delete table data", "Add Data",
+           "Copy", "CSV", "Excel", "PDF", "Print"]
+
+
+def _labels(app):
+    """Button captions in document order (FileDownload labels, Button names)."""
+    out = []
+    for widget in app.select():
+        if isinstance(widget, pn.widgets.FileDownload):
+            out.append(widget.label)
+        elif isinstance(widget, pn.widgets.Button):
+            out.append(widget.name)
+    return out
+
+
+def test_the_whole_old_cast_toolbar_is_present():
+    labels = _labels(scenario_app("liedl"))
+
+    for caption in TOOLBAR:
+        assert caption in labels, f"{caption} is missing from the toolbar"
+
+
+def test_the_toolbar_sits_above_the_site_picker():
+    """It must hold its place whether or not a graph has been drawn."""
+    app = scenario_app("liedl")
+    flat = list(app.select())
+
+    picker = flat.index(app.select(pn.widgets.MultiSelect)[0])
+    for caption in TOOLBAR:
+        position = next(i for i, w in enumerate(flat)
+                        if getattr(w, "label", None) == caption or getattr(w, "name", None) == caption)
+        assert position < picker, f"{caption} is below the site picker"
+
+
+def test_no_toolbar_button_is_hidden_before_a_run():
+    """Nothing waits for a run to appear - that is how they used to vanish."""
+    app = scenario_app("liedl")
+
+    for widget in app.select():
+        caption = getattr(widget, "label", None) or getattr(widget, "name", None)
+        if caption in TOOLBAR:
+            assert widget.visible is not False, f"{caption} starts hidden"
+
+
+@pytest.mark.parametrize("export", ["csv", "excel", "pdf"])
+def test_the_exports_write_a_real_file_before_any_run(export):
+    """Exporting must work on the rows as they stand, not only after a run."""
+    from panel_model_scenarios import _csv_bytes, _excel_bytes, _pdf_bytes
+
+    frame = _frame("liedl", [{SITE_COLUMN: "Borden", "M": 2.0, "alpha_Tv": 0.001,
+                              "gamma": 3.5, "C_A": 8.0, "C_D": 5.0,
+                              MEASURED_COLUMN: 120.0}])
+    writer = {"csv": _csv_bytes, "excel": _excel_bytes,
+              "pdf": lambda f: _pdf_bytes(f, "Liedl - Scenarios")}[export]
+
+    data = writer(frame).getvalue()
+
+    assert len(data) > 0
+    if export == "pdf":
+        assert data.startswith(b"%PDF")
+    if export == "excel":
+        assert data.startswith(b"PK")          # xlsx is a zip
+
+
 @pytest.mark.parametrize("model", sorted(MODEL_SPECS))
 def test_every_model_builds_this_panel(model):
     """All eight multiple pages run through here now, not just Liedl."""
