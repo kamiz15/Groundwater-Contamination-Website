@@ -216,8 +216,10 @@ def scenario_app(model: str):
 
     # The table holds the user's own scenarios only; site rows are rebuilt at run
     # time, so ticking a different site never rewrites what was typed in here.
+    # No fixed height: an empty table is a header strip, not 220px of blank card.
+    # It grows with the rows and starts scrolling at max_height.
     table = pn.widgets.Tabulator(
-        pd.DataFrame([], columns=columns), show_index=False, height=220,
+        pd.DataFrame([], columns=columns), show_index=False, max_height=320,
         layout="fit_columns", sizing_mode="stretch_width",
         name=f"{spec['title']} scenarios",
     )
@@ -397,13 +399,21 @@ def scenario_app(model: str):
             report_bridge.object = report_bridge_html(
                 f"{spec['title']} - Multiple Simulation", spec["title"],
                 f"{model}_multiple_report.pdf",
+                # The modelled Lmax rides along as a column of the site table.
+                # One metric card per site filled a page on its own, so the
+                # report drops the results grid (outputs=[]) and keeps the
+                # number where it can be read against its inputs.
                 parameters=[
-                    {"symbol": symbol, "name": name, "value": row[key], "unit": unit, "site": label}
-                    for label, (_index, row) in zip(labels, frame.iterrows())
-                    for key, symbol, name, unit in spec["report"]
+                    entry
+                    for label, (_index, row), length in zip(labels, frame.iterrows(), lengths)
+                    for entry in (
+                        *({"symbol": symbol, "name": name, "value": row[key], "unit": unit,
+                           "site": label} for key, symbol, name, unit in spec["report"]),
+                        {"symbol": "L_max", "name": "Model Plume Length", "value": length,
+                         "unit": "m", "site": label},
+                    )
                 ],
-                outputs=[{"label": f"{label} Lmax", "value": f"{value:.2f}", "unit": "m"}
-                         for label, value in zip(labels, lengths)],
+                outputs=[],
                 plot_data=plot_data,
             )
         except Exception as exc:
@@ -436,15 +446,15 @@ def scenario_app(model: str):
 
     sites_note = ("Ctrl/Cmd-click to pick several. Filtering does not clear what is "
                   "already picked. Nothing is selected until you pick.")
-    row_styles = {"gap": "8px", "flex-wrap": "wrap", "align-items": "center"}
     scenario_card = pn.Column(
-        # The toolbar sits at the very top of the card, ahead of the site list,
-        # so it holds the same place whether or not a graph has been drawn.
-        pn.Row(template_btn, sizing_mode="stretch_width", styles=row_styles),
-        pn.Row(upload, sizing_mode="stretch_width", styles=row_styles),
-        pn.Row(upload_btn, clear_btn, add_btn, sizing_mode="stretch_width", styles=row_styles),
-        pn.Row(copy_btn, csv_btn, excel_btn, pdf_btn, print_btn,
-               sizing_mode="stretch_width", styles=row_styles),
+        # One wrapping row rather than four fixed ones: stacked rows left a band
+        # of empty card beside each short row. FlexBox wraps only when the width
+        # actually runs out. It stays at the top of the card, ahead of the site
+        # list, so it holds its place whether or not a graph has been drawn.
+        pn.FlexBox(template_btn, upload, upload_btn, clear_btn, add_btn,
+                   copy_btn, csv_btn, excel_btn, pdf_btn, print_btn,
+                   flex_wrap="wrap", align_items="center",
+                   sizing_mode="stretch_width", styles={"gap": "8px"}),
 
         pn.pane.HTML(_SECTION_TITLE % "Sites", sizing_mode="stretch_width"),
         site_search,
@@ -460,13 +470,16 @@ def scenario_app(model: str):
         styles=dict(_CARD),
     )
 
+    # Inputs first, graph underneath: the graph is the output of everything on
+    # the card, and putting it last means drawing one never moves the controls.
+    #
     # stretch_width, not stretch_both: the page grows the iframe to fit this
     # document, so a height that tries to fill the frame instead of the content
     # leaves the buttons under the fold.
     return pn.Column(
         status,
-        plot_pane,
         scenario_card,
+        plot_pane,
         report_bridge,
         sizing_mode="stretch_width",
         styles={"gap": "14px"},

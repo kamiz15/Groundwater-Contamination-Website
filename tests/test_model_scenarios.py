@@ -210,8 +210,9 @@ def test_the_scenario_table_starts_empty_and_the_dialog_starts_closed():
     assert [c for c in app.select(pn.Column) if c.styles.get("z-index") == "20"][0].visible is False
 
 
-def test_the_scenario_card_sits_below_the_graph():
+def test_the_graph_sits_below_the_scenario_card():
+    """Inputs first: drawing a graph must never move the controls above it."""
     app = scenario_app("liedl")
     kinds = [type(obj).__name__ for obj in app]
 
-    assert kinds.index("Bokeh") < kinds.index("Column")
+    assert kinds.index("Column") < kinds.index("Bokeh")

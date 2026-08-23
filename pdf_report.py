@@ -824,28 +824,39 @@ class CASTReport:
         story.append(self._hr(color=_TEAL, thickness=1.5))
         story.append(Spacer(1, 4 * mm))
 
+        # A multiple run tags every parameter with its site. That flag decides
+        # both the input layout and the order of the sections below.
+        is_multiple = any(isinstance(p, dict) and p.get("site") for p in parameters)
+
         # ── Input Parameters ──────────────────────────────────────────────────
-        story.append(self._section_header("Input Parameters"))
-        story.append(Spacer(1, 3 * mm))
-        # A multiple run tags every parameter with its site, and pivots to the
-        # site database layout instead of one row per site per parameter.
-        if any(isinstance(p, dict) and p.get("site") for p in parameters):
+        inputs_flow = [self._section_header("Input Parameters"), Spacer(1, 3 * mm)]
+        if is_multiple:
+            # Pivoted to the site database layout instead of one row per site
+            # per parameter.
             for table in self.build_site_input_tables(parameters):
-                story.append(table)
-                story.append(Spacer(1, 4 * mm))
+                inputs_flow.append(table)
+                inputs_flow.append(Spacer(1, 4 * mm))
         else:
-            story.append(self.build_input_table(parameters))
-        story.append(Spacer(1, 10 * mm))
+            inputs_flow.append(self.build_input_table(parameters))
+        inputs_flow.append(Spacer(1, 10 * mm))
 
         # ── Computed Results ──────────────────────────────────────────────────
-        story.append(KeepTogether([
-            self._section_header("Computed Results"),
-            Spacer(1, 3 * mm),
-            self.build_results_grid(outputs),
-        ]))
-        story.append(Spacer(1, 3 * mm))
+        # Skipped when there is nothing to put in it. A multiple run sends none:
+        # one metric card per site ran to a page of its own, and the modelled
+        # length is a column of the table above instead.
+        results_flow = []
+        if outputs:
+            results_flow = [
+                KeepTogether([
+                    self._section_header("Computed Results"),
+                    Spacer(1, 3 * mm),
+                    self.build_results_grid(outputs),
+                ]),
+                Spacer(1, 3 * mm),
+            ]
 
         # ── Results Charts ────────────────────────────────────────────────────
+        charts_flow = []
         image_items = []
         if plot_images:
             image_items.extend(plot_images)
@@ -865,9 +876,9 @@ class CASTReport:
                 if isinstance(first_item, dict)
                 else 105.0
             )
-            story.append(CondPageBreak((first_max_height + 20) * mm))
-            story.append(self._section_header("Results Visualisation"))
-            story.append(Spacer(1, 1 * mm))
+            charts_flow.append(CondPageBreak((first_max_height + 20) * mm))
+            charts_flow.append(self._section_header("Results Visualisation"))
+            charts_flow.append(Spacer(1, 1 * mm))
 
             for figure_no, item in enumerate(image_items, start=1):
                 max_height_mm = 105.0
@@ -895,14 +906,22 @@ class CASTReport:
 
                 img = Image(io.BytesIO(chart_bytes), width=img_w, height=img_h)
                 img.hAlign = "CENTER"
-                story.append(KeepTogether([
+                charts_flow.append(KeepTogether([
                     Paragraph(f"<b>Figure {figure_no} — {title}</b>", self.s_caption),
                     Spacer(1, 1.5 * mm),
                     img,
                     Spacer(1, 1.5 * mm),
                     Paragraph(caption, self.s_caption) if caption else Spacer(1, 0),
                 ]))
-                story.append(Spacer(1, 4 * mm))
+                charts_flow.append(Spacer(1, 4 * mm))
+
+        # A multiple run leads with the graph, so it lands on the first page
+        # instead of being pushed past a site table that runs on for pages -
+        # which left the page before it half empty. The table flows after it.
+        if is_multiple:
+            story += charts_flow + inputs_flow + results_flow
+        else:
+            story += inputs_flow + results_flow + charts_flow
 
         # ── Disclaimer ────────────────────────────────────────────────────────
         story.append(Spacer(1, 6 * mm))
