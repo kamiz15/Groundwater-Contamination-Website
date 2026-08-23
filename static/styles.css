@@ -2122,6 +2122,17 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 /* Numerical multiples stack an input panel above the result panel in the stage;
    the input editor keeps its own 480px floor instead of the 680px result height. */
 
+/* Analytical / empirical multiples: graph on top, input form under it. The card
+   is no longer :last-child, so this floor - not the rule above - is what holds
+   the graph box open. It has to be a floor rather than a height: the panel is
+   usually a separate origin, so script.js cannot measure the frame, and the box
+   must already be the size of the finished graph before anything loads or the
+   form below it jumps down when the plot arrives. Bokeh figure 420 + the status
+   line and padding around it. */
+.model-workbench-stage--multiple .model-output-card .panel-shell,
+.model-workbench-stage--multiple .model-output-card .panel-frame{ min-height: 520px; }
+.model-workbench-stage--multiple .external-input-card{ margin-top: 16px; }
+
 @media (max-width: 1080px){
   .model-workbench-layout{ grid-template-columns: 1fr; }
   /* The slider strip folds to one column here, so the stage gets taller, not

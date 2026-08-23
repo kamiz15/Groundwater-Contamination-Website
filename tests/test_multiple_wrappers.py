@@ -72,5 +72,43 @@ class MultipleWrapperTests(unittest.TestCase):
                 self.assertEqual(iframe_query["output_only"], ["1"])
 
 
+class MultipleStageLayoutTests(MultipleWrapperTests):
+    """Graph on top of the stage, the manual input form directly under it."""
+
+    ANALYTICAL = [p for p in MULTIPLE_WRAPPERS if not p.startswith("/numerical/")]
+
+    def test_input_form_sits_under_the_graph_in_the_stage(self):
+        for path in self.ANALYTICAL:
+            with self.subTest(path=path):
+                page = self.client.get(path).get_data(as_text=True)
+
+                self.assertIn('id="model-input-form"', page)
+                self.assertIn("model-workbench-stage--multiple", page)
+                # Graph first, form under it - the stage order in the diagram.
+                self.assertLess(page.index("Simulation Panel"), page.index('id="model-input-form"'))
+
+    def test_numerical_multiples_keep_their_own_stage(self):
+        """They pass no input_fields, so the form must not appear there."""
+        for path in ["/numerical/horizontal/multiple", "/numerical/vertical/multiple"]:
+            with self.subTest(path=path):
+                page = self.client.get(path).get_data(as_text=True)
+                self.assertNotIn("model-input-form", page)
+
+    def test_running_the_model_keeps_the_picked_sites(self):
+        """Both forms carry each other's state, or one submit wipes the other."""
+        sites = [{"id": 1, "site_unit": "Borden", "compound": "BTEX", "display_id": 1},
+                 {"id": 2, "site_unit": "Vejen", "compound": "BTEX", "display_id": 2}]
+        with patch.object(analytical_routes, "get_user_sites_rows", return_value=sites), \
+             patch.object(analytical_routes, "filter_valid_sites_for_model",
+                          side_effect=lambda rows, _model: (rows, {})):
+            page = self.client.get("/liedl/multiple?compare_sites=2").get_data(as_text=True)
+
+        form = page[page.index('id="model-input-form"'):]
+        self.assertIn('name="compare_sites" value="2"', form)
+        # ...and the sidebar's picker carries the model's parameters back.
+        sidebar = page[:page.index('id="model-input-form"')]
+        self.assertIn('name="alpha_Tv"', sidebar)
+
+
 if __name__ == "__main__":
     unittest.main()

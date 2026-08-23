@@ -50,6 +50,10 @@
         <h3>Compare Sites</h3>
         <form method="GET" class="workbench-site-form">
           {% if selected_site_id %}<input type="hidden" name="site_id" value="{{ selected_site_id }}">{% endif %}
+          {# Mirror of the hidden sites in the input form: changing the picked
+             sites must not throw away manual values typed under the graph. #}
+          {% for f in input_fields | default([]) %}{% if f.value is not none %}
+          <input type="hidden" name="{{ f.name }}" value="{{ '%.6g'|format(f.value) }}">{% endif %}{% endfor %}
           <label for="compare_sites">Sites shown on the graph</label>
           <select id="compare_sites" name="compare_sites" multiple size="{{ [sites|length, 8]|min }}">
             {% for s in sites %}
@@ -74,13 +78,16 @@
       {% include "report_bridge_card.html" %}
     </aside>
 
-    <main class="model-workbench-stage">
+    <main class="model-workbench-stage model-workbench-stage--multiple">
       <div class="card-like model-output-card">
         <h3>Simulation Panel</h3>
         <div class="panel-shell output-panel-shell">
           <iframe src="{{ panel_src }}" class="panel-frame output-panel-frame" scrolling="no" {% block output_frame_attrs %}{% endblock %} loading="eager"></iframe>
         </div>
       </div>
+      {# Manual inputs sit under the graph, as on the original CAST site. They
+         fill in whatever the site database does not carry for a picked site. #}
+      {% include "model_input_form.html" %}
     </main>
   </div>
 </section>
