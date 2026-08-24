@@ -16,7 +16,7 @@ pn.extension("tabulator", sizing_mode="stretch_width")
 
 
 def birla_single_app():
-    w_M = pn.widgets.FloatInput(name="Source Thickness T_S [m]", value=query_float("M", 2.0), step=0.1)
+    w_M = pn.widgets.FloatInput(name="Source Thickness T_s [m]", value=query_float("M", 2.0), step=0.1)
     w_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("tv", 0.001), step=0.0005)
     w_g = pn.widgets.FloatInput(name="Stoichiometry Coefficient \u03b3 [-]", value=query_float("g", 3.5), step=0.1)
     w_Ca = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("Ca", 8.0), step=0.5)
@@ -57,7 +57,7 @@ def birla_single_app():
             plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "T_S", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
+                    {"symbol": "T_s", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
                     {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": w_tv.value, "unit": "m"},
                     {"symbol": "R_c", "name": "Recharge Rate", "value": w_R.value, "unit": "m/yr"},
                     {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": w_g.value, "unit": "-"},

@@ -109,7 +109,7 @@ def test_columns_are_headed_with_names_and_symbols(model):
 def test_the_headings_match_the_single_pages():
     titles = column_titles("liedl")
 
-    assert titles["M"] == "Source Thickness T_S [m]"
+    assert titles["M"] == "Source Thickness T_s [m]"
     assert titles["alpha_Tv"] == "Vertical Transverse Dispersivity α_Tv [m]"
     assert titles["gamma"] == "Stoichiometric Ratio γ [-]"
 

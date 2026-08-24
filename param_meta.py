@@ -119,14 +119,14 @@ _MODEL_DISPLAY_NAMES = {
 }
 
 _MODEL_SYMBOLS = {
-    "liedl": {"M": "<i>T</i><sub>S</sub>"},
-    "liedl3d": {"M": "<i>T</i><sub>S</sub>", "W": "<i>S</i><sub>W</sub>", "Cthres": "<i>C</i><sub>thres</sub>"},
+    "liedl": {"M": "<i>T</i><sub>s</sub>"},
+    "liedl3d": {"M": "<i>T</i><sub>s</sub>", "W": "<i>S</i><sub>W</sub>", "Cthres": "<i>C</i><sub>thres</sub>"},
     "chu": {"W": "<i>S</i><sub>W</sub>"},
     "ham": {"Q": "<i>q</i>", "alpha_T": "&alpha;<sub>Th</sub>"},
-    "bioscreen": {"Cthres": "<i>C</i><sub>thres</sub>", "time": "<i>t</i>", "H": "<i>T</i><sub>S</sub>", "c0": "<i>C</i><sub>D</sub><sup>0</sup>", "W": "<i>S</i><sub>W</sub>", "Df": "<i>D</i><sub>f</sub>", "gamma": "&Gamma;", "lam": "&lambda;<sub>e</sub>", "ng": "<i>n</i><sub>g</sub>"},
+    "bioscreen": {"Cthres": "<i>C</i><sub>thres</sub>", "time": "<i>t</i>", "H": "<i>T</i><sub>s</sub>", "c0": "<i>C</i><sub>D</sub><sup>0</sup>", "W": "<i>S</i><sub>W</sub>", "Df": "<i>D</i><sub>f</sub>", "gamma": "&Gamma;", "lam": "&lambda;<sub>e</sub>", "ng": "<i>n</i><sub>g</sub>"},
     "cirpka": {"Sw": "<i>S</i><sub>w</sub>", "C_A": "<i>C</i><sub>A</sub><sup>0</sup>", "C_D": "<i>C</i><sub>D</sub><sup>0</sup>"},
-    "maier": {"M": "<i>T</i><sub>S</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
-    "birla": {"M": "<i>T</i><sub>S</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
+    "maier": {"M": "<i>T</i><sub>s</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
+    "birla": {"M": "<i>T</i><sub>s</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
 }
 
 _TABLE_TITLES = {
@@ -157,13 +157,13 @@ _TABLE_TITLES = {
 }
 
 _CONTEXT_TABLE_TITLES = {
-    "liedl": {"M": "Source Thickness T_S [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
-    "liedl3d": {"M": "Source Thickness T_S [m]", "W": "Source Width S_W [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "Cthres": "Threshold Donor Concentration C_thres [mg/L]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "liedl": {"M": "Source Thickness T_s [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "liedl3d": {"M": "Source Thickness T_s [m]", "W": "Source Width S_W [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]", "gamma": "Stoichiometric Ratio γ [-]", "Cthres": "Threshold Donor Concentration C_thres [mg/L]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
     "chu": {"W": "Source Width S_W [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]", "epsilon": "Biological Concentration Factor ε [mg/L]"},
     "ham": {"Q": "Source Flux q [m²/yr]", "alpha_T": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_EA0": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]"},
     "cirpka": {"Sw": "Source Width S_w [m]", "alpha_Th": "Horizontal Transverse Dispersivity α_Th [m]", "gamma": "Stoichiometric Ratio γ [-]", "C_A": "Acceptor Concentration at Source C_A^0 [mg/L]", "C_D": "Donor Concentration at Source C_D^0 [mg/L]"},
-    "maier": {"M": "Source Thickness T_S [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
-    "birla": {"M": "Source Thickness T_S [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "R": "Recharge Rate R_c [m/yr]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "maier": {"M": "Source Thickness T_s [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
+    "birla": {"M": "Source Thickness T_s [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "R": "Recharge Rate R_c [m/yr]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
     "numerical_vertical": {"grid_size": "Grid Spacing Δx = Δz [m]"},
 }
 
@@ -177,8 +177,8 @@ _TABLE_SYMBOL_MARKUP = {
     "α_Tv": "&alpha;<sub>Tv</sub>",
     "α_Th": "&alpha;<sub>Th</sub>",
     "α_L": "&alpha;<sub>L</sub>",
-    "T_S": "<i>T</i><sub>S</sub>",
-    "S_T": "<i>T</i><sub>S</sub>",
+    "T_s": "<i>T</i><sub>s</sub>",
+    "S_T": "<i>T</i><sub>s</sub>",
     "S_W": "<i>S</i><sub>W</sub>",
     "S_w": "<i>S</i><sub>w</sub>",
     "R_c": "<i>R</i><sub>c</sub>",

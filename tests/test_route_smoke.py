@@ -373,7 +373,7 @@ def test_liedl_about_pilot_has_chips_and_no_placeholders(public_client):
     assert "conceptual_liedl_2005.png" in page
     assert 'mathvariant="normal">max' in page
     assert "Closed form" not in page
-    assert 'title="Source thickness [L]"><mi>T</mi><mi>S</mi>' in page
+    assert 'title="Source thickness [L]"><mi>T</mi><mi>s</mi>' in page
     assert "Transverse vertical dispersivity [L]" in page
     assert "Stoichiometry ratio [-]" in page
     assert "Donor concentration at source [ML⁻³]" in page
@@ -385,7 +385,7 @@ def test_liedl3d_about_uses_corrected_symbols_dimensions_and_source(public_clien
     page = public_client.get("/models/liedl3d/about").get_data(as_text=True)
 
     assert "conceptual_liedl_2011.png" in page
-    assert 'title="Source thickness [L]"><mi>T</mi><mi>S</mi>' in page
+    assert 'title="Source thickness [L]"><mi>T</mi><mi>s</mi>' in page
     assert 'title="Source width [L]"><mi>S</mi><mi>W</mi>' in page
     assert "Transverse horizontal dispersivity [L]" in page
     assert "Threshold donor concentration [ML⁻³]" in page
