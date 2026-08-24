@@ -1980,6 +1980,10 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   align-items: center;
   justify-content: space-between;
 }
+/* display:flex above would otherwise beat the UA's [hidden] rule, leaving
+   the card on screen before any run has posted a report - and its button
+   does nothing without one. */
+.report-download-card[hidden] { display: none; }
 
 .model-output-card { margin-bottom: 1rem; }
 
