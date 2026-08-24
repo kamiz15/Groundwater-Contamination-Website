@@ -250,3 +250,38 @@ def report_bridge_html(title="", subtitle="", filename="", parameters=None,
         f'data-payload="{encoded}" '
         "onerror='window.parent.postMessage(JSON.parse(this.dataset.payload), \"*\")'>"
     )
+
+
+# Reports this document's height to the page embedding it. The parent can only
+# measure a frame it is allowed to read, which rules out any PANEL_PUBLIC_BASE
+# pointing at another port - and then the frame is stuck at its CSS floor: a
+# generous floor pads the page with blank space, a tight one cuts the graph off.
+# A posted height is right either way, and it tracks the document as Bokeh
+# renders into it. Set as the .object of a hidden pane, once per app.
+_FRAME_HEIGHT_BRIDGE = (
+    '<img src="data:," style="display:none" alt="" onerror=\''
+    "(function(){"
+    "if (window.__castHeightBridge) return;"
+    "window.__castHeightBridge = true;"
+    # The parent frame carries the whole document height, so an inner
+    # scrollbar would only be a second one.
+    "document.documentElement.style.overflowY = \"hidden\";"
+    "var post = function(){"
+    "var h = Math.ceil(Math.max(document.body.scrollHeight,"
+    "document.documentElement.scrollHeight));"
+    "if (h && h !== window.__castHeightLast) {"
+    "window.__castHeightLast = h;"
+    "window.parent.postMessage({type: \"cast-frame-height\", height: h}, \"*\");}};"
+    "post();"
+    "if (\"ResizeObserver\" in window) new ResizeObserver(post).observe(document.body);"
+    "window.addEventListener(\"load\", post);"
+    # Bokeh renders after load; these catch what the observer misses.
+    "[200, 800, 2000, 4000, 8000].forEach(function(ms){setTimeout(post, ms);});"
+    "})()'>"
+)
+
+
+def frame_height_bridge_html() -> str:
+    """Hidden pane that keeps the embedding page's iframe the height of this
+    document, cross-origin included."""
+    return _FRAME_HEIGHT_BRIDGE

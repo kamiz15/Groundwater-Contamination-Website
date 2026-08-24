@@ -128,6 +128,43 @@ def test_the_stored_columns_stay_canonical():
                                          "C_A", "C_D", MEASURED_COLUMN]
 
 
+def test_the_panel_reports_its_height_to_the_page():
+    """The graph is last: a frame that cannot grow cuts it off completely."""
+    app = scenario_app("liedl")
+    panes = [str(p.object) for p in app.select(pn.pane.HTML)]
+
+    assert any("cast-frame-height" in html for html in panes)
+
+
+def test_the_page_listens_for_the_height_it_posts():
+    """Both halves of the contract, or the frame silently never resizes."""
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "static" / "script.js"
+    body = script.read_text(encoding="utf-8", errors="replace")
+
+    assert 'data.type !== "cast-frame-height"' in body
+    assert "f.contentWindow === event.source" in body          # only our own frames
+
+
+@pytest.mark.parametrize("caption", ["Download Sample File", "Upload", "Run Scenarios"])
+def test_the_action_buttons_wear_the_site_blue(caption):
+    app = scenario_app("liedl")
+
+    widget = next(w for w in app.select()
+                  if getattr(w, "label", None) == caption or getattr(w, "name", None) == caption)
+
+    assert any("#155da9" in sheet for sheet in widget.stylesheets), f"{caption} is not branded"
+
+
+def test_the_file_picker_wears_the_site_blue():
+    app = scenario_app("liedl")
+    picker = app.select(pn.widgets.FileInput)[0]
+
+    assert any("file-selector-button" in sheet and "#155da9" in sheet
+               for sheet in picker.stylesheets)
+
+
 def test_the_panel_opens_with_no_result_box():
     app = scenario_app("liedl")
     status = app.select(pn.pane.HTML)[0]

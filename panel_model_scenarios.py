@@ -33,7 +33,7 @@ from panel_site_comparison import (
     FORM_ALIASES, MODEL_SPECS, manual_fallback, selected_site_ids, site_label,
 )
 from param_meta import table_titles
-from panel_theme import report_bridge_html
+from panel_theme import frame_height_bridge_html, report_bridge_html
 from pdf_report import dataframe_pdf
 from symbol_registry import db_to_model
 
@@ -172,6 +172,43 @@ _CARD = {
     # and the card keeps the dialog's height after it closes.
     "min-height": "0",
 }
+# The site's own button blue (--brand-600 / --brand-700 on hover, what
+# .primary-btn uses). Panel widgets render in a shadow root, so the page's CSS
+# cannot reach them - the colour has to be handed to each widget as a
+# stylesheet. Carried by the actions that start something: the sample file, the
+# file picker, Upload, and Run Scenarios.
+_BRAND = "#155da9"
+_BRAND_DARK = "#114b88"
+_BRAND_BUTTON_CSS = f"""
+.bk-btn, .bk-btn-default, .bk-btn-primary {{
+  background: {_BRAND};
+  border-color: {_BRAND};
+  color: #fff;
+  font-weight: 600;
+}}
+.bk-btn:hover, .bk-btn-default:hover, .bk-btn-primary:hover {{
+  background: {_BRAND_DARK};
+  border-color: {_BRAND_DARK};
+  color: #fff;
+}}
+"""
+_BRAND_FILE_CSS = f"""
+input[type="file"]::file-selector-button {{
+  background: {_BRAND};
+  border: 1px solid {_BRAND};
+  color: #fff;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 5px 12px;
+  margin-right: 8px;
+  cursor: pointer;
+}}
+input[type="file"]::file-selector-button:hover {{
+  background: {_BRAND_DARK};
+  border-color: {_BRAND_DARK};
+}}
+"""
+
 _SECTION_TITLE = (
     '<div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;'
     'text-transform:uppercase;color:#5b6b7f;border-bottom:2px solid #1f72cd;'
@@ -219,6 +256,10 @@ def scenario_app(model: str):
     # standing there permanently just pushed the controls down.
     status = pn.pane.HTML("", sizing_mode="stretch_width", margin=0)
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
+    # Keeps the page's iframe the height of this document - the graph sits at
+    # the bottom, so a frame that cannot grow cuts it off entirely.
+    height_bridge = pn.pane.HTML(frame_height_bridge_html(), height=0, margin=0,
+                                 sizing_mode="fixed")
 
     # manual_fallback, not a plain read: a link written with the old CAST field
     # names (?tv=, ?Ca=) still has to land on the right parameters.
@@ -258,8 +299,8 @@ def scenario_app(model: str):
     site_select = pn.widgets.MultiSelect(
         options=dict(all_options), value=seeded, size=8, sizing_mode="stretch_width",
     )
-    run_btn = pn.widgets.Button(name="Run Scenarios", button_type="primary",
-                                width=160, sizing_mode="fixed")
+    run_btn = pn.widgets.Button(name="Run Scenarios", width=160, sizing_mode="fixed",
+                                stylesheets=[_BRAND_BUTTON_CSS])
 
     # The old CAST toolbar, in its original order and wording. Every one of these
     # stays put and stays enabled for the life of the page: they sit above the
@@ -269,8 +310,10 @@ def scenario_app(model: str):
     clear_btn = pn.widgets.Button(name="Delete table data", width=150, sizing_mode="fixed")
     # Fixed, not stretch_width: a stretching file input claimed the whole row and
     # pushed every button after it onto a line of its own.
-    upload = pn.widgets.FileInput(accept=".csv", width=230, sizing_mode="fixed")
-    upload_btn = pn.widgets.Button(name="Upload", width=110, sizing_mode="fixed")
+    upload = pn.widgets.FileInput(accept=".csv", width=230, sizing_mode="fixed",
+                                  stylesheets=[_BRAND_FILE_CSS])
+    upload_btn = pn.widgets.Button(name="Upload", width=110, sizing_mode="fixed",
+                                   stylesheets=[_BRAND_BUTTON_CSS])
     results = {"frame": None}
 
     def _export_frame() -> pd.DataFrame:
@@ -284,6 +327,7 @@ def scenario_app(model: str):
         callback=lambda: _csv_bytes(pd.DataFrame([_default_row(model, spec["defaults"])], columns=columns)),
         filename=f"{model}_scenarios_template.csv", label="Download Sample File",
         button_type="default", width=190, sizing_mode="fixed",
+        stylesheets=[_BRAND_BUTTON_CSS],
     )
     csv_btn = pn.widgets.FileDownload(
         callback=lambda: _csv_bytes(_export_frame()),
@@ -502,6 +546,7 @@ def scenario_app(model: str):
         scenario_card,
         plot_pane,
         report_bridge,
+        height_bridge,
         sizing_mode="stretch_width",
         styles={"gap": "14px"},
     )

@@ -633,6 +633,28 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Panel frames that report their own height. measure() above can only read a
+// same-origin frame; with PANEL_PUBLIC_BASE on another port it never can, and
+// the frame is left at its CSS floor - blank space below a short document, a
+// cut-off graph on a tall one. A frame carrying the height bridge posts its
+// document height instead, which works either way.
+// ---------------------------------------------------------------------------
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "cast-frame-height") return;
+
+  const frames = Array.from(document.querySelectorAll("iframe.panel-frame"));
+  // Only a frame we embedded may resize itself, and only itself.
+  const frame = frames.find((f) => f.contentWindow === event.source);
+  if (!frame) return;
+
+  const floor = Number(frame.dataset.minHeight || 0);
+  const height = Math.max(Number(data.height) || 0, floor);
+  if (!height) return;
+  frame.style.height = `${height}px`;
+  frame.dataset.frameSync = "ok";     // stops the "never fitted" warning
+});
+
 // CAST report bridge: Panel iframes post their latest run results here so the
 // page-level "Report Export" card (outside the iframe) can build the PDF via
 // POST /report/export.
