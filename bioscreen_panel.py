@@ -18,7 +18,7 @@ pn.extension(sizing_mode="stretch_width")
 def _base_widgets():
     cthres = pn.widgets.FloatInput(name="Threshold Contaminant Concentration C_thres [mg/L]", value=query_float("Cthres", 5e-5), step=1e-5, start=1e-8)
     time = pn.widgets.IntInput(name="Simulation Time t [a]", value=query_int("time", 20), start=1, end=1000)
-    h = pn.widgets.FloatSlider(name="Source Thickness S_T [m]", value=query_float("H", 6.1), start=0.1, end=50, step=0.1)
+    h = pn.widgets.FloatSlider(name="Source Thickness T_S [m]", value=query_float("H", 6.1), start=0.1, end=50, step=0.1)
     c0 = pn.widgets.FloatSlider(name="Contamination Concentration C_D^0 [mg/L]", value=query_float("c0", 106.35), start=0.1, end=1000, step=1)
     w = pn.widgets.FloatSlider(name="Source Width S_W [m]", value=query_float("W", 20), start=0.1, end=1000, step=0.1)
     v = pn.widgets.FloatInput(name="Groundwater Seepage Velocity v [m/a]", value=query_float("v", 292), start=10, end=1000)
@@ -84,7 +84,7 @@ def bioscreen_single_app():
                 "parameters": [
                     {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres.value, "unit": "mg/L"},
                     {"symbol": "t", "name": "Time", "value": time.value, "unit": "yr"},
-                    {"symbol": "S_T", "name": "Source Thickness", "value": h.value, "unit": "m"},
+                    {"symbol": "T_S", "name": "Source Thickness", "value": h.value, "unit": "m"},
                     {"symbol": "C_D0", "name": "Contamination Concentration", "value": c0.value, "unit": "mg/L"},
                     {"symbol": "S_W", "name": "Source Width", "value": w.value, "unit": "m"},
                     {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v.value, "unit": "m/yr"},

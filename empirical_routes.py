@@ -217,7 +217,7 @@ def maier_single_export():
     report = CASTReport("Maier & Grathwohl (2006) — Single Simulation", "Maier & Grathwohl (2006)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_S", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
             {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": ca, "unit": "mg/L"},
@@ -270,7 +270,7 @@ def birla_single_export():
     report = CASTReport("Birla et al. (2020) — Single Simulation", "Birla et al. (2020)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_S", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
             {"symbol": "R_c", "name": "Recharge Rate", "value": r, "unit": "m/yr"},
             {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},

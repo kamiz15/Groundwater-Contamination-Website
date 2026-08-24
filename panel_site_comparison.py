@@ -42,7 +42,7 @@ MODEL_SPECS = {
         "args": ("M", "alpha_Tv", "gamma", "C_A", "C_D"),
         "defaults": {"M": 2.0, "alpha_Tv": 0.001, "gamma": 3.5, "C_A": 8.0, "C_D": 5.0},
         "report": (
-            ("M", "S_T", "Source Thickness", "m"),
+            ("M", "T_S", "Source Thickness", "m"),
             ("alpha_Tv", "alpha_Tv", "Vertical Transverse Dispersivity", "m"),
             ("gamma", "gamma", "Stoichiometric Ratio", "-"),
             ("C_D", "C_D0", "Donor Concentration at Source", "mg/L"),
@@ -56,7 +56,7 @@ MODEL_SPECS = {
         "defaults": {"M": 10.0, "alpha_Th": 0.01, "alpha_Tv": 0.01, "S_w": 7.0,
                      "Cthres": 0.5, "C_A": 8.0, "C_D": 5.0, "gamma": 3.0},
         "report": (
-            ("M", "S_T", "Source Thickness", "m"),
+            ("M", "T_S", "Source Thickness", "m"),
             ("S_w", "S_W", "Source Width", "m"),
             ("alpha_Th", "alpha_Th", "Horizontal Transverse Dispersivity", "m"),
             ("alpha_Tv", "alpha_Tv", "Vertical Transverse Dispersivity", "m"),
@@ -118,7 +118,7 @@ MODEL_SPECS = {
         "report": (
             ("Cthres", "C_thres", "Threshold Contaminant Concentration", "mg/L"),
             ("time", "t", "Simulation Time", "yr"),
-            ("M", "S_T", "Source Thickness", "m"),
+            ("M", "T_S", "Source Thickness", "m"),
             ("C_D", "C_D0", "Contamination Concentration", "mg/L"),
             ("S_w", "S_W", "Source Width", "m"),
             ("v", "v", "Groundwater Seepage Velocity", "m/yr"),
@@ -138,7 +138,7 @@ MODEL_SPECS = {
         "args": ("M", "alpha_Tv", "gamma", "C_A", "C_D"),
         "defaults": {"M": 5.0, "alpha_Tv": 0.01, "gamma": 3.5, "C_A": 8.0, "C_D": 5.0},
         "report": (
-            ("M", "S_T", "Source Thickness", "m"),
+            ("M", "T_S", "Source Thickness", "m"),
             ("alpha_Tv", "alpha_Tv", "Vertical Transverse Dispersivity", "m"),
             ("gamma", "gamma", "Stoichiometry Ratio", "-"),
             ("C_A", "C_A0", "Acceptor Concentration at Source", "mg/L"),
@@ -152,7 +152,7 @@ MODEL_SPECS = {
         "defaults": {"M": 2.0, "alpha_Tv": 0.001, "gamma": 3.5, "C_A": 8.0,
                      "C_D": 5.0, "R": 1.0},
         "report": (
-            ("M", "S_T", "Source Thickness", "m"),
+            ("M", "T_S", "Source Thickness", "m"),
             ("alpha_Tv", "alpha_Tv", "Vertical Transverse Dispersivity", "m"),
             ("R", "R_c", "Recharge Rate", "m/yr"),
             ("gamma", "gamma", "Stoichiometry Ratio", "-"),

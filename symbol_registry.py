@@ -51,7 +51,7 @@ SYMBOL_REGISTRY = {
     },
     "S_T": {
         "db": "source_thickness",
-        "ui": "Source Thickness S_T [m]",
+        "ui": "Source Thickness T_S [m]",
         "unit": "m",
         "models": ["numerical"],
     },
@@ -161,7 +161,10 @@ _UI_SYMBOL_MARKUP = {
     "L_p": "<i>L</i><sub>p</sub>",
     "S_Ta": "<i>S</i><sub>Ta</sub>",
     "S_Tb": "<i>S</i><sub>Tb</sub>",
-    "S_T": "<i>S</i><sub>T</sub>",
+    # Source thickness reads T_S. S_T stays mapped so a label written the old
+    # way still renders as the current symbol rather than as bare text.
+    "T_S": "<i>T</i><sub>S</sub>",
+    "S_T": "<i>T</i><sub>S</sub>",
     "\u03b1_Tv": "&alpha;<sub>Tv</sub>",
     "\u03b1_Th": "&alpha;<sub>Th</sub>",
     "\u03b1_T": "&alpha;<sub>T</sub>",

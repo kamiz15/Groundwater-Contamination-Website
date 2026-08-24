@@ -91,7 +91,10 @@ def test_pdf_report_renders_comparison_scatter_on_second_page():
 
 
 def test_pdf_report_formats_symbols_for_input_table():
-    assert CASTReport._symbol_markup("S_T") == "<i>S</i><sub>T</sub>"
+    assert CASTReport._symbol_markup("T_S") == "<i>T</i><sub>S</sub>"
+    # Source thickness was written S_T once; a report built from stored values
+    # still renders it as the symbol in use rather than as bare text.
+    assert CASTReport._symbol_markup("S_T") == "<i>T</i><sub>S</sub>"
     assert CASTReport._symbol_markup("S_W") == "<i>S</i><sub>W</sub>"
     assert CASTReport._symbol_markup("alpha_Tv") == "&#945;<sub>Tv</sub>"
     assert CASTReport._symbol_markup(chr(945) + "Tv") == "&#945;<sub>Tv</sub>"

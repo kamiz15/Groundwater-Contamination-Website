@@ -15,7 +15,7 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def maier_single_app():
-    w_M = pn.widgets.FloatInput(name="Source Thickness S_T [m]", value=query_float("M", 5.0), step=0.1)
+    w_M = pn.widgets.FloatInput(name="Source Thickness T_S [m]", value=query_float("M", 5.0), step=0.1)
     w_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("tv", 0.01), step=0.001)
     w_g = pn.widgets.FloatInput(name="Stoichiometry Coefficient \u03b3 [-]", value=query_float("g", 3.5), step=0.1)
     w_Ca = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("Ca", 8.0), step=0.5)
@@ -55,7 +55,7 @@ def maier_single_app():
             plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "S_T", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
+                    {"symbol": "T_S", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
                     {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": w_tv.value, "unit": "m"},
                     {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": w_g.value, "unit": "-"},
                     {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": w_Ca.value, "unit": "mg/L"},

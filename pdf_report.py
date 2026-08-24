@@ -392,8 +392,10 @@ class CASTReport:
         compact = compact.replace("\u03b1", "alpha_").replace("\u00ce\u00b1", "alpha_")
         compact = compact.replace("\u03b3", "gamma").replace("\u00ce\u00b3", "gamma")
         mapping = {
-            "S_T": "<i>S</i><sub>T</sub>",
-            "ST": "<i>S</i><sub>T</sub>",
+            "T_S": "<i>T</i><sub>S</sub>",
+            "TS": "<i>T</i><sub>S</sub>",
+            "S_T": "<i>T</i><sub>S</sub>",
+            "ST": "<i>T</i><sub>S</sub>",
             "S_W": "<i>S</i><sub>W</sub>",
             "M": "<i>T</i><sub>A</sub>",
             "Lz": "<i>T</i><sub>A</sub>",

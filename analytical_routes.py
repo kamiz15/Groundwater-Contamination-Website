@@ -444,7 +444,7 @@ def liedl_single_export():
     report = CASTReport("Liedl et al. (2005) — Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_S", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
             {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
@@ -614,7 +614,7 @@ def bioscreen_single_export():
         parameters=[
             {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres, "unit": "mg/L"},
             {"symbol": "t", "name": "Simulation Time", "value": time_val, "unit": "yr"},
-            {"symbol": "S_T", "name": "Source Thickness", "value": h, "unit": "m"},
+            {"symbol": "T_S", "name": "Source Thickness", "value": h, "unit": "m"},
             {"symbol": "C_D0", "name": "Contamination Concentration", "value": c0, "unit": "mg/L"},
             {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
             {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v, "unit": "m/yr"},
@@ -675,7 +675,7 @@ def liedl3d_single_export():
     report = CASTReport("Liedl 3D (2011) — Single Simulation", "Liedl 3D (2011)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_S", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
             {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},

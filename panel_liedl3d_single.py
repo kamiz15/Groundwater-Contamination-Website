@@ -15,7 +15,7 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def liedl3d_single_app():
-    m = pn.widgets.FloatInput(name="Source Thickness S_T [m]", value=query_float("M", 10.0), step=0.1)
+    m = pn.widgets.FloatInput(name="Source Thickness T_S [m]", value=query_float("M", 10.0), step=0.1)
     alpha_th = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("alpha_Th", 0.01), step=0.001)
     alpha_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("alpha_Tv", 0.01), step=0.001)
     w = pn.widgets.FloatInput(name="Source Width S_W [m]", value=query_float("W", 7.0), step=0.1)
@@ -58,7 +58,7 @@ def liedl3d_single_app():
             plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "S_T", "name": "Source Thickness", "value": m.value, "unit": "m"},
+                    {"symbol": "T_S", "name": "Source Thickness", "value": m.value, "unit": "m"},
                     {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th.value, "unit": "m"},
                     {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv.value, "unit": "m"},
                     {"symbol": "S_W", "name": "Source Width", "value": w.value, "unit": "m"},
