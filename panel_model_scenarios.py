@@ -35,7 +35,6 @@ from panel_site_comparison import (
 from param_meta import table_titles
 from panel_theme import frame_height_bridge_html, report_bridge_html
 from pdf_report import dataframe_pdf
-from symbol_registry import db_to_model
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -83,21 +82,20 @@ def _default_row(model: str, fallback: dict, label: str = "Manual") -> dict:
     return row
 
 
-def seed_rows(model: str, sites, fallback: dict) -> list[dict]:
-    """One row per site, its NULL columns filled from `fallback`.
+def site_measured_points(sites, start: int):
+    """(x, y) for the measured plume length of each ticked site, numbered from `start`.
 
-    No sites picked still gives one row, so the page opens on something runnable
-    instead of an empty grid.
+    A site contributes a measurement and nothing else. Old CAST never derived
+    model parameters from a site - the parameters were always typed or uploaded -
+    and this database is the reason why: it carries neither alpha_Tv nor gamma
+    for any of its 112 reference sites. Seeding a run from a site therefore meant
+    running the model on a fabricated dispersivity, and because Lmax scales as
+    M^2/alpha_Tv the fabricated value decided the answer (alpha_Tv=0.001 turned
+    Hill AFB's measured 503 m into a modelled 5962 m).
     """
-    rows = []
-    for site in sites:
-        row = _default_row(model, fallback, label=site_label(site))
-        row.update({k: float(v) for k, v in db_to_model(site, model).items()
-                    if k in MODEL_SPECS[model]["args"]})
-        measured = site.get("plume_length")
-        row[MEASURED_COLUMN] = float(measured) if measured not in (None, "") else None
-        rows.append(row)
-    return rows or [_default_row(model, fallback)]
+    values = [float(site["plume_length"]) for site in sites
+              if site.get("plume_length") not in (None, "")]
+    return list(range(start, start + len(values))), values
 
 
 def run_rows(model: str, frame: pd.DataFrame):
@@ -173,33 +171,26 @@ _CARD = {
     "min-height": "0",
 }
 # The site's own button blue (--brand-600 / --brand-700 on hover, what
-# .primary-btn uses). Panel widgets render in a shadow root, so the page's CSS
-# cannot reach them - the colour has to be handed to each widget as a
-# stylesheet. Carried by the actions that start something: the sample file, the
-# file picker, Upload, and Run Scenarios.
+# .primary-btn uses). Carried by the actions that start something: the sample
+# file, the file picker, Upload and Run Scenarios.
+#
+# Those four ask for it with button_type="primary" rather than a stylesheet of
+# their own. A per-widget `stylesheets` REPLACES panel_theme's, so a private
+# sheet costs the shared radius, padding and shadow - which is exactly how these
+# ended up a different shape from every other button on the card. The file input
+# has no button_type, so it still needs a sheet; it repeats the theme's metrics
+# so its picker matches.
 _BRAND = "#155da9"
 _BRAND_DARK = "#114b88"
-_BRAND_BUTTON_CSS = f"""
-.bk-btn, .bk-btn-default, .bk-btn-primary {{
-  background: {_BRAND};
-  border-color: {_BRAND};
-  color: #fff;
-  font-weight: 600;
-}}
-.bk-btn:hover, .bk-btn-default:hover, .bk-btn-primary:hover {{
-  background: {_BRAND_DARK};
-  border-color: {_BRAND_DARK};
-  color: #fff;
-}}
-"""
 _BRAND_FILE_CSS = f"""
 input[type="file"]::file-selector-button {{
   background: {_BRAND};
   border: 1px solid {_BRAND};
   color: #fff;
   font-weight: 600;
-  border-radius: 4px;
-  padding: 5px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 9px 16px;
   margin-right: 8px;
   cursor: pointer;
 }}
@@ -254,7 +245,18 @@ def scenario_app(model: str):
     # No result box. It carries errors only - anything else it had to say (row
     # counts, min and max) is already on the table and the graph, and a card
     # standing there permanently just pushed the controls down.
-    status = pn.pane.HTML("", sizing_mode="stretch_width", margin=0)
+    # Hidden, not merely empty: an empty pane still counts as a child of the
+    # Column, so its 14px gap sat between the panel heading and the card as a
+    # strip of iframe background - a lighter shade than the card around it.
+    status = pn.pane.HTML("", sizing_mode="stretch_width", margin=0, visible=False)
+
+    def show_error(exc):
+        status.object = error_card(exc)
+        status.visible = True
+
+    def clear_error():
+        status.object = ""
+        status.visible = False
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
     # Keeps the page's iframe the height of this document - the graph sits at
     # the bottom, so a frame that cannot grow cuts it off entirely.
@@ -300,7 +302,7 @@ def scenario_app(model: str):
         options=dict(all_options), value=seeded, size=8, sizing_mode="stretch_width",
     )
     run_btn = pn.widgets.Button(name="Run Scenarios", width=160, sizing_mode="fixed",
-                                stylesheets=[_BRAND_BUTTON_CSS])
+                                button_type="primary")
 
     # The old CAST toolbar, in its original order and wording. Every one of these
     # stays put and stays enabled for the life of the page: they sit above the
@@ -313,7 +315,7 @@ def scenario_app(model: str):
     upload = pn.widgets.FileInput(accept=".csv", width=230, sizing_mode="fixed",
                                   stylesheets=[_BRAND_FILE_CSS])
     upload_btn = pn.widgets.Button(name="Upload", width=110, sizing_mode="fixed",
-                                   stylesheets=[_BRAND_BUTTON_CSS])
+                                   button_type="primary")
     results = {"frame": None}
 
     def _export_frame() -> pd.DataFrame:
@@ -326,8 +328,7 @@ def scenario_app(model: str):
     template_btn = pn.widgets.FileDownload(
         callback=lambda: _csv_bytes(pd.DataFrame([_default_row(model, spec["defaults"])], columns=columns)),
         filename=f"{model}_scenarios_template.csv", label="Download Sample File",
-        button_type="default", width=190, sizing_mode="fixed",
-        stylesheets=[_BRAND_BUTTON_CSS],
+        button_type="primary", width=190, sizing_mode="fixed",
     )
     csv_btn = pn.widgets.FileDownload(
         callback=lambda: _csv_bytes(_export_frame()),
@@ -422,7 +423,7 @@ def scenario_app(model: str):
         current = pd.DataFrame(table.value, columns=columns)
         table.value = pd.concat([current, pd.DataFrame([row])], ignore_index=True)[columns]
         _close_dialog()
-        status.object = ""          # the new row in the table is the feedback
+        clear_error()               # the new row in the table is the feedback
 
     def _clear(_=None):
         table.value = pd.DataFrame([], columns=columns)
@@ -431,36 +432,62 @@ def scenario_app(model: str):
         # Wired to the Upload button, not to picking a file: old CAST chose the
         # file first and uploaded on a second, deliberate click.
         if not upload.value:
-            status.object = error_card(ValueError("Choose a CSV file first, then press Upload."))
+            show_error(ValueError("Choose a CSV file first, then press Upload."))
             return
         try:
             table.value = read_scenario_csv(model, upload.value)
-            status.object = ""      # the loaded rows are the feedback
+            clear_error()           # the loaded rows are the feedback
         except Exception as exc:
             logger.exception("Scenario CSV upload failed for %s", model)
-            status.object = error_card(exc)
+            show_error(exc)
 
     def _run(_=None):
         try:
-            site_rows = seed_rows(model, _picked_sites(), fallback) if site_select.value else []
-            manual = pd.DataFrame(table.value, columns=columns)
-            frame = pd.concat([pd.DataFrame(site_rows, columns=columns), manual], ignore_index=True)
-            if frame.empty:
-                raise ValueError("Nothing to run: pick a site above, or add a scenario row.")
+            frame = pd.DataFrame(table.value, columns=columns)
+            picked = _picked_sites()
+            if frame.empty and not picked:
+                raise ValueError("Nothing to run: add a scenario row, or pick a site "
+                                 "to plot its measured plume length.")
 
-            labels, lengths, measured = run_rows(model, frame)
+            # The model series is the table, and only the table. Ticked sites add
+            # their measured plume length to the right of the last row.
+            labels, lengths, measured = run_rows(model, frame) if not frame.empty else ([], [], [])
+            row_x, row_y = measured_series(measured)
+            site_x, site_y = site_measured_points(picked, len(lengths) + 1)
             plot, plot_data = comparison_plot(
                 spec["title"], f"{spec['title']} model plume length",
                 list(range(1, len(lengths) + 1)), lengths,
-                0, email, "Scenario", return_data=True,
-                field_points=measured_series(measured),
+                0, email, "Scenario / Site", return_data=True,
+                field_points=(row_x + site_x, row_y + site_y),
                 field_label="Measured plume length",
             )
             plot_pane.object = plot
-            status.object = ""      # a drawn graph needs no box to announce it
+            clear_error()           # a drawn graph needs no box to announce it
 
-            results["frame"] = frame.assign(**{RESULT_COLUMN: lengths})
+            results["frame"] = frame.assign(**{RESULT_COLUMN: lengths}) if lengths else None
             _refresh_clipboard()
+            if not lengths:
+                # Measured points only. No model ran, but the graph on screen is
+                # real, so the report carries what it plots: the measurements.
+                measured_only = [(site_label(site), float(site["plume_length"]))
+                                 for site in picked
+                                 if site.get("plume_length") not in (None, "")]
+                if not measured_only:
+                    report_bridge.object = report_bridge_html(clear=True)
+                    return
+                report_bridge.object = report_bridge_html(
+                    f"{spec['title']} - Measured Plume Lengths", spec["title"],
+                    f"{model}_measured_report.pdf",
+                    parameters=[{"symbol": "L_measured", "name": "Measured Plume Length",
+                                 "value": value, "unit": "m", "site": label}
+                                for label, value in measured_only],
+                    outputs=[],
+                    # The stock caption compares against a model result there is
+                    # none of here.
+                    plot_data={**plot_data,
+                               "caption": "Measured plume lengths from the site database."},
+                )
+                return
             report_bridge.object = report_bridge_html(
                 f"{spec['title']} - Multiple Simulation", spec["title"],
                 f"{model}_multiple_report.pdf",
@@ -483,7 +510,7 @@ def scenario_app(model: str):
             )
         except Exception as exc:
             logger.exception("%s scenario run failed", model)
-            status.object = error_card(exc)
+            show_error(exc)
             plot_pane.object = None
             report_bridge.object = report_bridge_html(clear=True)
 
@@ -509,8 +536,10 @@ def scenario_app(model: str):
         # rather than opening on an empty graph.
         _run()
 
-    sites_note = ("Ctrl/Cmd-click to pick several. Filtering does not clear what is "
-                  "already picked. Nothing is selected until you pick.")
+    sites_note = ("Ctrl/Cmd-click to pick several. A picked site plots its measured "
+                  "plume length only - the model runs on the scenario table below, "
+                  "because the database carries no dispersivity or stoichiometry. "
+                  "Filtering does not clear what is already picked.")
     scenario_card = pn.Column(
         # One wrapping row rather than four fixed ones: stacked rows left a band
         # of empty card beside each short row. FlexBox wraps only when the width
