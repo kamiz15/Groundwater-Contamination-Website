@@ -924,14 +924,19 @@ class CASTReport:
             story += inputs_flow + results_flow + charts_flow
 
         # ── Disclaimer ────────────────────────────────────────────────────────
+        # One block: the banner is a table that will happily split, which left
+        # Model/Generated stranded at the foot of one page and the rest of the
+        # banner plus the disclaimer alone at the top of the next.
         story.append(Spacer(1, 6 * mm))
-        story.append(self._metadata_banner())
-        story.append(Spacer(1, 3 * mm))
-        story.append(self._hr(color=_LGRAY, thickness=0.5))
-        story.append(Paragraph(
-            "Disclamer: the author of the CAST is not responsible for the results.",
-            self.s_disclaimer,
-        ))
+        story.append(KeepTogether([
+            self._metadata_banner(),
+            Spacer(1, 3 * mm),
+            self._hr(color=_LGRAY, thickness=0.5),
+            Paragraph(
+                "Disclamer: the author of the CAST is not responsible for the results.",
+                self.s_disclaimer,
+            ),
+        ]))
 
         doc.build(story,
                   onFirstPage=self._header_footer,

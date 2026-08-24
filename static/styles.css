@@ -2137,15 +2137,14 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 /* Numerical multiples stack an input panel above the result panel in the stage;
    the input editor keeps its own 480px floor instead of the 680px result height. */
 
-/* Analytical / empirical multiples. The whole page is this one frame: graph on
-   top, then the toolbar, site list and scenario table that drive it, so the
-   floor has to clear the lot. It is a floor rather than a height because the
-   frame grows to its content when script.js can measure it - and when it
-   cannot (a cross-origin PANEL_PUBLIC_BASE) this is the only thing standing
-   between a drawn graph and a toolbar cut off below the fold. The rule above
-   keys off :last-child, which the output card is not here. */
+/* Analytical / empirical multiples. The whole page is this one frame: the
+   toolbar, site list and scenario table, with the graph under them. Kept to
+   what the controls need rather than the full document: script.js grows the
+   frame to its content, and a floor tall enough for a drawn graph leaves that
+   much blank card on a page that has not drawn one yet. The rule above keys
+   off :last-child, which the output card is not here. */
 .model-workbench-stage--multiple .model-output-card .panel-shell,
-.model-workbench-stage--multiple .model-output-card .panel-frame{ min-height: 1400px; }
+.model-workbench-stage--multiple .model-output-card .panel-frame{ min-height: 640px; }
 
 @media (max-width: 1080px){
   .model-workbench-layout{ grid-template-columns: 1fr; }

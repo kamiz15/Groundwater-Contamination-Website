@@ -27,9 +27,12 @@ import panel as pn
 
 from data_queries import get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
-from panel_analytical_common import comparison_plot, error_card, info_card, summary_card
+from panel_analytical_common import comparison_plot, error_card
 from panel_auth import authenticated_email
-from panel_site_comparison import MODEL_SPECS, manual_fallback, selected_site_ids, site_label
+from panel_site_comparison import (
+    FORM_ALIASES, MODEL_SPECS, manual_fallback, selected_site_ids, site_label,
+)
+from param_meta import table_titles
 from panel_theme import report_bridge_html
 from pdf_report import dataframe_pdf
 from symbol_registry import db_to_model
@@ -50,6 +53,28 @@ MAX_SCENARIOS = 200
 
 def scenario_columns(model: str) -> list[str]:
     return [SITE_COLUMN, *MODEL_SPECS[model]["args"], MEASURED_COLUMN]
+
+
+def column_titles(model: str) -> dict:
+    """Header text per column: the names and symbols the single pages use.
+
+    The stored column keys stay canonical (what the model function takes and
+    what an uploaded CSV must carry); only the display changes. param_meta
+    holds the wording, keyed by the single page's field names, so the canonical
+    key is translated through FORM_ALIASES to look it up. Models it does not
+    cover - BIOSCREEN - fall back to their own report spec, which carries the
+    same three pieces: name, symbol, unit.
+    """
+    spec = MODEL_SPECS[model]
+    aliases = FORM_ALIASES.get(model, {})
+    form_names = {arg: aliases.get(arg, arg) for arg in spec["args"]}
+    known = table_titles(list(form_names.values()), context=model)
+
+    spelled = {key: f"{name} {symbol} [{unit}]" for key, symbol, name, unit in spec["report"]}
+    titles = {arg: known.get(form_names[arg]) or spelled.get(arg, arg) for arg in spec["args"]}
+    titles[SITE_COLUMN] = SITE_COLUMN
+    titles[MEASURED_COLUMN] = MEASURED_COLUMN
+    return titles
 
 
 def _default_row(model: str, fallback: dict, label: str = "Manual") -> dict:
@@ -185,13 +210,14 @@ def visible_options(options: dict, query: str, picked) -> dict:
 def scenario_app(model: str):
     spec = MODEL_SPECS[model]
     columns = scenario_columns(model)
+    titles = column_titles(model)
     email = authenticated_email()
 
     plot_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=420)
-    status = pn.pane.HTML(
-        info_card("Pick sites below, or add your own scenarios, then press Run Scenarios."),
-        sizing_mode="stretch_width", margin=0,
-    )
+    # No result box. It carries errors only - anything else it had to say (row
+    # counts, min and max) is already on the table and the graph, and a card
+    # standing there permanently just pushed the controls down.
+    status = pn.pane.HTML("", sizing_mode="stretch_width", margin=0)
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
     # manual_fallback, not a plain read: a link written with the old CAST field
@@ -218,10 +244,14 @@ def scenario_app(model: str):
     # time, so ticking a different site never rewrites what was typed in here.
     # No fixed height: an empty table is a header strip, not 220px of blank card.
     # It grows with the rows and starts scrolling at max_height.
+    # titles only renames the headers; the stored keys stay canonical. Guarded
+    # because it is passed by name: requirements pin panel 1.4.5 while dev runs
+    # newer, and a rejected keyword would take the whole page down over headings.
+    heading_kwargs = {"titles": titles} if "titles" in pn.widgets.Tabulator.param else {}
     table = pn.widgets.Tabulator(
         pd.DataFrame([], columns=columns), show_index=False, max_height=320,
         layout="fit_columns", sizing_mode="stretch_width",
-        name=f"{spec['title']} scenarios",
+        name=f"{spec['title']} scenarios", **heading_kwargs,
     )
 
     site_search = pn.widgets.TextInput(placeholder="Search sites…", sizing_mode="stretch_width")
@@ -237,7 +267,9 @@ def scenario_app(model: str):
     # sight, and none of them is hidden until a run has happened.
     add_btn = pn.widgets.Button(name="Add Data", width=130, sizing_mode="fixed")
     clear_btn = pn.widgets.Button(name="Delete table data", width=150, sizing_mode="fixed")
-    upload = pn.widgets.FileInput(accept=".csv", sizing_mode="stretch_width")
+    # Fixed, not stretch_width: a stretching file input claimed the whole row and
+    # pushed every button after it onto a line of its own.
+    upload = pn.widgets.FileInput(accept=".csv", width=230, sizing_mode="fixed")
     upload_btn = pn.widgets.Button(name="Upload", width=110, sizing_mode="fixed")
     results = {"frame": None}
 
@@ -299,7 +331,7 @@ def scenario_app(model: str):
     # Fixed width so the parameters wrap two-abreast: stretched inputs stack into
     # one tall column, and a dialog taller than the card it sits on gets clipped.
     param_inputs = {
-        arg: pn.widgets.FloatInput(name=arg, value=float(fallback[arg]), step=0.01,
+        arg: pn.widgets.FloatInput(name=titles[arg], value=float(fallback[arg]), step=0.01,
                                    width=250, sizing_mode="fixed")
         for arg in spec["args"]
     }
@@ -346,9 +378,7 @@ def scenario_app(model: str):
         current = pd.DataFrame(table.value, columns=columns)
         table.value = pd.concat([current, pd.DataFrame([row])], ignore_index=True)[columns]
         _close_dialog()
-        status.object = info_card(
-            f"{len(table.value)} scenario row(s) ready. Press Run Scenarios to compute them."
-        )
+        status.object = ""          # the new row in the table is the feedback
 
     def _clear(_=None):
         table.value = pd.DataFrame([], columns=columns)
@@ -357,13 +387,11 @@ def scenario_app(model: str):
         # Wired to the Upload button, not to picking a file: old CAST chose the
         # file first and uploaded on a second, deliberate click.
         if not upload.value:
-            status.object = info_card("Choose a CSV file first, then press Upload.")
+            status.object = error_card(ValueError("Choose a CSV file first, then press Upload."))
             return
         try:
             table.value = read_scenario_csv(model, upload.value)
-            status.object = info_card(
-                f"Loaded {len(table.value)} row(s) from {upload.filename}. Press Run Scenarios."
-            )
+            status.object = ""      # the loaded rows are the feedback
         except Exception as exc:
             logger.exception("Scenario CSV upload failed for %s", model)
             status.object = error_card(exc)
@@ -385,14 +413,7 @@ def scenario_app(model: str):
                 field_label="Measured plume length",
             )
             plot_pane.object = plot
-            status.object = summary_card(
-                [("Runs", str(len(lengths))),
-                 ("Sites", str(len(site_rows))),
-                 ("Manual rows", str(len(manual))),
-                 ("Max Lmax", f"{max(lengths):.2f} m"),
-                 ("Min Lmax", f"{min(lengths):.2f} m")],
-                title=f"{spec['title']} - {len(lengths)} scenario(s)",
-            )
+            status.object = ""      # a drawn graph needs no box to announce it
 
             results["frame"] = frame.assign(**{RESULT_COLUMN: lengths})
             _refresh_clipboard()

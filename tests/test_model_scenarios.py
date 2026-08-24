@@ -8,7 +8,7 @@ import pytest
 from analytical_models import liedl_lmax
 from panel_analytical_common import comparison_plot_data
 from panel_model_scenarios import (
-    MEASURED_COLUMN, SITE_COLUMN, measured_series, read_scenario_csv,
+    MEASURED_COLUMN, SITE_COLUMN, column_titles, measured_series, read_scenario_csv,
     run_rows, scenario_app, scenario_columns, seed_rows, site_options, visible_options,
 )
 from panel_site_comparison import MODEL_SPECS
@@ -92,6 +92,47 @@ def test_uploaded_csv_fills_in_the_optional_columns():
 def test_uploaded_csv_missing_a_parameter_is_rejected():
     with pytest.raises(ValueError, match="alpha_Tv"):
         read_scenario_csv("liedl", b"M,gamma,C_A,C_D\n2,3.5,8,5\n")
+
+
+# --- column headings and the (absent) result box -------------------------------
+
+@pytest.mark.parametrize("model", sorted(MODEL_SPECS))
+def test_columns_are_headed_with_names_and_symbols(model):
+    """Raw argument keys (M, alpha_Tv) are not what the single pages show."""
+    titles = column_titles(model)
+
+    for arg in MODEL_SPECS[model]["args"]:
+        assert titles[arg] != arg, f"{model}.{arg} still shows its raw key"
+        assert "[" in titles[arg], f"{model}.{arg} has no unit"
+
+
+def test_the_headings_match_the_single_pages():
+    titles = column_titles("liedl")
+
+    assert titles["M"] == "Source Thickness S_T [m]"
+    assert titles["alpha_Tv"] == "Vertical Transverse Dispersivity α_Tv [m]"
+    assert titles["gamma"] == "Stoichiometric Ratio γ [-]"
+
+
+def test_a_model_param_meta_does_not_cover_still_gets_a_heading():
+    """BIOSCREEN is not in the table-title map; its own spec supplies the words."""
+    titles = column_titles("bioscreen")
+
+    assert titles["Cthres"] == "Threshold Contaminant Concentration C_thres [mg/L]"
+    assert titles["v"] == "Groundwater Seepage Velocity v [m/yr]"
+
+
+def test_the_stored_columns_stay_canonical():
+    """Only the heading changes - an uploaded CSV still carries the real keys."""
+    assert scenario_columns("liedl") == [SITE_COLUMN, "M", "alpha_Tv", "gamma",
+                                         "C_A", "C_D", MEASURED_COLUMN]
+
+
+def test_the_panel_opens_with_no_result_box():
+    app = scenario_app("liedl")
+    status = app.select(pn.pane.HTML)[0]
+
+    assert status.object == ""
 
 
 # --- the site picker on the card ---------------------------------------------
