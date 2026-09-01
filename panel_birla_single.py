@@ -7,7 +7,7 @@ from panel_auth import authenticated_email
 
 from empirical_models import birla_lmax
 from panel_empirical_common import (
-    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int, summary_card,
 )
 from pdf_report import CASTReport
@@ -16,7 +16,7 @@ pn.extension("tabulator", sizing_mode="stretch_width")
 
 
 def birla_single_app():
-    w_M = pn.widgets.FloatInput(name="Source Thickness S_T [m]", value=query_float("M", 2.0), step=0.1)
+    w_M = pn.widgets.FloatInput(name="Source Thickness T_s [m]", value=query_float("M", 2.0), step=0.1)
     w_tv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("tv", 0.001), step=0.0005)
     w_g = pn.widgets.FloatInput(name="Stoichiometry Coefficient \u03b3 [-]", value=query_float("g", 3.5), step=0.1)
     w_Ca = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("Ca", 8.0), step=0.5)
@@ -57,7 +57,7 @@ def birla_single_app():
             plot_pane.object = plot
             _state.update({
                 "parameters": [
-                    {"symbol": "S_T", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
+                    {"symbol": "T_s", "name": "Source Thickness", "value": w_M.value, "unit": "m"},
                     {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": w_tv.value, "unit": "m"},
                     {"symbol": "R_c", "name": "Recharge Rate", "value": w_R.value, "unit": "m/yr"},
                     {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": w_g.value, "unit": "-"},
@@ -77,10 +77,9 @@ def birla_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(
+        return output_only_layout(
             result_pane, plot_pane,
             explore_sliders([("M", w_M), ("tv", w_tv), ("R", w_R)], _run),
-            sizing_mode="stretch_width", styles={"gap": "14px"},
         )
 
     controls = pn.Column("### Manual inputs", w_M, w_tv, w_g, w_Ca, w_Cd, w_R, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})

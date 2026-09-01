@@ -195,8 +195,8 @@ class Mathieu(object):
 
         # add 4th dimension for vectorizing with respect to argument now,
         # rather than over and over in the code below
-        self.A.shape = (M,M,2,1)
-        self.B.shape = (M,M,2,1)
+        self.A = self.A.reshape(M, M, 2, 1)
+        self.B = self.B.reshape(M, M, 2, 1)
 
     ##################################################
     ##################################################

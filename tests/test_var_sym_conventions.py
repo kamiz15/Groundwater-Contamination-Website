@@ -36,7 +36,7 @@ def test_scenario_tables_use_the_same_display_notation():
 
 def test_model_pages_use_about_page_names_and_symbols():
     cases = [
-        ("panel_liedl_single", "M", "Aquifer Thickness [m]", "Source Thickness [m]", "<i>S</i><sub>T</sub>"),
+        ("panel_liedl_single", "M", "Aquifer Thickness [m]", "Source Thickness [m]", "<i>T</i><sub>s</sub>"),
         ("panel_chu_single", "W", "Source Width [m]", "Source Width [m]", "<i>S</i><sub>W</sub>"),
         ("panel_ham_single", "alpha_T", "Transverse Dispersivity [m]", "Horizontal Transverse Dispersivity [m]", "&alpha;<sub>Th</sub>"),
         ("panel_cirpka_single", "C_A", "Electron Acceptor [mg/L]", "Acceptor Concentration at Source [mg/L]", "<i>C</i><sub>A</sub><sup>0</sup>"),
@@ -53,16 +53,16 @@ def test_model_pages_use_about_page_names_and_symbols():
 
 def test_multiple_table_headers_follow_about_pages():
     assert table_titles(["M", "alpha_Tv", "C_ED0"], context="liedl") == {
-        "M": "Source Thickness S_T [m]",
+        "M": "Source Thickness T_s [m]",
         "alpha_Tv": "Vertical Transverse Dispersivity α_Tv [m]",
         "C_ED0": "Donor Concentration at Source C_D^0 [mg/L]",
     }
     assert table_titles(["Q", "alpha_T"], context="ham") == {
-        "Q": "Source Flux q [m²/yr]",
+        "Q": "Source Flux Wₑ [m²/yr]",
         "alpha_T": "Horizontal Transverse Dispersivity α_Th [m]",
     }
     assert table_titles(["M", "Ca", "Cd", "R"], context="birla") == {
-        "M": "Source Thickness S_T [m]",
+        "M": "Source Thickness T_s [m]",
         "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]",
         "Cd": "Donor Concentration at Source C_D^0 [mg/L]",
         "R": "Recharge Rate R_c [m/yr]",
@@ -71,7 +71,7 @@ def test_multiple_table_headers_follow_about_pages():
         "g": "Stoichiometry Coefficient γ [-]"
     }
     assert table_titles(["M", "C_ED0"], context="liedl", html=True) == {
-        "M": "Source Thickness <i>S</i><sub>T</sub> [m]",
+        "M": "Source Thickness <i>T</i><sub>s</sub> [m]",
         "C_ED0": "Donor Concentration at Source <i>C</i><sub>D</sub><sup>0</sup> [mg/L]",
     }
 

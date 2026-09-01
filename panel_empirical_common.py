@@ -13,6 +13,7 @@ from panel_analytical_common import (  # noqa: F401  (re-exported for the panels
     info_card,
     load_field_points,
     metric_card,
+    output_only_layout,
     summary_card,
 )
 

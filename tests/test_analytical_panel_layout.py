@@ -17,9 +17,13 @@ from panel_maier_multiple import maier_multiple_app
 from panel_maier_single import maier_single_app
 
 
+# Every multiple page runs the scenario-table mode (panel_model_scenarios) on
+# the single-simulation shell: the site picker is in the PAGE sidebar, and the
+# Add-row dialog belongs to the page too, so neither is in the panel. What is in
+# here is the run button, the graph, the export buttons and the table.
 MULTIPLE_APPS = [
-    bioscreen_multiple_app,
     liedl_multiple_app,
+    bioscreen_multiple_app,
     liedl3d_multiple_app,
     chu_multiple_app,
     ham_multiple_app,
@@ -49,13 +53,27 @@ ALL_APPS = [
 
 
 @pytest.mark.parametrize("app_factory", MULTIPLE_APPS)
-def test_multiple_panels_show_only_the_graph(app_factory):
-    """Multiple pages drive their runs from the sidebar's site checklist, so the
-    panel holds the comparison graph and no scenario table."""
+def test_multiple_panels_carry_the_graph_and_an_editable_scenario_table(app_factory):
+    """One shape across every model: the graph and the table it was built from,
+    with the picker and the Add-row dialog left to the page."""
     app = app_factory()
 
-    assert app.select(pn.widgets.Tabulator) == []
-    assert len(app.select(pn.pane.Bokeh)) == 1
+    table = app.select(pn.widgets.Tabulator)
+    assert len(table) == 1 and not table[0].disabled
+    assert table[0].selectable == "checkbox"                   # Delete row needs it
+    assert len(app.select(pn.widgets.MultiSelect)) == 1     # its own site picker
+    # No plot before a run: a box holds its place, and the graph replaces it.
+    # Found by what is in it rather than where it sits - the redesigned layout
+    # nests the slot beside the picker instead of at the top level.
+    slot = next(c for c in app.select(pn.Column)
+                if isinstance(next(iter(c), None), pn.pane.HTML)
+                and "Update Graph" in str(next(iter(c)).object))
+    assert len(slot) == 1 and isinstance(slot[0], pn.pane.HTML)
+    names = [w.name for w in app.select(pn.widgets.Button)]
+    # + and - carry "Add row" / "Delete row" in their tooltip on the redesign.
+    captions = set(names) | {w.description for w in app.select(pn.widgets.Button)}
+    assert {"Update Graph", "Delete table"} <= set(names)
+    assert {"Add row", "Delete row"} <= captions
 
 
 @pytest.mark.parametrize("app_factory", ALL_APPS)

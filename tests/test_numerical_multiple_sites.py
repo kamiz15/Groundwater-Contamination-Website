@@ -1,14 +1,20 @@
-"""Numerical multiple pages: sidebar site picks -> one solver run per site.
+"""Numerical multiple pages: the scenario table drives the runs.
 
-Unlike the analytical/empirical pages these start with nothing selected, because
-each picked site queues a full MODFLOW/MT3DMS job.
+They are the same page as every other multiple now (panel_model_scenarios): rows
+come from the page's Add-row dialog or an uploaded CSV, a ticked site contributes
+its measured plume length and nothing else, and Update Graph runs the table.
+
+What stays different is the cost of a row: each one is a full MODFLOW/MT3DMS job,
+so a comparison is capped at NUMERICAL_MULTIPLE_MAX_RUNS rather than 200.
 """
+import pandas as pd
+import panel as pn
 import pytest
 
 import panel_numerical_horizontal_multiple as horiz
+import panel_numerical_multiple_common as common
 import panel_numerical_vertical_multiple as vert
-from route_guards import compare_site_ids
-from settings import NUMERICAL_MULTIPLE_MAX_RUNS
+from panel_model_scenarios import MEASURED_COLUMN, SITE_COLUMN
 
 PANELS = [(horiz, "source_thickness"), (vert, "Lz")]
 
@@ -26,58 +32,110 @@ def _site(**over):
     return site
 
 
-@pytest.mark.parametrize("panel,size_key", PANELS)
-def test_nothing_picked_runs_nothing(panel, size_key, monkeypatch):
-    monkeypatch.setattr(panel, "_selected_site_ids", lambda: [])
-    with pytest.raises(ValueError, match="Pick at least one site"):
-        panel._scenarios_from_sites()
-
-
-@pytest.mark.parametrize("panel,size_key", PANELS)
-def test_one_scenario_per_picked_site_labelled_by_unit(panel, size_key, monkeypatch):
-    sites = [_site(id=1, site_unit="Borden"), _site(id=2, site_unit="Vejen"), _site(id=3, site_unit="Ott")]
-    monkeypatch.setattr(panel, "get_user_sites_rows", lambda _e: sites)
+def _app(panel, monkeypatch, sites=(), picked=()):
     monkeypatch.setattr(panel, "authenticated_email", lambda: "user@example.com")
-    monkeypatch.setattr(panel, "_selected_site_ids", lambda: [3, 1])
+    monkeypatch.setattr(panel, "get_user_sites_rows", lambda _e: list(sites))
+    monkeypatch.setattr(panel, "selected_site_ids", lambda: list(picked))
+    return panel.numerical_multiple_app(panel) if False else (
+        vert.numerical_vertical_multiple_app() if panel is vert
+        else horiz.numerical_horizontal_multiple_app())
 
-    rows = panel._scenarios_from_sites()
 
-    assert [r["label"] for r in rows] == ["Ott", "Borden"]   # picking order is kept
-    assert all(r[size_key] > 0 for r in rows)
+def _button(app, caption):
+    return next(w for w in app.select()
+                if getattr(w, "label", None) == caption or getattr(w, "name", None) == caption)
+
+
+def _update_graph(app, ids="?"):
+    """Press Update Graph. Ticking a site is setting the picker widget now -
+    the ids used to arrive from the page over a bridge."""
+    picker = app.select(pn.widgets.MultiSelect)[0]
+    if ids not in ("?", ""):
+        picker.value = [int(part) for part in str(ids).split(",") if part.strip().isdigit()]
+    elif ids == "":
+        picker.value = []
+    _button(app, "Update Graph").clicks += 1
 
 
 @pytest.mark.parametrize("panel,size_key", PANELS)
-def test_run_cap_is_enforced(panel, size_key, monkeypatch):
-    over = NUMERICAL_MULTIPLE_MAX_RUNS + 1
-    sites = [_site(id=i, site_unit=f"S{i}") for i in range(1, over + 1)]
-    monkeypatch.setattr(panel, "get_user_sites_rows", lambda _e: sites)
-    monkeypatch.setattr(panel, "authenticated_email", lambda: "user@example.com")
-    monkeypatch.setattr(panel, "_selected_site_ids", lambda: [s["id"] for s in sites])
+def test_the_page_opens_empty_like_every_other_multiple(panel, size_key, monkeypatch):
+    app = _app(panel, monkeypatch)
+    table = app.select(pn.widgets.Tabulator)[0]
+    names = [w.name for w in app.select(pn.widgets.Button)]
 
-    with pytest.raises(ValueError, match="Too many runs"):
-        panel._scenarios_from_sites()
+    assert len(table.value) == 0
+    assert table.selectable == "checkbox"
+    assert not table.disabled
+    assert {"Update Graph", "Delete table"} <= set(names)
+    # + and - carry their wording in the tooltip.
+    assert {"Add row", "Delete row"} <= {w.description for w in app.select(pn.widgets.Button)}
+    assert len(app.select(pn.widgets.MultiSelect)) == 1   # its own site picker
+    assert size_key in table.value.columns
 
 
 @pytest.mark.parametrize("panel,size_key", PANELS)
-def test_unknown_site_ids_are_dropped(panel, size_key, monkeypatch):
-    monkeypatch.setattr(panel, "get_user_sites_rows", lambda _e: [_site(id=1, site_unit="Borden")])
-    monkeypatch.setattr(panel, "authenticated_email", lambda: "user@example.com")
-    monkeypatch.setattr(panel, "_selected_site_ids", lambda: [1, 999])
+def test_nothing_at_all_runs_nothing(panel, size_key, monkeypatch):
+    app = _app(panel, monkeypatch)
+    status = app.select(pn.pane.HTML)[0]
 
-    assert [r["label"] for r in panel._scenarios_from_sites()] == ["Borden"]
+    _update_graph(app)
 
-    monkeypatch.setattr(panel, "_selected_site_ids", lambda: [999])
-    with pytest.raises(ValueError, match="None of the picked sites"):
-        panel._scenarios_from_sites()
+    assert "Nothing to run" in str(status.object)
 
 
-def test_numerical_pages_default_to_no_selection():
-    """default_all=False is what keeps a page load from queueing 336 solver runs."""
-    import app as flask_app
+@pytest.mark.parametrize("panel,size_key", PANELS)
+def test_a_ticked_site_contributes_a_measurement_not_a_run(panel, size_key, monkeypatch):
+    """The choice that separates this from the old page: a site is a measured
+    point. Its parameters are not borrowed to fabricate a simulation."""
+    submitted = []
+    monkeypatch.setattr(panel, "submit_job", lambda kind, payload: submitted.append(payload))
+    app = _app(panel, monkeypatch, sites=[_site(id=1, plume_length=120.0)])
 
-    usable = [{"id": 1}, {"id": 2}]
-    with flask_app.app.test_request_context("/numerical/vertical/multiple"):
-        assert compare_site_ids(usable, default_all=False) == []
-        assert compare_site_ids(usable) == [1, 2]          # analytical pages unchanged
-    with flask_app.app.test_request_context("/numerical/vertical/multiple?compare_sites=2"):
-        assert compare_site_ids(usable, default_all=False) == [2]
+    _update_graph(app, ids="1")
+
+    assert submitted == []                                # no MODFLOW job queued
+    # The slot is nested beside the picker, so it is found by what is in it.
+    slot = next(c for c in app.select(pn.Column)
+                if isinstance(next(iter(c), None), pn.pane.Bokeh))
+    assert isinstance(slot[0], pn.pane.Bokeh)             # but the graph is drawn
+
+
+@pytest.mark.parametrize("panel,size_key", PANELS)
+def test_the_run_cap_counts_table_rows(panel, size_key, monkeypatch):
+    """Every row is a full solver job, so the cap survives the redesign - it just
+    counts rows now instead of ticked sites."""
+    over = common.MAX_MULTIPLE_RUNS + 1
+    app = _app(panel, monkeypatch)
+    table = app.select(pn.widgets.Tabulator)[0]
+    status = app.select(pn.pane.HTML)[0]
+    row = {SITE_COLUMN: "S", MEASURED_COLUMN: None, **dict(panel.DEFAULT_ROW)}
+    table.value = pd.DataFrame([row] * over, columns=table.value.columns)
+
+    _update_graph(app)
+
+    assert "Too many runs" in str(status.object)
+    assert str(common.MAX_MULTIPLE_RUNS) in str(status.object)
+
+
+@pytest.mark.parametrize("panel,size_key", PANELS)
+def test_the_sample_maps_the_reference_sites_to_this_orientation(panel, size_key, monkeypatch):
+    frame = common.sample_scenarios(panel)
+
+    assert len(frame) > 100
+    assert list(frame.columns) == common.scenario_columns(panel)
+    assert frame[size_key].notna().all()
+    assert frame[MEASURED_COLUMN].nunique() > 1            # real measured lengths
+    # and it goes back in through Upload without editing
+    reread = common.read_scenario_frame(
+        frame.to_csv(index=False).encode(), panel.SCENARIO_COLUMNS,
+        common.scenario_columns(panel))
+    assert len(reread) == len(frame)
+
+
+@pytest.mark.parametrize("panel,size_key", PANELS)
+def test_the_add_row_dialog_gets_this_orientations_fields(panel, size_key, monkeypatch):
+    specs = common.numerical_field_specs(panel)
+
+    assert [s["key"] for s in specs] == list(panel.SCENARIO_COLUMNS)
+    assert all(s["label"] != s["key"] for s in specs)      # headings, not raw keys
+    assert all("[" in s["label"] for s in specs)           # with units

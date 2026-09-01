@@ -105,6 +105,17 @@ html[data-theme="dark"] a:hover { color: var(--brand-300); }
   box-shadow: var(--shadow-sm);
 }
 .primary-btn:hover{ background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
+/* Report Export sits on the page from the start and only becomes pressable once
+   a run has posted results, so a disabled primary button has to read as one. */
+.primary-btn:disabled{
+  background: var(--muted);
+  border-color: var(--muted);
+  color: #fff;
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.primary-btn:disabled:hover{ background: var(--muted); border-color: var(--muted); }
 .ghost-btn{
   border: 1px solid var(--panel-border);
   color: var(--text);
@@ -180,8 +191,16 @@ html[data-theme="dark"] .menu-link:hover{ background: rgba(94, 168, 255, 0.10); 
 }
 .dd-link:hover{ background: var(--brand-50); color: var(--brand-700); }
 html[data-theme="dark"] .dd-link:hover{ background: rgba(94, 168, 255, 0.10); color: var(--brand-300); }
+/* The model-group headings are links to their landing page, so clicking one
+   navigates and can no longer toggle the menu. Hover still opens it, and
+   :focus-within opens it for the keyboard. A tap on touch lands on the group
+   page, which lists the same models. */
 .menu-item:hover > .dropdown,
+.menu-item:focus-within > .dropdown,
 .menu-item.dropdown-open > .dropdown{ display: block; }
+/* Bridges the 6px offset above the panel. Without it the pointer leaves the
+   menu-item on the way down and the menu closes before it can be clicked. */
+.dropdown::before{ content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 6px; }
 
 /* Mobile header: compact controls, drawer holds full navigation. */
 @media (max-width: 960px){
@@ -1980,6 +1999,10 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   align-items: center;
   justify-content: space-between;
 }
+/* display:flex above would otherwise beat the UA's [hidden] rule, leaving
+   the card on screen before any run has posted a report - and its button
+   does nothing without one. */
+.report-download-card[hidden] { display: none; }
 
 .model-output-card { margin-bottom: 1rem; }
 
@@ -2014,6 +2037,9 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   gap: 16px;
   align-items: start;
 }
+/* Multiple pages that carry their picker and scenario table inside the Panel:
+   no sidebar column, so the stage takes the whole width. */
+.model-workbench-layout--full{ grid-template-columns: minmax(0, 1fr); }
 .model-workbench-sidebar{ display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .model-workbench-stage{ min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
@@ -2078,6 +2104,18 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
   background: var(--panel); color: var(--text);
 }
 .workbench-site-hint{ margin: 0; font-size: 0.78rem; color: var(--muted); }
+.site-search-input{
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  font: inherit; font-size: 0.86rem;
+  border: 1px solid var(--panel-border); border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--text);
+}
+.site-search-input:focus-visible{
+  outline: none;
+  border-color: var(--brand, #1f72cd);
+  box-shadow: 0 0 0 3px rgba(31, 114, 205, 0.22);
+}
 .workbench-site-form select[multiple]{ padding: 0.25rem; }
 .workbench-site-form select[multiple] option{ padding: 3px 5px; }
 .workbench-site-actions{ display: flex; gap: 8px; }
@@ -2106,12 +2144,14 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 
 /* Stage */
 .model-workbench-stage .model-output-card{ margin-bottom: 0; }
-/* Result card (~90) + Bokeh figure (420) + the Explore slider strip below it
-   (~170 at two sliders per row) + gaps. PANEL_PUBLIC_BASE is usually a separate
-   origin from Flask, so script.js cannot measure the frame and this floor is
-   the only thing holding the strip open - it has to clear the whole stack. */
+/* A floor for the moment before the panel has rendered, not a guess at the
+   finished height: the single panels post their document height (see
+   panel_analytical_common.output_only_layout) and script.js grows the frame to
+   it, cross-origin included. The old 860 was tuned by hand to clear the result
+   card, the figure and the slider strip, so it left dead space under every page
+   whose strip was shorter - and had to be re-tuned whenever the strip changed. */
 .model-workbench-stage .model-output-card:last-child .panel-shell,
-.model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 860px; }
+.model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 560px; }
 /* Numerical single output. The Bokeh figures are NOT aspect-locked: they are
    stretch_width with a fixed pixel height (430 for the plume view, 350 for the
    vertical reactive one), so a correct floor is knowable. script.js still grows
@@ -2122,12 +2162,22 @@ html[data-theme="dark"] .model-workbench-sidebar .external-input-card{
 /* Numerical multiples stack an input panel above the result panel in the stage;
    the input editor keeps its own 480px floor instead of the 680px result height. */
 
+/* Analytical / empirical multiples. The whole page is this one frame: the
+   toolbar, site list and scenario table, with the graph under them. Kept to
+   what the controls need rather than the full document: script.js grows the
+   frame to its content, and a floor tall enough for a drawn graph leaves that
+   much blank card on a page that has not drawn one yet. The rule above keys
+   off :last-child, which the output card is not here. */
+.model-workbench-stage--multiple .model-output-card .panel-shell,
+.model-workbench-stage--multiple .model-output-card .panel-frame{ min-height: 640px; }
+
 @media (max-width: 1080px){
   .model-workbench-layout{ grid-template-columns: 1fr; }
-  /* The slider strip folds to one column here, so the stage gets taller, not
-     shorter - four stacked sliders need more room than two rows of two. */
+  /* The strip folds to one column here, so the stage gets taller - but the
+     posted height already carries that, and a floor above it would only put the
+     dead space back. */
   .model-workbench-stage .model-output-card:last-child .panel-shell,
-  .model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 940px; }
+  .model-workbench-stage .model-output-card:last-child .panel-frame{ min-height: 560px; }
 }
 
 /* Numerical multiple pages: inputs (site loader + scenario editor) on the left,
@@ -2855,3 +2905,35 @@ html[data-theme="dark"] .about-equation-label{ color: var(--brand-400); }
   .about-grid{ grid-template-columns: 1fr; margin-top: -22px; }
   .about-hero-top{ flex-wrap: wrap; }
 }
+
+/* Scenario dialog (Liedl multiple). A page-level <dialog>, so it covers the
+   window rather than the Panel iframe the Add row button sits in. */
+.scenario-dialog{
+  border: 1px solid var(--panel-border, #e3e8ef);
+  border-radius: 12px;
+  padding: 0;
+  width: min(640px, calc(100vw - 32px));   /* fixed, or the field grid collapses to one tall column */
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.28);
+  background: #fff;
+  color: var(--text, #0b2c4f);
+}
+.scenario-dialog::backdrop{ background: rgba(11, 44, 79, 0.45); }
+.scenario-dialog form{ display: flex; flex-direction: column; gap: 8px; padding: 20px 22px; }
+.scenario-dialog h3{ margin: 0 0 4px; font-size: 1.02rem; }
+.scenario-dialog label{ font-size: 0.82rem; font-weight: 600; color: #5b6b7f; }
+.scenario-dialog input{
+  padding: 8px 10px; border: 1px solid var(--panel-border, #e3e8ef);
+  border-radius: 8px; font: inherit; width: 100%; box-sizing: border-box;
+}
+.scenario-dialog-grid{
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 16px; margin: 6px 0;
+  /* A label that wraps to two lines must not push its input out of line with
+     the one beside it. */
+  align-items: end;
+}
+.scenario-dialog-field{ display: flex; flex-direction: column; gap: 4px; }
+.scenario-dialog-actions{ display: flex; gap: 8px; margin-top: 12px; }
+/* No <dialog> support: it falls back to an inline card, so keep it out of the
+   flow until something opens it. */
+.scenario-dialog:not([open]){ display: none; }

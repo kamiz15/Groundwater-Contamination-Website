@@ -232,9 +232,9 @@ def test_numerical_multiple_wrapper_places_panel_in_layout(
     authenticated_wrapper_client,
     monkeypatch,
 ):
-    # Runs come from the sidebar's Compare Sites picker, whose submit button is
-    # the run trigger, so the wrapper has one panel frame and no separate runner
-    # frame, no single-site loader and no conceptual model.
+    # The scenario table inside the frame is the run now, and the site picker is
+    # in there with it. One panel frame, no separate runner frame, no sidebar, no
+    # single-site loader and no conceptual model.
     monkeypatch.setattr(numerical_routes, "get_user_sites_rows", lambda _email: [{"id": 7, "site_unit": "Borden"}])
 
     page = authenticated_wrapper_client.get(path).get_data(as_text=True)
@@ -247,8 +247,9 @@ def test_numerical_multiple_wrapper_places_panel_in_layout(
     assert "model-input-form" not in page
     assert "Load Uploaded Site" not in page
     assert "conceptual-img" not in page
-    assert 'name="compare_sites" multiple' in page
-    assert page.index("Compare Sites") < page.index("Simulation Panel")
+    assert 'name="compare_sites"' not in page     # the picker is inside the frame
+    assert "model-workbench-sidebar" not in page
+    assert 'id="scenarioDialog"' in page          # the Add-row dialog is the page's
 
     # Nothing picked: the panel is told so (empty value, which parse_qs drops)
     # and is NOT told to run, so a page load never queues a solver job.
@@ -373,7 +374,7 @@ def test_liedl_about_pilot_has_chips_and_no_placeholders(public_client):
     assert "conceptual_liedl_2005.png" in page
     assert 'mathvariant="normal">max' in page
     assert "Closed form" not in page
-    assert 'title="Source thickness [L]"><mi>S</mi><mi>T</mi>' in page
+    assert 'title="Source thickness [L]"><mi>T</mi><mi>s</mi>' in page
     assert "Transverse vertical dispersivity [L]" in page
     assert "Stoichiometry ratio [-]" in page
     assert "Donor concentration at source [ML⁻³]" in page
@@ -385,7 +386,7 @@ def test_liedl3d_about_uses_corrected_symbols_dimensions_and_source(public_clien
     page = public_client.get("/models/liedl3d/about").get_data(as_text=True)
 
     assert "conceptual_liedl_2011.png" in page
-    assert 'title="Source thickness [L]"><mi>S</mi><mi>T</mi>' in page
+    assert 'title="Source thickness [L]"><mi>T</mi><mi>s</mi>' in page
     assert 'title="Source width [L]"><mi>S</mi><mi>W</mi>' in page
     assert "Transverse horizontal dispersivity [L]" in page
     assert "Threshold donor concentration [ML⁻³]" in page
@@ -409,8 +410,8 @@ def test_ham_about_uses_corrected_symbols_dimensions_and_source(public_client):
     page = public_client.get("/models/ham/about").get_data(as_text=True)
 
     assert "conceptual_ham_2004.png" in page
-    assert 'title="Source flux [L²T⁻¹]">q</mi>' in page
-    assert "flux <math><mi>q</mi></math>" in page
+    assert 'title="Source flux [L²T⁻¹]">W</mi><mi>e</mi>' in page
+    assert "flux <math><msub><mi>W</mi><mi>e</mi></msub></math>" in page
     assert "Transverse horizontal dispersivity [L]" in page
     assert "Donor concentration at source [LT⁻³]" in page
     assert "Ham, P. A. S., R. J. Schotting, H. Prommer, and G. B. Davis. 2004." in page

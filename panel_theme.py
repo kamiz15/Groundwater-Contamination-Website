@@ -27,7 +27,14 @@ html, body {
 }
 """
 
-# Buttons (Button + FileDownload render .bk-btn inside their shadow root)
+# Buttons (Button + FileDownload render .bk-btn inside their shadow root).
+#
+# !important on the colours, not tighter selectors: Panel's own design sheet
+# paints buttons through `:host(.solid) .bk-btn.bk-btn-default` (specificity
+# 0,4,0), which outranks anything written as `.bk-btn-default` - every button
+# here was silently wearing Bokeh's stock grey and #0072b5 instead of the CAST
+# palette. The winning selector is a Panel internal that has changed shape
+# between releases; !important survives the next rename.
 BUTTON_CSS = """
 :host { font-family: %(font)s; }
 .bk-btn {
@@ -40,22 +47,33 @@ BUTTON_CSS = """
   transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
 .bk-btn-primary {
-  background: #155da9;
-  border: 1px solid #155da9;
-  color: #fff;
+  background: #155da9 !important;
+  border: 1px solid #155da9 !important;
+  color: #fff !important;
 }
 .bk-btn-primary:hover {
-  background: #114b88;
-  border-color: #114b88;
+  background: #114b88 !important;
+  border-color: #114b88 !important;
 }
 .bk-btn-default {
-  background: #eef1f5;
-  border: 1px solid #e3e8ef;
-  color: #16212e;
+  background: #eef1f5 !important;
+  border: 1px solid #e3e8ef !important;
+  color: #16212e !important;
 }
 .bk-btn-default:hover {
-  border-color: #5598e3;
-  color: #114b88;
+  border-color: #5598e3 !important;
+  color: #114b88 !important;
+}
+/* FileDownload (Download Sample File, CSV, Excel, PDF) puts its label in an <a>
+   inside the button, and Panel's design sheet zeroes the button's own padding
+   and gives the anchor 6px instead - 31px tall against a plain Button's 40px.
+   Match the metrics on the anchor so a toolbar of both lines up. */
+.bk-btn > a {
+  padding: 9px 16px;
+  line-height: 20px;
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 """ % {"font": FONT_FAMILY}
 
@@ -108,28 +126,61 @@ SLIDER_CSS = """
   color: #0b2c4f;
 }
 .noUi-target {
-  background: #dfe5ee;
+  /* 6px on a slightly darker rail: at 4px on #eef1f5 the track was barely
+     there, and the filled portion had nothing to read against. */
+  background: #d3dbe6;
   border: 0;
   border-radius: 999px;
   box-shadow: none;
-  height: 4px;
+  height: 6px;
   margin: 10px 8px 14px;
+  position: relative;
 }
-.noUi-connect { background: #1f72cd; }
+/* The value the model was last RUN with. explore_sliders sets the two custom
+   properties; with none set the notch is simply invisible, so a slider built
+   anywhere else is unaffected. */
+.noUi-target::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: var(--cast-baseline, 0%%);
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: #8a99ab;
+  opacity: var(--cast-baseline-on, 0);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+/* Left-to-right gradient: how far along its range the value sits is readable
+   from the fill itself, not just from the handle position. */
+.noUi-connect {
+  background: linear-gradient(90deg, #5598e3 0%%, #155da9 100%%);
+}
 .noUi-handle {
   width: 16px;
   height: 16px;
   right: -8px;
-  top: -6px;
+  top: -5px;
   border: 2px solid #fff;
   border-radius: 50%%;
   background: #155da9;
   box-shadow: 0 1px 3px rgba(11, 44, 79, 0.35);
   cursor: grab;
-  transition: background .15s ease, box-shadow .15s ease;
+  transition: background .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-.noUi-handle:hover { background: #114b88; }
-.noUi-handle:active { cursor: grabbing; }
+.noUi-handle:hover {
+  background: #114b88;
+  transform: scale(1.15);
+}
+/* Three sliders sit side by side, so the one being dragged says so: brighter
+   fill and a wider halo, held until the pointer is released. */
+.noUi-handle:active {
+  cursor: grabbing;
+  background: #2f8ae0;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 6px rgba(47, 138, 224, 0.22), 0 1px 3px rgba(11, 44, 79, 0.35);
+}
 .noUi-handle::before, .noUi-handle::after { display: none; }
 .noUi-handle:focus-visible {
   outline: none;
@@ -137,6 +188,7 @@ SLIDER_CSS = """
 }
 @media (prefers-reduced-motion: reduce) {
   .noUi-handle { transition: none; }
+  .noUi-handle:hover, .noUi-handle:active { transform: none; }
 }
 """ % {"font": FONT_FAMILY}
 
@@ -250,3 +302,45 @@ def report_bridge_html(title="", subtitle="", filename="", parameters=None,
         f'data-payload="{encoded}" '
         "onerror='window.parent.postMessage(JSON.parse(this.dataset.payload), \"*\")'>"
     )
+
+
+# Reports this document's height to the page embedding it. The parent can only
+# measure a frame it is allowed to read, which rules out any PANEL_PUBLIC_BASE
+# pointing at another port - and then the frame is stuck at its CSS floor: a
+# generous floor pads the page with blank space, a tight one cuts the graph off.
+# A posted height is right either way, and it tracks the document as Bokeh
+# renders into it. Set as the .object of a hidden pane, once per app.
+_FRAME_HEIGHT_BRIDGE = (
+    '<img src="data:," style="display:none" alt="" onerror=\''
+    "(function(){"
+    "if (window.__castHeightBridge) return;"
+    "window.__castHeightBridge = true;"
+    # The parent frame carries the whole document height, so an inner
+    # scrollbar would only be a second one.
+    "document.documentElement.style.overflowY = \"hidden\";"
+    # Panel pins the body to the viewport height, so a growing document
+    # OVERFLOWS the body box instead of enlarging it - and a ResizeObserver
+    # watching the body then never fires when a graph is drawn. Letting the body
+    # size to its content is what makes the observer below work at all;
+    # without it the only heights ever posted came from the retry timers, and a
+    # run started after the last one left the frame short and the graph cut off.
+    "document.body.style.height = \"auto\";"
+    "var post = function(){"
+    "var h = Math.ceil(Math.max(document.body.scrollHeight,"
+    "document.documentElement.scrollHeight));"
+    "if (h && h !== window.__castHeightLast) {"
+    "window.__castHeightLast = h;"
+    "window.parent.postMessage({type: \"cast-frame-height\", height: h}, \"*\");}};"
+    "post();"
+    "if (\"ResizeObserver\" in window) new ResizeObserver(post).observe(document.body);"
+    "window.addEventListener(\"load\", post);"
+    # Bokeh renders after load; these catch what the observer misses.
+    "[200, 800, 2000, 4000, 8000].forEach(function(ms){setTimeout(post, ms);});"
+    "})()'>"
+)
+
+
+def frame_height_bridge_html() -> str:
+    """Hidden pane that keeps the embedding page's iframe the height of this
+    document, cross-origin included."""
+    return _FRAME_HEIGHT_BRIDGE

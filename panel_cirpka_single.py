@@ -6,6 +6,7 @@ from analytical_models import cirpka_domain_length, cirpka_lmax
 from panel_analytical_common import (
     comparison_plot,
     error_card,
+    output_only_layout,
     query_float,
     query_int,
     summary_card,
@@ -64,9 +65,4 @@ def cirpka_single_app():
             result_pane.object = error_card(exc)
             plot_pane.object = None
 
-    return pn.Column(
-        result_pane,
-        plot_pane,
-        sizing_mode="stretch_width",
-        styles={"gap": "14px"},
-    )
+    return output_only_layout(result_pane, plot_pane)

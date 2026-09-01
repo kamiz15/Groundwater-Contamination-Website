@@ -41,9 +41,9 @@ def test_workbench_iframes_disable_redundant_inner_scrolling():
 
 
 def test_numerical_multiple_pages_use_one_panel_frame():
-    """The numerical multiple pages now reuse the shared multiple workbench: one
-    panel frame, driven by the sidebar picker. The second (headless runner) frame
-    and its cross-frame run relay are gone."""
+    """The numerical multiple pages sit on the shared multiple shell, the same one
+    every other multiple uses: one panel frame, and the run button inside it. The
+    second (headless runner) frame and its cross-frame run relay are gone."""
     styles = (PROJECT_ROOT / "static" / "styles.css").read_text(encoding="utf-8")
     for template_name in (
         "panel_numerical_horizontal_multiple.html",
@@ -51,13 +51,15 @@ def test_numerical_multiple_pages_use_one_panel_frame():
     ):
         template = (PROJECT_ROOT / "templates" / template_name).read_text(encoding="utf-8")
         assert '{% extends "model_workbench_multiple.html" %}' in template
-        assert "<iframe" not in template          # the shared workbench owns the frame
+        assert "<iframe" not in template          # the shared shell owns the frame
         assert "postMessage" not in template      # no cross-frame run relay
-        assert "compare_submit_label" in template # the picker's submit runs the model
+        # The picker is a widget in the frame now, so the page has no form to
+        # submit and no picker of its own.
+        assert "compare_submit_label" not in template
 
     shared = (PROJECT_ROOT / "templates" / "model_workbench_multiple.html").read_text(encoding="utf-8")
     assert shared.count("<iframe") == 1
-    assert 'name="compare_sites" multiple' in shared
+    assert 'name="compare_sites"' not in shared       # it lives in the panel
 
     assert "numerical-multiple" not in styles     # run-button/runner styles removed
 

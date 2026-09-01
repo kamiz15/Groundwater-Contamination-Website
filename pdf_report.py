@@ -19,7 +19,7 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -167,6 +167,20 @@ class CASTReport:
             "CastTH", parent=ss["Normal"],
             fontSize=9, leading=13, fontName=_FONT_BOLD,
             textColor=_WHITE,
+        )
+        # Compact variants for the multiple-run site table, which is many
+        # columns wide where the single-run table is four.
+        # 6pt, so parameter names ("Stoichiometry Ratio") fit a column instead
+        # of being broken mid-word.
+        self.s_th_sm = ParagraphStyle(
+            "CastTHSmall", parent=ss["Normal"],
+            fontSize=6, leading=8, fontName=_FONT_BOLD,
+            textColor=_WHITE,
+        )
+        self.s_td_sm = ParagraphStyle(
+            "CastTDSmall", parent=ss["Normal"],
+            fontSize=7, leading=9, fontName=_FONT_REGULAR,
+            textColor=_DARK,
         )
         self.s_metric_label = ParagraphStyle(
             "MetricLabel", parent=ss["Normal"],
@@ -378,8 +392,10 @@ class CASTReport:
         compact = compact.replace("\u03b1", "alpha_").replace("\u00ce\u00b1", "alpha_")
         compact = compact.replace("\u03b3", "gamma").replace("\u00ce\u00b3", "gamma")
         mapping = {
-            "S_T": "<i>S</i><sub>T</sub>",
-            "ST": "<i>S</i><sub>T</sub>",
+            "T_s": "<i>T</i><sub>s</sub>",
+            "TS": "<i>T</i><sub>s</sub>",
+            "S_T": "<i>T</i><sub>s</sub>",
+            "ST": "<i>T</i><sub>s</sub>",
             "S_W": "<i>S</i><sub>W</sub>",
             "M": "<i>T</i><sub>A</sub>",
             "Lz": "<i>T</i><sub>A</sub>",
@@ -514,6 +530,76 @@ class CASTReport:
         t.setStyle(TableStyle(style))
         return t
 
+    # ── Multiple-run input table (site database layout) ────────────────────────
+
+    # Parameter columns beyond this and the table splits, repeating the site
+    # columns. BIOSCREEN reports 14 parameters; squeezed into one row they are
+    # too narrow to read.
+    MAX_SITE_TABLE_PARAMS = 7
+
+    def build_site_input_tables(self, parameters: list) -> list:
+        """One row per site, one column per parameter - the site database layout.
+
+        A multiple run reports the same handful of parameters for every site,
+        which as a flat Parameter/Value list runs to hundreds of rows. Pivoting
+        it gives back the table the user already reads in the site database.
+
+        Parameters carry a "site" key here; the order they arrive in is the
+        order they were plotted, so a row's Site No. is its x position on the
+        graph.
+        """
+        sites, columns, units, cells = [], [], {}, {}
+        for p in parameters:
+            site = str(p.get("site") or "")
+            name = str(p["name"])
+            if site not in sites:
+                sites.append(site)
+            if name not in columns:
+                columns.append(name)
+                units[name] = str(p.get("unit") or "")
+            cells[(site, name)] = p["value"]
+
+        tables = []
+        for start in range(0, len(columns), self.MAX_SITE_TABLE_PARAMS):
+            chunk = columns[start:start + self.MAX_SITE_TABLE_PARAMS]
+            header = [Paragraph("Site No.", self.s_th_sm), Paragraph("Site Unit", self.s_th_sm)]
+            header += [
+                Paragraph(f"{name}{' [' + units[name] + ']' if units[name] else ''}", self.s_th_sm)
+                for name in chunk
+            ]
+            rows = [header]
+            for n, site in enumerate(sites, start=1):
+                row = [Paragraph(str(n), self.s_td_sm), Paragraph(site, self.s_td_sm)]
+                row += [
+                    Paragraph(
+                        self._fmt_value(cells[(site, name)]) if (site, name) in cells else "-",
+                        self.s_td_sm,
+                    )
+                    for name in chunk
+                ]
+                rows.append(row)
+
+            # Site columns take a fixed share; the parameters split what is left.
+            param_w = (CONTENT_W * 0.75) / len(chunk)
+            col_w = [CONTENT_W * 0.07, CONTENT_W * 0.18] + [param_w] * len(chunk)
+            t = Table(rows, colWidths=col_w, repeatRows=1)
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), _WHITE),
+                ("LINEBELOW", (0, 0), (-1, 0), 2, _TEAL),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, _LIGHT]),
+                ("GRID", (0, 0), (-1, -1), 0.3, _LGRAY),
+                ("LINEBELOW", (0, -1), (-1, -1), 1, _BLUE),
+                ("TEXTCOLOR", (2, 1), (-1, -1), _NAVY),
+            ]))
+            tables.append(t)
+        return tables
+
     # ── Results metrics grid ───────────────────────────────────────────────────
 
     def build_results_grid(self, outputs: list) -> Table:
@@ -585,14 +671,16 @@ class CASTReport:
             return clean_x, clean_y
 
         field_x, field_y = pairs(plot_data.get("field_x"), plot_data.get("field_y"))
+        site_x, site_y = pairs(plot_data.get("site_x"), plot_data.get("site_y"))
         manual_x, manual_y = pairs(plot_data.get("manual_x"), plot_data.get("manual_y"), limit=100)
-        if not field_y and not manual_y:
+        if not field_y and not site_y and not manual_y:
             return b""
 
         title = plot_data.get("title", "Computed Results")
         x_label = plot_data.get("x_label", "Site Number")
         y_label = plot_data.get("y_label", "Plume Length (m)")
         field_label = plot_data.get("field_label", "Database plume length")
+        site_label = plot_data.get("site_label", "Measured plume length (site)")
         manual_label = plot_data.get("manual_label", "Model plume length")
 
         fig, ax = plt.subplots(figsize=(8.2, 3.4), dpi=150)
@@ -601,11 +689,14 @@ class CASTReport:
 
         if field_x and field_y:
             ax.scatter(field_x, field_y, s=34, color="#5598e3", label=field_label, zorder=3)
+        if site_x and site_y:
+            ax.scatter(site_x, site_y, s=34, color="#155da9", marker="s",
+                       label=site_label, zorder=3)
         if manual_x and manual_y:
             ax.scatter(manual_x, manual_y, s=46, color="#0e3a69", label=manual_label, zorder=4)
 
-        all_x = [*field_x, *manual_x]
-        all_y = [*field_y, *manual_y]
+        all_x = [*field_x, *site_x, *manual_x]
+        all_y = [*field_y, *site_y, *manual_y]
         min_x, max_x = min(all_x), max(all_x)
         min_y, max_y = min(all_y), max(all_y)
         x_pad = max((max_x - min_x) * 0.04, 1.0)
@@ -740,21 +831,39 @@ class CASTReport:
         story.append(self._hr(color=_TEAL, thickness=1.5))
         story.append(Spacer(1, 4 * mm))
 
+        # A multiple run tags every parameter with its site. That flag decides
+        # both the input layout and the order of the sections below.
+        is_multiple = any(isinstance(p, dict) and p.get("site") for p in parameters)
+
         # ── Input Parameters ──────────────────────────────────────────────────
-        story.append(self._section_header("Input Parameters"))
-        story.append(Spacer(1, 3 * mm))
-        story.append(self.build_input_table(parameters))
-        story.append(Spacer(1, 10 * mm))
+        inputs_flow = [self._section_header("Input Parameters"), Spacer(1, 3 * mm)]
+        if is_multiple:
+            # Pivoted to the site database layout instead of one row per site
+            # per parameter.
+            for table in self.build_site_input_tables(parameters):
+                inputs_flow.append(table)
+                inputs_flow.append(Spacer(1, 4 * mm))
+        else:
+            inputs_flow.append(self.build_input_table(parameters))
+        inputs_flow.append(Spacer(1, 10 * mm))
 
         # ── Computed Results ──────────────────────────────────────────────────
-        story.append(KeepTogether([
-            self._section_header("Computed Results"),
-            Spacer(1, 3 * mm),
-            self.build_results_grid(outputs),
-        ]))
-        story.append(Spacer(1, 3 * mm))
+        # Skipped when there is nothing to put in it. A multiple run sends none:
+        # one metric card per site ran to a page of its own, and the modelled
+        # length is a column of the table above instead.
+        results_flow = []
+        if outputs:
+            results_flow = [
+                KeepTogether([
+                    self._section_header("Computed Results"),
+                    Spacer(1, 3 * mm),
+                    self.build_results_grid(outputs),
+                ]),
+                Spacer(1, 3 * mm),
+            ]
 
         # ── Results Charts ────────────────────────────────────────────────────
+        charts_flow = []
         image_items = []
         if plot_images:
             image_items.extend(plot_images)
@@ -774,9 +883,9 @@ class CASTReport:
                 if isinstance(first_item, dict)
                 else 105.0
             )
-            story.append(CondPageBreak((first_max_height + 20) * mm))
-            story.append(self._section_header("Results Visualisation"))
-            story.append(Spacer(1, 1 * mm))
+            charts_flow.append(CondPageBreak((first_max_height + 20) * mm))
+            charts_flow.append(self._section_header("Results Visualisation"))
+            charts_flow.append(Spacer(1, 1 * mm))
 
             for figure_no, item in enumerate(image_items, start=1):
                 max_height_mm = 105.0
@@ -804,27 +913,86 @@ class CASTReport:
 
                 img = Image(io.BytesIO(chart_bytes), width=img_w, height=img_h)
                 img.hAlign = "CENTER"
-                story.append(KeepTogether([
+                charts_flow.append(KeepTogether([
                     Paragraph(f"<b>Figure {figure_no} — {title}</b>", self.s_caption),
                     Spacer(1, 1.5 * mm),
                     img,
                     Spacer(1, 1.5 * mm),
                     Paragraph(caption, self.s_caption) if caption else Spacer(1, 0),
                 ]))
-                story.append(Spacer(1, 4 * mm))
+                charts_flow.append(Spacer(1, 4 * mm))
+
+        # A multiple run leads with the graph, so it lands on the first page
+        # instead of being pushed past a site table that runs on for pages -
+        # which left the page before it half empty. The table flows after it.
+        if is_multiple:
+            story += charts_flow + inputs_flow + results_flow
+        else:
+            story += inputs_flow + results_flow + charts_flow
 
         # ── Disclaimer ────────────────────────────────────────────────────────
+        # One block: the banner is a table that will happily split, which left
+        # Model/Generated stranded at the foot of one page and the rest of the
+        # banner plus the disclaimer alone at the top of the next.
         story.append(Spacer(1, 6 * mm))
-        story.append(self._metadata_banner())
-        story.append(Spacer(1, 3 * mm))
-        story.append(self._hr(color=_LGRAY, thickness=0.5))
-        story.append(Paragraph(
-            "Disclamer: the author of the CAST is not responsible for the results.",
-            self.s_disclaimer,
-        ))
+        story.append(KeepTogether([
+            self._metadata_banner(),
+            Spacer(1, 3 * mm),
+            self._hr(color=_LGRAY, thickness=0.5),
+            Paragraph(
+                "Disclamer: the author of the CAST is not responsible for the results.",
+                self.s_disclaimer,
+            ),
+        ]))
 
         doc.build(story,
                   onFirstPage=self._header_footer,
                   onLaterPages=self._header_footer,
                   canvasmaker=PageCountCanvas)
         return buffer.getvalue()
+
+
+def dataframe_pdf(frame, title: str) -> bytes:
+    """A plain landscape table of `frame` - what the scenario card's PDF button
+    hands back.
+
+    Deliberately not a CASTReport: this is the table export sitting next to
+    Copy / CSV / Excel, not the branded simulation report the page exports.
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=15 * mm, bottomMargin=15 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
+        title=title, author="HYMCAT / CAST Platform",
+    )
+    styles = getSampleStyleSheet()
+    head = ParagraphStyle("ExportTH", parent=styles["Normal"], fontSize=7, leading=9,
+                          fontName=_FONT_BOLD, textColor=_WHITE)
+    cell = ParagraphStyle("ExportTD", parent=styles["Normal"], fontSize=7, leading=9,
+                          fontName=_FONT_REGULAR, textColor=_DARK)
+
+    columns = [str(c) for c in frame.columns] or ["(no columns)"]
+    rows = [[Paragraph(escape(c), head) for c in columns]]
+    for _index, record in frame.iterrows():
+        rows.append([Paragraph(escape("" if value is None or value != value else str(value)), cell)
+                     for value in record.tolist()])
+    if len(rows) == 1:
+        rows.append([Paragraph("No rows", cell)] + [Paragraph("", cell)] * (len(columns) - 1))
+
+    width = landscape(A4)[0] - 24 * mm
+    table = Table(rows, colWidths=[width / len(columns)] * len(columns), repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), _WHITE),
+        ("LINEBELOW", (0, 0), (-1, 0), 2, _TEAL),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, _LIGHT]),
+        ("GRID", (0, 0), (-1, -1), 0.3, _LGRAY),
+    ]))
+
+    title_style = ParagraphStyle("ExportTitle", parent=styles["Normal"], fontSize=12,
+                                 leading=16, fontName=_FONT_BOLD, textColor=_NAVY)
+    doc.build([Paragraph(escape(title), title_style), Spacer(1, 4 * mm), table])
+    return buffer.getvalue()

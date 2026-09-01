@@ -30,7 +30,10 @@ if (themeBtn) {
   });
 }
 
-const toggles = document.querySelectorAll('.dd-toggle');
+// Buttons only: the model-group headings are anchors now, and a click on one
+// has to reach its landing page rather than open the menu (CSS opens that on
+// hover and focus).
+const toggles = document.querySelectorAll('button.dd-toggle');
 function closeAllDropdowns(){
   document.querySelectorAll('.menu-item.dropdown-open').forEach(item => item.classList.remove('dropdown-open'));
   toggles.forEach(t => t.setAttribute('aria-expanded','false'));
@@ -348,9 +351,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // window resize), never an observer, so it can't loop.
   const refitFrame = (frame) => {
     try {
+      const previous = frame.style.height;
       frame.style.height = "";               // collapse so short content can re-measure smaller
       const content = measure(frame);
-      if (content == null) return;
+      if (content == null) {
+        // Cross-origin: this frame is sized by the height bridge inside it, and
+        // the bridge only posts when its document height CHANGES - a resize that
+        // reflows without getting taller never triggers one. Leaving the height
+        // cleared drops the frame to its CSS floor and cuts the graph off, so
+        // put back what the bridge last set.
+        frame.style.height = previous;
+        return;
+      }
       frame.style.height = `${Math.max(content, floorOf(frame))}px`;
       noteSync(frame, "ok", "");
     } catch (_err) { /* measure() already reported the reason */ }
@@ -614,6 +626,57 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Panel frames that report their own height. measure() above can only read a
+// same-origin frame; with PANEL_PUBLIC_BASE on another port it never can, and
+// the frame is left at its CSS floor - blank space below a short document, a
+// cut-off graph on a tall one. A frame carrying the height bridge posts its
+// document height instead, which works either way.
+// ---------------------------------------------------------------------------
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "cast-frame-height") return;
+
+  const frames = Array.from(document.querySelectorAll("iframe.panel-frame"));
+  // Only a frame we embedded may resize itself, and only itself.
+  const frame = frames.find((f) => f.contentWindow === event.source);
+  if (!frame) return;
+
+  const floor = Number(frame.dataset.minHeight || 0);
+  const height = Math.max(Number(data.height) || 0, floor);
+  if (!height) return;
+  frame.style.height = `${height}px`;
+  frame.dataset.frameSync = "ok";     // stops the "never fitted" warning
+});
+
+// ---------------------------------------------------------------------------
+// CAST input bridge: the Explore sliders live inside the Panel frame, but the
+// input form and the PDF export link live out here and are both built from the
+// form. Without this a drag left both stale - pressing Run Model discarded the
+// exploration, and the exported report was computed from the values the page
+// was rendered with rather than the ones on screen.
+// ---------------------------------------------------------------------------
+(function () {
+  const fromPanelFrame = (source) =>
+    Array.from(document.querySelectorAll("iframe.panel-frame"))
+      .some((f) => f.contentWindow === source);
+
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || data.type !== "cast-input" || !data.name) return;
+    if (!fromPanelFrame(event.source)) return;
+
+    const form = document.getElementById("model-input-form");
+    const field = form && form.querySelector(`[name="${CSS.escape(data.name)}"]`);
+    if (field) field.value = data.value;
+
+    const link = document.getElementById("reportExportLink");
+    if (!link) return;
+    const url = new URL(link.getAttribute("href"), location.href);
+    url.searchParams.set(data.name, data.value);
+    link.setAttribute("href", url.pathname + url.search);
+  });
+})();
+
 // CAST report bridge: Panel iframes post their latest run results here so the
 // page-level "Report Export" card (outside the iframe) can build the PDF via
 // POST /report/export.
@@ -632,13 +695,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!fromEmbeddedFrame(event.source)) return;
     const card = document.getElementById("reportExportCard");
     if (!card) return;
+    // The card is always on the page; what a run changes is whether its button
+    // can be pressed. Hiding it left a page with no run looking as though the
+    // export did not exist.
+    const btn = card.querySelector("#reportExportBtn");
+    const hint = card.querySelector("#reportExportHint");
     if (data.clear || !data.state) {
       reportPayload = null;
-      card.hidden = true;
+      if (btn) btn.disabled = true;
+      if (hint) hint.textContent = "Download the branded CAST PDF report - run a simulation first.";
       return;
     }
     reportPayload = data;
-    card.hidden = false;
+    if (btn) btn.disabled = false;
+    if (hint) hint.textContent = "Download the branded CAST PDF report for the latest simulation run.";
   });
 
   document.addEventListener("click", async (e) => {
@@ -747,5 +817,47 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       fail("Could not generate the report. Please try again later.");
     }
+  });
+})();
+
+
+// ---------------------------------------------------------------------------
+// CAST scenario dialog: the Add row button lives inside the Panel frame, but a
+// dialog built in there can only cover the frame - a band in the middle of the
+// page. So the frame asks for this one, which is a real <dialog> and covers the
+// window, and the filled-in row is posted back to the frame that asked.
+// ---------------------------------------------------------------------------
+(function () {
+  const dialog = document.getElementById("scenarioDialog");
+  const form = document.getElementById("scenarioForm");
+  if (!dialog || !form) return;
+  let asker = null;                      // the frame waiting for a row
+
+  window.addEventListener("message", (event) => {
+    if (!event.data || event.data.type !== "cast-scenario-open") return;
+    const frames = Array.from(document.querySelectorAll("iframe.panel-frame"));
+    if (!frames.some((f) => f.contentWindow === event.source)) return;
+    asker = event.source;
+    form.reset();
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");     // no <dialog> support: inline, still usable
+  });
+
+  form.addEventListener("submit", () => {
+    // method="dialog" closes it for us; only the payload is ours to send.
+    if (!asker) return;
+    const row = {};
+    new FormData(form).forEach((value, key) => { row[key] = value; });
+    asker.postMessage({ type: "cast-scenario-row", row }, "*");
+    asker = null;
+  });
+
+  dialog.addEventListener("click", (e) => {
+    // The backdrop is part of the dialog element, so a click landing on the
+    // dialog itself rather than its form is a click outside the card.
+    if (e.target === dialog) dialog.close();
+  });
+  form.addEventListener("click", (e) => {
+    if (e.target.closest("[data-scenario-cancel]")) { asker = null; dialog.close(); }
   });
 })();

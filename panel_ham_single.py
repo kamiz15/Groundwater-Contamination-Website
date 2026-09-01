@@ -6,7 +6,7 @@ from panel_auth import authenticated_email
 
 from analytical_models import ham_lmax
 from panel_analytical_common import (
-    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int,
 )
 from pdf_report import CASTReport
@@ -15,7 +15,7 @@ pn.extension(sizing_mode="stretch_width")
 
 
 def ham_single_app():
-    q = pn.widgets.FloatInput(name="Source Flux q [m\u00b2/yr]", value=query_float("Q", 5.0), step=0.1)
+    q = pn.widgets.FloatInput(name="Source Flux W\u2091 [m\u00b2/yr]", value=query_float("Q", 5.0), step=0.1)
     alpha_t = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("alpha_T", 0.01), step=0.001)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
     c_ea0 = pn.widgets.FloatInput(name="Acceptor Concentration at Source C_A^0 [mg/L]", value=query_float("C_EA0", 8.0), step=0.1)
@@ -74,10 +74,9 @@ def ham_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(
+        return output_only_layout(
             result_pane, plot_pane,
             explore_sliders([("Q", q), ("alpha_T", alpha_t), ("gamma", gamma)], _run),
-            sizing_mode="stretch_width", styles={"gap": "14px"},
         )
 
     controls = pn.Column("### Manual inputs", q, alpha_t, gamma, c_ea0, c_ed0, sizing_mode="stretch_width", styles={"flex": "1 1 320px", "min-width": "280px"})

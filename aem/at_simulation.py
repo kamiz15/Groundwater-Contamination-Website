@@ -379,10 +379,10 @@ class ATSimulation:
                 updated_elements.append(elem)
                 mirrored = create_mirrored_element(elem)
                 mirrored.id = f"image_{elem.id}"
-                zero_isoline = create_zero_isoline(elem)
-                zero_isoline.id = f"zero_{elem.id}"
+                # zero_isoline = create_zero_isoline(elem)
+                # zero_isoline.id = f"zero_{elem.id}"
                 updated_elements.append(mirrored)
-            updated_elements.append(zero_isoline)
+            # updated_elements.append(zero_isoline)
             self.config.elements = updated_elements
             self.config.dom_ymax = 0
 

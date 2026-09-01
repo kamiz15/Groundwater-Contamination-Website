@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}CAST{% endblock %}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260804e">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260831a">
 
   {# Inter is self-hosted via @font-face in styles.css (GDPR: no visitor IPs to Google). #}
   {# BokehJS (~2 MB of render-blocking scripts) is only needed by pages that
@@ -61,9 +61,8 @@
           </li>
 
           <li class="menu-item has-dd">
-            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Analytical Model &#9662;
-            </button>
+            <a class="menu-link dd-toggle" aria-haspopup="true"
+               href="{{ url_for('analytical_bp.analytical_landing') }}">Analytical Model &#9662;</a>
             <ul class="dropdown">
               <li><a class="dd-link" href="{{ url_for('analytical_bp.liedl_single') }}">Liedl et al. (2005) 2D</a></li>
               <li><a class="dd-link" href="{{ url_for('analytical_bp.cirpka_single') }}">Cirpka et al. (2005) 2D Horizontal</a></li>
@@ -75,9 +74,8 @@
           </li>
 
           <li class="menu-item has-dd">
-            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Hybrid Models &#9662;
-            </button>
+            <a class="menu-link dd-toggle" aria-haspopup="true"
+               href="{{ url_for('empirical_bp.empirical_landing') }}">Hybrid Models &#9662;</a>
             <ul class="dropdown">
               <li><a class="dd-link" href="{{ url_for('empirical_bp.maier_single') }}">Maier &amp; Grathwohl (2005)</a></li>
               <li><a class="dd-link" href="{{ url_for('empirical_bp.birla_single') }}">Birla et al. (2020)</a></li>
@@ -86,9 +84,8 @@
           </li>
 
           <li class="menu-item has-dd">
-            <button class="menu-link dd-toggle" aria-haspopup="true" aria-expanded="false">
-              Numerical Model &#9662;
-            </button>
+            <a class="menu-link dd-toggle" aria-haspopup="true"
+               href="{{ url_for('numerical_bp.numerical_landing') }}">Numerical Model &#9662;</a>
             <ul class="dropdown">
               <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_horizontal_single') }}">2D Horizontal</a></li>
               <li><a class="dd-link" href="{{ url_for('numerical_bp.numerical_vertical_single') }}">2D Vertical</a></li>
@@ -167,6 +164,6 @@
     </footer>
   </div>
 
-  <script src="{{ url_for('static', filename='script.js') }}?v=20260805a"></script>
+  <script src="{{ url_for('static', filename='script.js') }}?v=20260831a"></script>
 </body>
 </html>

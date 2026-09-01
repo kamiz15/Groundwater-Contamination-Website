@@ -1,7 +1,10 @@
-<div class="card-like report-download-card" id="reportExportCard" data-csrf="{{ csrf_token() }}" hidden>
+{# Always on the page, disabled until a run posts results - script.js enables it
+   when a Panel frame sends its report payload. Hiding it outright meant a page
+   with no run yet had no sign the export existed at all. #}
+<div class="card-like report-download-card" id="reportExportCard" data-csrf="{{ csrf_token() }}">
   <div>
     <h3>Report Export</h3>
-    <p class="small">Download the branded CAST PDF report for the latest simulation run.</p>
+    <p class="small" id="reportExportHint">Download the branded CAST PDF report - run a simulation first.</p>
   </div>
-  <button type="button" class="primary-btn" id="reportExportBtn">Download PDF Report</button>
+  <button type="button" class="primary-btn" id="reportExportBtn" disabled>Download PDF Report</button>
 </div>

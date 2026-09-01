@@ -173,11 +173,17 @@ def _selected_site(model_name):
 
 
 def _render_multiple(model):
-    """Every multiple page is the same page: pick sites, run the model per site.
+    """Every multiple page is the same page: the single-simulation shell, with
+    the site picker in the sidebar and the scenario table inside the frame.
 
     The panel reads the ticked sites from its own query string, so they are
     appended after _panel_src (which only carries single-valued arguments).
     """
+    # Imported here rather than at module scope: panel_model_scenarios pulls in
+    # Panel and registers its tabulator extension, which the Flask process has no
+    # use for on any other route.
+    from panel_model_scenarios import scenario_field_specs
+
     sites, selected_site = _selected_site(model)
     ticked = compare_site_ids(sites)
     panel_path = f"panel_{model}_multiple"
@@ -189,7 +195,12 @@ def _render_multiple(model):
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         compare_site_ids=ticked,
-        input_fields=_input_fields(panel_path, selected_site),
+        show_site_loader=False,
+        # The page keeps only the Add-row dialog, which needs the field list -
+        # the picker, the graph, the toolbar and the table are all in the frame,
+        # so there is no sidebar and the report card sits under the frame.
+        scenario_fields=scenario_field_specs(model),
+        panel_min_height=800,
     )
 
 
@@ -442,7 +453,7 @@ def liedl_single_export():
     report = CASTReport("Liedl et al. (2005) — Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
             {"symbol": "gamma", "name": "Stoichiometric Ratio", "value": gamma, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": c_ea0, "unit": "mg/L"},
@@ -612,7 +623,7 @@ def bioscreen_single_export():
         parameters=[
             {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres, "unit": "mg/L"},
             {"symbol": "t", "name": "Simulation Time", "value": time_val, "unit": "yr"},
-            {"symbol": "S_T", "name": "Source Thickness", "value": h, "unit": "m"},
+            {"symbol": "T_s", "name": "Source Thickness", "value": h, "unit": "m"},
             {"symbol": "C_D0", "name": "Contamination Concentration", "value": c0, "unit": "mg/L"},
             {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
             {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v, "unit": "m/yr"},
@@ -673,7 +684,7 @@ def liedl3d_single_export():
     report = CASTReport("Liedl 3D (2011) — Single Simulation", "Liedl 3D (2011)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": alpha_th, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": alpha_tv, "unit": "m"},
             {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},

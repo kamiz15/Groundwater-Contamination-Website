@@ -1,8 +1,6 @@
 {% extends "model_workbench_multiple.html" %}
 {% block model_kicker %}Numerical Toolbox{% endblock %}
 {% block model_title %}Numerical Horizontal Model - Multiple Simulation{% endblock %}
-{% block model_hint %}Pick the sites to compare on the left and press Run. The model runs once per selected site using that site's database parameters. Nothing is selected by default because every site queues a full numerical simulation.{% endblock %}
-{% block compare_submit_label %}Run Horizontal Simulations{% endblock %}
 {% block toolbox_href %}{{ url_for('numerical_bp.numerical_landing') }}{% endblock %}
 {% block toolbox_label %}All numerical models{% endblock %}
 {% block model_about_link %}

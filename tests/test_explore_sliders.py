@@ -121,7 +121,8 @@ def test_result_boxes_say_lmax_with_a_subscript():
         "panel_cirpka_single.py", "panel_ham_single.py", "panel_liedl3d_single.py",
         "panel_liedl_single.py", "panel_maier_single.py",
         "panel_numerical_horizontal_single.py", "panel_numerical_vertical_single.py",
-        "panel_numerical_horizontal_multiple.py", "panel_numerical_vertical_multiple.py",
+        # The numerical multiples render through one shared engine now, so the
+        # orientation modules carry a contract and no result card of their own.
         "panel_numerical_multiple_common.py",
     ]
     root = pathlib.Path(__file__).resolve().parent.parent

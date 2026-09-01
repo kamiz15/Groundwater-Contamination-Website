@@ -587,15 +587,19 @@ def numerical_horizontal_single_export():
 
 @numerical_bp.route("/numerical/horizontal/multiple")
 def numerical_horizontal_multiple():
-    # One run per site picked in the sidebar. Nothing is picked by default:
-    # every selected site queues a full MODFLOW/MT3DMS job.
+    # The same page as every other multiple: the scenario table inside the frame
+    # drives the run, and a ticked site contributes its measured plume length.
+    # Nothing here submits - the picker posts its ids into the frame, because a
+    # reload would restart the Panel document and take the typed rows with it.
+    #
+    # Imported here rather than at module scope: the panel modules pull in Panel
+    # and register its tabulator extension, which no other route needs.
+    from panel_numerical_horizontal_multiple import numerical_field_specs_horizontal
+
     sites, _selected, _invalid = _selected_site("horizontal")
-    picked = compare_site_ids(sites, default_all=False)
-    # Submitting the picker IS the run: the panel autoruns whatever is picked.
+    picked = compare_site_ids(sites)
     panel_src = _panel_src("panel_numerical_horizontal_multiple", None, orientation="horizontal", output_only=False)
     panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})
-    if picked:
-        panel_src += "&run=1"
     return render_template(
         "panel_numerical_horizontal_multiple.html",
         panel_src=panel_src,
@@ -603,6 +607,8 @@ def numerical_horizontal_multiple():
         compare_site_ids=picked,
         max_runs=NUMERICAL_MULTIPLE_MAX_RUNS,
         show_site_loader=False,
+        panel_min_height=800,
+        scenario_fields=numerical_field_specs_horizontal(),
     )
 
 
@@ -634,15 +640,19 @@ def numerical_vertical_single_export():
 
 @numerical_bp.route("/numerical/vertical/multiple")
 def numerical_vertical_multiple():
-    # One run per site picked in the sidebar. Nothing is picked by default:
-    # every selected site queues a full MODFLOW/MT3DMS job.
+    # The same page as every other multiple: the scenario table inside the frame
+    # drives the run, and a ticked site contributes its measured plume length.
+    # Nothing here submits - the picker posts its ids into the frame, because a
+    # reload would restart the Panel document and take the typed rows with it.
+    #
+    # Imported here rather than at module scope: the panel modules pull in Panel
+    # and register its tabulator extension, which no other route needs.
+    from panel_numerical_vertical_multiple import numerical_field_specs_vertical
+
     sites, _selected, _invalid = _selected_site("vertical")
-    picked = compare_site_ids(sites, default_all=False)
-    # Submitting the picker IS the run: the panel autoruns whatever is picked.
+    picked = compare_site_ids(sites)
     panel_src = _panel_src("panel_numerical_vertical_multiple", None, orientation="vertical", output_only=False)
     panel_src += "&" + urlencode({"compare_sites": ",".join(str(i) for i in picked)})
-    if picked:
-        panel_src += "&run=1"
     return render_template(
         "panel_numerical_vertical_multiple.html",
         panel_src=panel_src,
@@ -650,4 +660,6 @@ def numerical_vertical_multiple():
         compare_site_ids=picked,
         max_runs=NUMERICAL_MULTIPLE_MAX_RUNS,
         show_site_loader=False,
+        panel_min_height=800,
+        scenario_fields=numerical_field_specs_vertical(),
     )

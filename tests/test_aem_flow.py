@@ -248,6 +248,13 @@ def test_reference_greedy_pack_output_is_stable():
     ]
 
 
+def test_reference_greedy_pack_returns_empty_for_a_zero_area_polygon():
+    # The endpoint rejects degenerate polygons before ever calling the packer
+    # (test_pack_rejects_invalid_or_zero_area_polygon), so the function's own
+    # guard is otherwise untested. Upstream: test_model.py TestGreedyPack.
+    assert greedy_circle_pack([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]) == []
+
+
 def test_pack_endpoint_matches_reference_algorithm(aem_client):
     vertices = [[0, 0], [0.03, 0], [0.03, 0.03], [0, 0.03]]
     response = _post(aem_client,
@@ -422,6 +429,40 @@ def test_default_vertical_config_satisfies_real_solver_geometry_guard():
         element.calc_d_q(config.alpha_t, config.alpha_l, config.beta)
         element.set_outline(config.num_cp)
         assert len(element.outline) == config.num_cp
+
+
+def test_vertical_assembly_adds_mirror_images_and_no_zero_isoline(monkeypatch):
+    """Vertical setup pairs each source with its mirror image and nothing else.
+
+    The reference commented out create_zero_isoline (at_simulation.py:381-385);
+    aem/ matches it. Re-enabling it changes solved concentrations — on a single
+    source it moved L_max 58 -> 55 m — so pin the assembly. The append also sat
+    OUTSIDE the loop, so it only ever added an isoline for the LAST source.
+
+    conc_array is stubbed out: it starts a multiprocessing Pool that costs ~13 s
+    on Windows (spawn re-imports matplotlib per worker) regardless of grid size,
+    and element assembly happens before it.
+    """
+    config = build_config({"config_json": aem_routes._validated_config({
+        **VALID_CONFIG,
+        "elements": [
+            {"kind": "circle", "x": 1.0, "y": -2.0, "c": 20.0, "r": 0.5, "id": "src_0"},
+            {"kind": "circle", "x": 3.0, "y": -2.5, "c": 20.0, "r": 0.4, "id": "src_1"},
+        ],
+    })})
+    simulation = ATSimulation(config)
+
+    class _StopAfterSetup(Exception):
+        pass
+
+    monkeypatch.setattr(ATSimulation, "conc_array",
+                        lambda *args, **kwargs: (_ for _ in ()).throw(_StopAfterSetup()))
+    with pytest.raises(_StopAfterSetup):
+        simulation.run()
+
+    assert [element.id for element in simulation.config.elements] == [
+        "src_0", "image_src_0", "src_1", "image_src_1",
+    ]
 
 
 @pytest.mark.parametrize("path", [

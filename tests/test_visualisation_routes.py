@@ -53,6 +53,21 @@ class VisualisationRouteTests(unittest.TestCase):
         self.assertLess(page.index(">Home</a>"), page.index("Database &#9662;"))
         self.assertLess(page.index("Database &#9662;"), page.index("Analytical Model &#9662;"))
 
+    def test_the_model_group_headings_link_to_their_landing_page(self):
+        """Clicking a group in the header goes to that group's page, so each
+        heading has to be an anchor with the landing href - a <button> here
+        only opened the menu and went nowhere."""
+        page = self.client.get("/").get_data(as_text=True)
+
+        for label, href in [("Analytical Model", "/analytical"),
+                            ("Hybrid Models", "/empirical"),
+                            ("Numerical Model", "/numerical")]:
+            heading = re.search(
+                r'<a class="menu-link dd-toggle"[^>]*?href="([^"]+)">' + label,
+                page, flags=re.DOTALL)
+            self.assertIsNotNone(heading, f"{label} is not a link")
+            self.assertEqual(heading.group(1), href)
+
     def test_database_page_does_not_include_workbench_section(self):
         response = self.client.get("/sites")
         page = response.get_data(as_text=True)

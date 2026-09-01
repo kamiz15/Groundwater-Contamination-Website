@@ -1,17 +1,13 @@
 {% if export_href %}
 {% if export_async %}
-<div class="card-like report-download-card" id="reportExportCard" data-csrf="{{ csrf_token() }}" hidden>
-  <div>
-    <h3>Report Export</h3>
-    <p class="small">Download the branded CAST PDF report for the latest simulation run.</p>
-  </div>
-  <button type="button" class="primary-btn" id="reportExportBtn">Download PDF Report</button>
-</div>
+{% include "report_bridge_card.html" %}
 {% else %}
 <div class="card-like report-download-card">
   <h3>Report Export</h3>
   <p class="small">Download the branded CAST PDF report for the current model results and input values.</p>
-  <a class="primary-btn" href="{{ export_href }}">Download PDF Report</a>
+  {# id: the Explore sliders rewrite this href as they move, so the PDF is
+     built from what is on screen rather than what the page was rendered with. #}
+  <a class="primary-btn" id="reportExportLink" href="{{ export_href }}">Download PDF Report</a>
 </div>
 {% endif %}
 {% endif %}

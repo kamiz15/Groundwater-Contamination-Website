@@ -51,11 +51,15 @@ EMPIRICAL_INPUT_SPECS = {
 
 
 def _render_multiple(model):
-    """Multiple page: pick sites in the sidebar, run the model once per site.
+    """Multiple page: one full-width Panel frame carrying the site picker, the
+    graph, the toolbar and the scenario table, with the report card under it.
 
     The panel reads the ticked sites from its own query string, so they are
     appended after _panel_src (which only carries single-valued arguments).
     """
+    # Imported here rather than at module scope - see analytical_routes.
+    from panel_model_scenarios import scenario_field_specs
+
     sites, selected_site = _selected_site(model)
     ticked = compare_site_ids(sites)
     panel_path = f"panel_{model}_multiple"
@@ -67,7 +71,10 @@ def _render_multiple(model):
         sites=sites,
         selected_site_id=selected_site.get("id") if selected_site else None,
         compare_site_ids=ticked,
-        input_fields=_input_fields(panel_path, selected_site),
+        show_site_loader=False,
+        # The page keeps only the Add-row dialog, which needs the field list.
+        scenario_fields=scenario_field_specs(model),
+        panel_min_height=800,
     )
 
 
@@ -215,7 +222,7 @@ def maier_single_export():
     report = CASTReport("Maier & Grathwohl (2006) — Single Simulation", "Maier & Grathwohl (2006)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
             {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},
             {"symbol": "C_A0", "name": "Acceptor Concentration at Source", "value": ca, "unit": "mg/L"},
@@ -268,7 +275,7 @@ def birla_single_export():
     report = CASTReport("Birla et al. (2020) — Single Simulation", "Birla et al. (2020)")
     pdf_bytes = report.generate(
         parameters=[
-            {"symbol": "S_T", "name": "Source Thickness", "value": m, "unit": "m"},
+            {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
             {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": tv, "unit": "m"},
             {"symbol": "R_c", "name": "Recharge Rate", "value": r, "unit": "m/yr"},
             {"symbol": "gamma", "name": "Stoichiometry Ratio", "value": g, "unit": "-"},

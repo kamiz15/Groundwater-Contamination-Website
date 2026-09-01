@@ -1,6 +1,6 @@
 # CAST Groundwater Contamination Assessment
 
-CAST is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, Bokeh visualisations, and branded PDF reports.
+CAST is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, an analytic-element-method (AEM) transport model with an inverse mode, a data-analysis workbench, Bokeh visualisations, and branded PDF reports.
 
 This README documents the CAST application architecture, runtime flow, model implementations, configuration, routes, repository layout, and development procedures.
 
@@ -10,18 +10,22 @@ This README documents the CAST application architecture, runtime flow, model imp
 2. [Architecture](#architecture)
 3. [Application Flow](#application-flow)
 4. [Model Catalogue](#model-catalogue)
-5. [Database and Autofill](#database-and-autofill)
-6. [PDF Reports](#pdf-reports)
-7. [Local Setup](#local-setup)
-8. [Docker Setup](#docker-setup)
-9. [Configuration](#configuration)
-10. [Flask Routes](#flask-routes)
-11. [Panel Routes](#panel-routes)
-12. [Repository Layout](#repository-layout)
-13. [File Guide](#file-guide)
-14. [Known Limitations](#known-limitations)
-15. [Change History](#change-history)
-16. [Development Notes](#development-notes)
+5. [AEM Toolbox](#aem-toolbox)
+6. [Data Analysis Workbench](#data-analysis-workbench)
+7. [Asynchronous Job Queue](#asynchronous-job-queue)
+8. [Database and Autofill](#database-and-autofill)
+9. [Accounts, Guests, and Security](#accounts-guests-and-security)
+10. [PDF Reports](#pdf-reports)
+11. [Local Setup](#local-setup)
+12. [Docker Setup](#docker-setup)
+13. [Configuration](#configuration)
+14. [Flask Routes](#flask-routes)
+15. [Panel Routes](#panel-routes)
+16. [Repository Layout](#repository-layout)
+17. [File Guide](#file-guide)
+18. [Known Limitations](#known-limitations)
+19. [Change History](#change-history)
+20. [Development Notes](#development-notes)
 
 ## Implemented Features
 
@@ -29,6 +33,8 @@ The application includes:
 
 - A CAST landing page with animated background effects, toolbox navigation, documentation copy, and account links.
 - Registration, Flask-Login authentication, logout, password hashing, and user-owned data access.
+- Guest access: every model, dashboard, and simulation runs without an account. An account is required only to save sites to the user database. Guests are identified by a per-session id so one visitor's runs never reach another's.
+- A bundled 112-site reference database used as the default data source for models and plots.
 - A MySQL-backed site database with manual site entry, bulk CSV upload, filtering, and sorting.
 - Database-to-model autofill for site-linked inputs, with database and manual fields shown separately.
 - Analytical models:
@@ -44,11 +50,17 @@ The application includes:
 - Numerical models:
   - Horizontal plan-view reactive transport in the `(x, y)` plane.
   - Vertical cross-section reactive transport in the `(x, z)` plane.
+- An AEM (analytic element method) toolbox: forward transport model over circle/line/ellipse source elements, an interactive source designer with automatic element packing, and an inverse mode recovering one transport parameter from a target plume length.
+- A data-analysis workbench: distribution fits, kernel density estimation, curve fits with confidence bands, gridded contour/profile/gradient plots, MODFLOW binary ingestion, and descriptive statistics.
+- An asynchronous job queue for MODFLOW and AEM runs, with status polling, cancellation, and stale-job reaping.
 - Interactive Bokeh result charts and editable Panel `Tabulator` scenario tables.
+- Multi-site comparison pages that run any analytical or empirical model once per selected site and plot modelled against measured plume length.
+- Public per-model About pages carrying the model description and governing equation.
 - Branded PDF report generation with input tables, summary cards, charts, logos, and optional numerical plume images.
+- A contact form with SMTP delivery, and imprint and privacy pages.
 - A Docker Compose stack containing Nginx, Flask/Gunicorn, Panel, and MySQL services.
 
-The landing page includes entries for optimisation and Water Quality Index tools. Those modules are placeholders and are not part of the implemented runtime.
+The earlier optimisation and Water Quality Index placeholder tiles are gone; the fifth landing tile (still carrying the id `model-optimization`) now opens the AEM toolbox. The model-selection toolbox described in the CAST documentation is not implemented.
 
 ## Architecture
 
@@ -61,10 +73,12 @@ Browser
   v
 Flask application (app.py, default port 5000)
   |-- Jinja HTML pages
-  |-- Flask-Login session
+  |-- Flask-Login session (or per-session guest id)
   |-- site database forms and plots
   |-- model wrapper pages
+  |-- AEM designer, forward, and inverse pages
   |-- GET PDF export routes
+  |-- job submit / status / cancel / result endpoints
   |
   | iframe URL with query parameters
   v
@@ -72,6 +86,7 @@ Panel server (panel_server.py, default port 5007)
   |-- analytical dashboards
   |-- empirical dashboards
   |-- numerical dashboards
+  |-- data analysis workbench
   |-- Bokeh plots
   |-- Panel FileDownload PDF exports
   |
@@ -81,9 +96,14 @@ Panel server (panel_server.py, default port 5007)
   +---------------------> empirical_models.py
   +---------------------> bioscreen_model.py
   +---------------------> numerical_models.py
+  +---------------------> aem/ (at_simulation, at_inverse_model)
                               |
                               +----> FloPy
                               +----> MODFLOW 6 executable (MF6_EXE)
+
+Job queue (numerical_jobs.py, SQLite under .numerical_jobs/)
+  |-- submit / status / cancel / fetch_result
+  +-- subprocess workers -> numerical_models.py or aem_jobs.py
 ```
 
 The optional Docker deployment adds Nginx in front:
@@ -109,6 +129,11 @@ See [Known Limitations](#known-limitations) before relying on the Docker stack f
 | Database | MySQL 8 |
 | Database client | `mysql-connector-python` |
 | Numerical groundwater simulation | FloPy and MODFLOW 6 GWF/GWT |
+| Analytic element method | NumPy/SciPy with modified Mathieu functions (Kuhlman, MIT) |
+| Source-geometry packing | Shapely |
+| Kernel density estimation | KDEpy |
+| Tabular data handling | pandas, openpyxl |
+| Job queue | SQLite (stdlib `sqlite3`) plus subprocess workers |
 | Scientific calculations | NumPy and SciPy |
 | Static numerical charts | Matplotlib |
 | PDF reports | ReportLab |
@@ -215,6 +240,91 @@ The checked-in numerical reference fixtures pin the expected plume-length output
 | Horizontal reference input | `36.1` | `36.10288085194749` |
 
 Earlier combined-orientation dashboards are retained under `archive/legacy_numerical/` for reference only.
+
+### Multi-site Comparison
+
+`panel_site_comparison.py` implements one shared multiple-simulation panel for every analytical and empirical model. The sidebar selects sites, the model runs once per selected site using that site's database parameters, and the plot places the modelled plume length beside the measured one. Only the per-model specification differs, so there is one panel body instead of eight near-copies. Parameters a site leaves `NULL` fall back to the values carried in the Panel URL.
+
+Site admissibility is decided per model by `model_site_validation.py`, which encodes each model's own mathematical restrictions (for example, models that divide by `C_EA0` require `electron_acceptor_o2 > 0`). Violating sites are hidden from that model's selector only. They are never deleted and stay selectable for every model whose restrictions they satisfy. A `NULL` field is not a violation: the page falls back to its manual default. The vertical numerical model keeps its own stricter filter in `numerical_input_validation.py`, which does require the fields to be present.
+
+## AEM Toolbox
+
+Package `aem/`, routed by `aem_routes.py` under `/aem`. File headers record the provenance: written by Alvin Yadav, based on code from Willi Kappler and Anton Koehler; the Mathieu-function library is Kuhlman's MIT-licensed implementation.
+
+### Forward Model
+
+`aem/at_simulation.py` solves steady-state reactive plumes for source geometries built from circle, line, and ellipse elements:
+
+1. Load a configuration of source elements (`aem/at_config.py`, `aem/at_element.py`).
+2. For vertical orientation, add mirror-image and zero-isoline elements to enforce the water-table boundary condition.
+3. Fit modified-Mathieu-function expansion coefficients by least squares so each element boundary carries its prescribed concentration.
+4. Evaluate the concentration field on a grid. Elements are partitioned into coupling groups so weakly interacting sources are solved separately and iteratively rather than as one dense system; grid evaluation is parallelised with a multiprocessing pool.
+5. Post-process: extract `L_max`, run the validation checks, and build plots.
+
+Validation checks (`validate_solution`) cover domain adequacy, vertical adequacy, concentration range, and element boundary error, so a physically meaningless solution is rejected rather than reported.
+
+### Source Designer
+
+`aem_source_geometry.py` holds the framework-free packing algorithms. A polygon drawn on the designer canvas is packed with non-overlapping circles using Shapely signed-distance geometry, with a configurable minimum radius and packing radius, and multi-element selection. The packed configuration is saved per user and seeds a forward run.
+
+### Inverse Model
+
+`aem/at_inverse_model.py`, marshalled by `run_aem_inverse()` in `aem_jobs.py`, recovers one parameter from a target plume length. Supported parameters are `alpha_t`, `alpha_l`, `r`, `C0`, `ca`, and `gamma`. Search bounds, initial step factor, step growth, and `L` tolerance are configured per parameter in `aem/at_inverse_config.py`. The dispersivity not being estimated is held at a configured fixed value. The result carries the recovered value, the achieved `L_max`, the target, the fixed parameters, a convergence flag, and the matched field arrays.
+
+### Grid Export
+
+`aem/at_grid_export.py` writes a solved field either as long-form CSV (one `x, y, concentration` row per grid point) or as NPZ (1-D x axis, 1-D y axis, 2-D concentration), both atomically, under one shared column contract. The last run per user is retained in `AEM_EXPORT_DIR` so the workbench can reopen it without a re-upload.
+
+Live `ATSimulation` objects hold `Mathieu` instances and a multiprocessing pool and are never pickled. `AEMForwardResult` and `AEMInverseResult` carry only plain arrays and scalars so they round-trip through the job queue.
+
+## Data Analysis Workbench
+
+Panel application `panel_data_analysis.py`, mounted at `/panel_data_analysis` and wrapped by `/data_analysis`. The maths lives in the `data_analysis/` package, which imports no Panel and is unit-tested directly.
+
+Data sources: the site database, an uploaded CSV, or the last AEM run for the current user.
+
+| Tab | Contents |
+| --- | --- |
+| Univariate | Histograms, normal and lognormal distribution fits, and KDE via KDEpy `FFTKDE` with ISJ, Silverman, or Scott bandwidth and six kernels (`data_analysis/kde.py`, `stats.py`) |
+| Bivariate | Scatter with grouping and error bars; linear, polynomial, exponential, and logarithmic fits with parameters, R2, and 95% delta-method confidence bands for the mean response (`data_analysis/fits.py`) |
+| Scientific | Gridded data: contour, profile extraction along either axis, and `-grad C` quiver fields, from AEM grids, numerical results, or long-form CSV (`data_analysis/grids.py`) |
+| Statistics | `describe()` augmented with skew, kurtosis, and missing counts |
+
+Supporting modules:
+
+| File | Responsibility |
+| --- | --- |
+| `data_analysis/datasets.py` | CSV intake, encoding fallbacks, column typing; every failure raises a user-safe `ValueError` |
+| `data_analysis/scales.py` | Linear, ln, log10, and inverse axis scales, applied by data transform rather than axis type so all four behave identically |
+| `data_analysis/notation.py` | Raw column names to typeset LaTeX axis labels; requires `pn.extension("mathjax")` |
+| `data_analysis/formatting.py` | Two-decimal display convention, falling back to scientific notation outside `[0.01, 100000]` |
+| `data_analysis/modflow.py` | Converts MODFLOW 6 `.hds`, `.ucn`, and `.cbc` binaries into the same long-form layout the Scientific tab consumes; pass domain extents for real metres rather than cell indices |
+| `data_analysis/plots.py` | Bokeh figure builders, no Panel imports |
+
+Everything on screen exports: statistics CSV, data CSV, and grid NPZ.
+
+## Asynchronous Job Queue
+
+`numerical_jobs.py` is a generic queue keyed by `kind`, backed by SQLite under `.numerical_jobs/` (`NUMERICAL_JOB_ROOT`), with results pickled to `results/` and worker output to `logs/`.
+
+- Statuses: `queued`, `running`, `done`, `failed`, `cancelled`.
+- `submit_job(kind, params)` enqueues; `pump_queue()` starts workers up to `NUMERICAL_MAX_CONCURRENCY` (default 2); each job runs in its own subprocess.
+- `cancel_job()` terminates a running worker; `_reap_stale_jobs()` fails jobs whose process is gone or which exceed `NUMERICAL_JOB_TIMEOUT_SECONDS` (default 900), so a crashed worker never leaves a job stuck in `running`.
+- Worker failures are logged in full; the client sees a generic message. AEM workers may prefix a message that is safe to show verbatim, and only that first line is passed through.
+- `NUMERICAL_MULTIPLE_MAX_RUNS` (default 12) caps how many runs one multi-site numerical comparison may queue.
+
+Both the numerical routes (`/numerical/jobs/...`) and the AEM routes (`/aem/jobs/...`) use this queue. Job metadata records the submitting identity so one user cannot poll or download another user's result.
+
+## Accounts, Guests, and Security
+
+Model pages, dashboards, and simulations are public. An account is required only for saving sites, because `sites.user_email` is a foreign key onto `users`.
+
+- Guests receive a per-session id (`guest-<random>@guest.invalid`, `security.current_email()`), so an anonymous visitor's runs and jobs stay separated from everyone else's without creating a database row.
+- Identity reaches the Panel service only through the reverse-proxy-injected `X-Auth-Email` header, which Nginx sets from the `auth_request` to `/auth/check` and always overwrites. `panel_auth.authenticated_email()` never trusts `?email=` unless `PANEL_TRUST_QUERY_EMAIL` is explicitly enabled for standalone local development.
+- `security.py` provides CSRF tokens for mutating forms, per-endpoint rate limits, a password policy with a maximum length that bounds hashing work, JSON and form body validation, and a generic database-error message.
+- `app.py` equalises login response timing with a dummy hash comparison so a non-existent account cannot be identified by timing.
+- Cookies are HttpOnly, SameSite=Lax, and Secure by default (`SESSION_COOKIE_SECURE`). `MAX_CONTENT_LENGTH` rejects oversized bodies.
+- `route_guards.guard_model_errors` turns model-input exceptions (`ValueError`, `TypeError`, `ZeroDivisionError`, `OverflowError`) into HTTP 400 rather than 500.
 
 ## Database and Autofill
 
@@ -463,6 +573,18 @@ The Docker image downloads the official MODFLOW 6 `6.7.0` Linux release archive,
 | `PANEL_PORT` | Panel port, default `5007`. |
 | `PANEL_ALLOW_ORIGINS` | Comma-separated websocket origins accepted by Panel. |
 | `MF6_EXE` | MODFLOW 6 executable used by numerical code. The Docker image installs it at `/usr/local/bin/mf6`. |
+| `SESSION_COOKIE_SECURE` | Send session and remember cookies over HTTPS only. Default on; set false for plain-HTTP local development. |
+| `TRUST_PROXY_HEADERS` | Trust the reverse proxy's `X-Real-IP` for rate-limit identity. Default on; disable only if Flask is exposed without the bundled proxy. |
+| `PANEL_TRUST_QUERY_EMAIL` | Let the Panel service fall back to `?email=` when no proxy injects `X-Auth-Email`. Default off; local development only. |
+| `CONTACT_EMAIL`, `CONTACT_FROM_EMAIL`, `CONTACT_MAX_MESSAGE_LENGTH` | Contact-form destination, sender, and message-length cap. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS` | Contact-form mail delivery. Without `SMTP_HOST` the form logs and acknowledges instead of sending. |
+| `MAX_SITE_UPLOAD_ROWS` | Cap on site rows accepted in one CSV upload, default `10000`. |
+| `MAX_REQUEST_BYTES` | Hard request-body cap, default 50 MB. Match this to the nginx `client_max_body_size`. |
+| `AEM_EXPORT_DIR` | Where an AEM forward run drops its concentration grid, one file per user, default `.aem_exports`. |
+| `NUMERICAL_JOB_ROOT` | Job-queue root holding the SQLite database, pickled results, and worker logs, default `.numerical_jobs`. |
+| `NUMERICAL_MAX_CONCURRENCY` | Simultaneous job workers, default `2`. |
+| `NUMERICAL_JOB_TIMEOUT_SECONDS` | Age after which a running job is reaped as stale, default `900`. |
+| `NUMERICAL_MULTIPLE_MAX_RUNS` | Cap on runs queued by one multi-site numerical comparison, default `12`. |
 | `NUMERICAL_MAX_CELLS` | Hard pre-run cap on `n_cols * n_rows`, default `40000`. Increase grid spacing before raising this limit. |
 | `NUMERICAL_SOLVER_TIMEOUT_S` | Per-process timeout for each MF6 flow or transport run, default `0` for disabled. Set a positive value only when a deployment needs an explicit ceiling. |
 | `NUMERICAL_HK_MIN_M_PER_DAY` | Lower plausibility bound for site-linked conductivity after conversion to numerical `hk` in `m/d`, default `0.000001`. |
@@ -479,6 +601,10 @@ Keep `.env` private. Copy placeholder names from the tracked `.env.example`, the
 | Method | Route | Handler | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/` | `home()` | Landing page. |
+| `GET` | `/health` | `health()` | Liveness plus database reachability, for container health checks. Returns 503 on a database outage. |
+| `GET` | `/me` | `me()` | JSON authentication state for frontend `fetch()` callers; 401 rather than a redirect when signed out. |
+| `GET` | `/models/<slug>/about` | `model_about()` | Public per-model description and governing equation page. |
+| `POST` | `/contact` | `contact()` | Rate-limited, CSRF-protected contact form; sends via SMTP when configured, otherwise logs and acknowledges. |
 | `GET` | `/login` | `login_page()` | Login form. |
 | `POST` | `/login` | `authenticate()` | JSON login request; authenticates a loader-backed Flask-Login user. |
 | `GET` | `/auth/check` | `auth_check()` | Internal Nginx subrequest endpoint for the Flask-Login session protecting `/panel/`. |
@@ -490,7 +616,14 @@ Keep `.env` private. Copy placeholder names from the tracked `.env.example`, the
 
 | Method | Route | Handler | Purpose |
 | --- | --- | --- | --- |
-| `GET`, `POST` | `/sites` | `site_database()` | Site table, manual insert, CSV upload, filters, and sorting. |
+| `GET`, `POST` | `/sites` | `site_database()` | Site table, manual insert, CSV upload, filters, and sorting. Guests may browse but not save. |
+| `POST` | `/sites/<int:site_id>/delete` | `delete_site()` | Delete one owned site row. |
+| `POST` | `/sites/clear` | `clear_sites()` | Delete every site owned by the caller. |
+| `GET` | `/sites/user.<file_format>` | `user_database_export()` | Filtered user-database export as `csv`, `xlsx`, or `pdf`. |
+| `GET` | `/sites/reference.<file_format>` | `reference_database_export()` | Reference-database export as `csv`, `xlsx`, or `pdf`. |
+| `GET` | `/dispersivity-data` | `dispersivity_data()` | Legacy dispersivity dataset page with histogram, box, and scatter assets. |
+| `GET` | `/data_analysis` | `data_analysis()` | Wrapper page embedding the data-analysis workbench. |
+| `POST` | `/report/export` | `report_export()` | PDF export of the current analysis view. |
 | `GET` | `/plot_bar` | `plot_bar()` | User/reference plume-length bar chart page. |
 | `GET` | `/plot_hist` | `plot_hist()` | Default plume-length histogram page. |
 | `GET` | `/plot_box` | `plot_box()` | Default plume-length box-plot page. |
@@ -547,6 +680,35 @@ Keep `.env` private. Copy placeholder names from the tracked `.env.example`, the
 | `GET` | `/numerical/vertical/single/export` | Runs a vertical numerical simulation and returns a PDF. |
 | `GET` | `/numerical/vertical/multiple` | Vertical numerical multiple-run page. |
 
+### Numerical Job Routes
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/numerical/jobs` | Submit a numerical run to the queue and return its job id. |
+| `GET` | `/numerical/jobs/<job_id>` | Poll job status and result metadata. |
+| `POST` | `/numerical/jobs/<job_id>/cancel` | Cancel a queued or running job. |
+| `GET` | `/numerical/jobs/<job_id>/report` | PDF report built from a completed job. |
+| `GET` | `/numerical/jobs/<job_id>/download/<kind>` | Download a run artifact, including the MODFLOW `.hds` and `.ucn` binaries. |
+
+### AEM Routes
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/aem` | AEM toolbox landing page. |
+| `GET` | `/aem/designer` | Interactive source-geometry designer. |
+| `GET` | `/aem/forward` | Forward-simulation page. |
+| `GET` | `/aem/inverse` | Inverse parameter-estimation page. |
+| `POST` | `/aem/api/pack` | Pack a drawn polygon with non-overlapping circular elements. |
+| `POST` | `/aem/api/repack` | Re-pack an existing design at a new radius. |
+| `POST` | `/aem/api/design` | Save the current designer configuration for the caller. |
+| `POST` | `/aem/api/forward` | Submit a forward AEM run to the job queue. |
+| `POST` | `/aem/api/inverse` | Submit an inverse AEM run to the job queue. |
+| `GET` | `/aem/jobs/<job_id>` | Poll AEM job status. |
+| `POST` | `/aem/jobs/<job_id>/cancel` | Cancel an AEM job. |
+| `GET` | `/aem/jobs/<job_id>/result` | JSON result payload for a completed AEM job. |
+| `GET` | `/aem/jobs/<job_id>/result.csv` | Long-form `x, y, concentration` grid export. |
+| `GET` | `/aem/jobs/<job_id>/result.npz` | Native grid export for the workbench. |
+
 ## Panel Routes
 
 `panel_server.py` mounts these Panel applications:
@@ -571,6 +733,7 @@ Keep `.env` private. Copy placeholder names from the tracked `.env.example`, the
 | `/panel_cirpka_single` | `cirpka_single_app` | Cirpka single output. |
 | `/panel_cirpka_single_output` | `cirpka_single_app` | Alias used by Cirpka single wrapper page. |
 | `/panel_cirpka_multiple` | `cirpka_multiple_app` | Cirpka scenario table. |
+| `/panel_data_analysis` | `data_analysis_app` | Data-analysis workbench. |
 | `/panel_numerical_horizontal_single` | `numerical_horizontal_single_app` | Horizontal numerical single simulation. |
 | `/panel_numerical_horizontal_multiple` | `numerical_horizontal_multiple_app` | Horizontal numerical scenario table. |
 | `/panel_numerical_vertical_single` | `numerical_vertical_single_app` | Vertical numerical single simulation. |
@@ -588,34 +751,52 @@ cast_landing_demo/
 |-- site_routes.py                 Site database and plot endpoints
 |-- analytical_routes.py           Analytical wrapper and export routes
 |-- empirical_routes.py            Empirical wrapper and export routes
-|-- numerical_routes.py            Numerical wrapper and export routes
+|-- numerical_routes.py            Numerical wrapper, job, and export routes
+|-- aem_routes.py                  AEM pages, designer API, and job endpoints
 |-- analytical_models.py           Analytical equations
 |-- empirical_models.py            Empirical equations
 |-- bioscreen_model.py             BIOSCREEN integration
 |-- numerical_models.py            FloPy MODFLOW 6 runners
+|-- numerical_jobs.py              Generic SQLite-backed async job queue
+|-- aem/                           AEM package: elements, simulation, inverse, export
+|-- aem_jobs.py                    AEM job marshalling and pickle-able results
+|-- aem_source_geometry.py         Source-polygon element packing
+|-- data_analysis/                 Workbench maths, free of Panel imports
+|-- model_site_validation.py       Per-model site admissibility rules
+|-- numerical_input_validation.py  Vertical numerical site validation and unit conversion
+|-- param_meta.py                  Per-input notation symbol and help text
+|-- security.py                    CSRF, rate limits, identity, request validation
+|-- route_guards.py                Model-input errors to HTTP 400
 |-- symbol_registry.py             Canonical database-to-model aliases
 |-- plot_functions.py              Bokeh and Matplotlib plot helpers
 |-- pdf_report.py                  ReportLab PDF engine
 |-- panel_server.py                Panel route registry
 |-- panel_*.py                     Panel dashboards and shared helpers
+|-- panel_theme.py                 Central Panel theme matching the site design
+|-- panel_auth.py                  Trusted-header identity for Panel sessions
+|-- panel_site_comparison.py       Shared multi-site comparison panel
+|-- panel_data_analysis.py         Data-analysis workbench dashboard
 |-- bioscreen_panel.py             BIOSCREEN dashboards
 |-- templates/                     Jinja HTML pages
 |-- static/                        CSS, browser JavaScript, images, report assets
+|-- scripts/                       Maintenance and repinning utilities
+|-- tests/                         Pytest suite and fixtures
 |-- archive/                       Non-runtime reference artifacts and retired drafts
 |-- nginx/default.conf             Docker reverse proxy
 |-- solvers/                       Optional solver-binary directory
 |-- db_setup.sql                   Compose MySQL bootstrap schema
 |-- docker-compose.yml             Multi-service container stack
-|-- Dockerfile                     Python image and legacy solver build
+|-- Dockerfile                     Python image and MODFLOW 6 installation
 |-- requirements.txt               Python dependencies
+|-- requirements-dev.txt           Test dependencies
 |-- .env.example                   Environment-variable example
 |-- .env.docker                    Compose application environment
 |-- .gitignore                     Local artifact exclusions
 |-- .dockerignore                  Docker-context exclusions
-|-- CAST_Implementation_Specification.md
-|                                  April 2026 implementation workstream notes
 |-- .modflow_bin/                  Ignored local solver executables
 |-- .numerical_runs/               Ignored numerical scratch directories
+|-- .numerical_jobs/               Ignored job-queue database, results, and logs
+|-- .aem_exports/                  Ignored per-user AEM grid exports
 `-- README.md                      This handbook
 ```
 
@@ -628,8 +809,10 @@ cast_landing_demo/
 | `app.py` | Creates Flask app, configures Flask-Login loader, registers blueprints, renders home/login/register pages, authenticates accounts, hashes passwords, inserts accounts, and logs users out. |
 | `settings.py` | Loads `.env`, parses boolean and CSV values, and defines Flask, MySQL, and Panel configuration. |
 | `data_queries.py` | Active MySQL layer. Ensures runtime tables, opens connections, lists site rows, normalises numeric input, and inserts one or many sites. |
-| `site_routes.py` | Site database UI, CSV alias mapping, CSV validation, table filtering and sorting, full-page plot handlers, and JSON Bokeh plot endpoints. |
-| `plot_routes.py` | Separate `/plots/*` blueprint. Currently mostly placeholder routes. |
+| `site_routes.py` | Site database UI, CSV alias mapping, CSV validation, table filtering and sorting, reference-database rows and exports, site deletion and clearing, full-page plot handlers, and JSON Bokeh plot endpoints. |
+| `security.py` | CSRF tokens, per-endpoint rate limiting, guest-session identity, email and password validation, JSON and form body guards, and the generic database-error message. |
+| `route_guards.py` | Translates model-input exceptions raised inside a view into HTTP 400. |
+| `param_meta.py` | One source of truth for each input's notation symbol and help text, shared by the analytical, empirical, and numerical routes. |
 
 ### Domain Model Files
 
@@ -640,7 +823,17 @@ cast_landing_demo/
 | `bioscreen_model.py` | BIOSCREEN-style numerical concentration integration using Gauss-Legendre quadrature; returns plume length and optional concentration curve. |
 | `numerical_models.py` | FloPy MODFLOW 6 flow/transport execution, executable discovery, temporary workspace handling, reference-aligned source setup, orientation-specific plume-length extraction, and PNG generation. |
 | `numerical_input_validation.py` | Shared vertical numerical site-input validation, configurable plausibility ranges, database `K` to `hk` conversion, and valid-site filtering. |
+| `model_site_validation.py` | Per-model site admissibility derived from each model's own mathematical restrictions; filters site drop-downs without deleting rows. |
 | `symbol_registry.py` | Central canonical symbols, database columns, UI labels, units, and model-specific applicability. |
+| `aem/at_config.py`, `aem/at_element.py` | AEM configuration and circle/line/ellipse element definitions. |
+| `aem/at_simulation.py` | AEM solve: coupling groups, least-squares Mathieu coefficients, parallel grid evaluation, `L_max` extraction, and solution validation. |
+| `aem/at_inverse_model.py`, `aem/at_inverse_config.py` | Inverse parameter estimation and its per-parameter search bounds. |
+| `aem/at_grid_export.py` | Long-form CSV and native NPZ grid export under one column contract, written atomically. |
+| `aem/mathieu_functions_OG.py` | Modified Mathieu functions of complex parameter (Kuhlman, MIT licence). |
+| `aem_jobs.py` | Builds an `ATConfiguration` from posted parameters and returns pickle-able forward and inverse results to the job queue. |
+| `aem_source_geometry.py` | Framework-free Shapely packing algorithms behind the source designer. |
+| `numerical_jobs.py` | Generic job queue: SQLite state, subprocess workers, concurrency cap, cancellation, and stale-job reaping. |
+| `data_analysis/` | Workbench maths: CSV intake, curve fits, KDE, statistics, grids, axis scales, LaTeX notation, number formatting, MODFLOW binary ingestion, and Bokeh builders. |
 
 ### Flask Model Route Files
 
@@ -648,7 +841,8 @@ cast_landing_demo/
 | --- | --- |
 | `analytical_routes.py` | Analytical landing page, site selection, alias expansion, external input fields, Panel iframe URLs, analytical single-run PDFs, and specialised Cirpka preparation. |
 | `empirical_routes.py` | Empirical landing page, site selection, basic autofill, Panel iframe URLs, and empirical single-run PDFs. |
-| `numerical_routes.py` | Numerical landing page, compatibility redirects, orientation-specific field specifications, vertical site validation/filtering, site autofill, Panel iframe URLs, and simulation-backed horizontal/vertical PDF routes. |
+| `numerical_routes.py` | Numerical landing page, compatibility redirects, orientation-specific field specifications, vertical site validation/filtering, site autofill, Panel iframe URLs, job submission and polling, artifact downloads, and simulation-backed horizontal/vertical PDF routes. |
+| `aem_routes.py` | AEM landing, designer, forward, and inverse pages; polygon packing and design-save APIs; forward and inverse job submission; job status, cancellation, and JSON/CSV/NPZ result endpoints with ownership checks. |
 
 ### Utility Scripts
 
@@ -665,6 +859,10 @@ cast_landing_demo/
 | `panel_empirical_common.py` | Similar shared helpers for empirical dashboards. |
 | `panel_numerical_comparison.py` | Small Bokeh helpers for analytical-versus-numerical single and multiple comparisons. |
 | `panel_numerical_optional_views.py` | Lazy profile and decreasing-concentration vector controls that post-process retained numerical results only after a click. |
+| `panel_site_comparison.py` | One shared multiple-simulation panel for all eight analytical and empirical models: site selection, per-site runs, and modelled-versus-measured comparison. |
+| `panel_data_analysis.py` | Data-analysis workbench: source selection, the four tabs, and the CSV/NPZ export buttons. |
+| `panel_theme.py` | Central Panel theme applied once at startup, mirroring the design tokens in `static/styles.css`. |
+| `panel_auth.py` | Resolves the caller's identity from the trusted reverse-proxy header, never from a client-supplied query parameter. |
 
 ### Analytical and Empirical Panel Apps
 
@@ -779,7 +977,8 @@ cast_landing_demo/
 
 | File | Status and purpose |
 | --- | --- |
-| `CAST_Implementation_Specification.md` | Tracked implementation workstream document dated 20 April 2026. Useful history, but parts describe an earlier code state. |
+| `CAST_Brief.md` | User-focused capability briefing, written for the manuscript author. |
+| `CAST_Toolkit_Technical_Brief.md` | Technical reference: governing equations as implemented, architecture, verification, and a file map. |
 | `archive/reference_artifacts/` | Standalone Cirpka reference script, expert-provided CSV inputs, and numerical screenshots. Not loaded by the application. |
 | `archive/generated_artifacts/test_svg.pdf` | Generated PDF test artifact retained outside runtime paths. |
 | `archive/placeholders/` | Empty `Horizontal_sim_final.py` and one-byte `feedback` placeholders retained instead of deleted. |
@@ -788,27 +987,16 @@ cast_landing_demo/
 | `flask*.log`, `panel*.log` | Local server logs. Ignored by Git. |
 | `.modflow_bin/` | Ignored local solver binaries including `mf6.exe`. |
 | `.numerical_runs/` | Ignored FloPy workspaces. Normally temporary; interrupted runs can leave directories behind. |
+| `.numerical_jobs/` | Ignored job-queue SQLite database, pickled results, worker logs, and saved AEM designs. |
+| `.aem_exports/` | Ignored per-user AEM concentration grids, one file per user, replaced on each run. |
 | `__pycache__/` | Ignored Python bytecode cache. |
 | `tmp*` | Ignored local temporary artifacts. |
 
 ## Known Limitations
 
-### Multiple-scenario Wrapper Pages Hide Their Tables
+### Not Implemented
 
-Flask wrapper routes always add `output_only=1` to Panel iframe URLs. Multiple-run Panel apps interpret this as output-only mode and omit their editable `Tabulator` controls. As a result, public multiple-run pages display output for a seeded scenario but do not expose the full scenario-table workflow. Direct Panel routes without `output_only=1` expose the editable tables.
-
-The same output-only behaviour also hides Panel-side PDF download buttons on public multiple-run pages.
-
-### Missing Conceptual Images
-
-Empirical templates reference:
-
-```text
-static/images/conceptual_maier.png
-static/images/conceptual_birla.png
-```
-
-Those files are not present in the repository, so those images render as missing. `templates/model_page_base.html` also has a fallback reference to `static/images/placeholder.png`, which is absent, although templates that extend it can override the image block.
+The model-selection toolbox described in the CAST documentation (Statistical Threshold, AIC, and AHP ranking) is a design, not code. The AEM inverse model estimates one parameter at a time from a single target plume length; it is not a joint multi-parameter inversion and reports no uncertainty bounds.
 
 ### Site Database Operations
 
@@ -834,9 +1022,9 @@ The Analysis Visualisation menu intentionally exposes only the working site-data
 
 `static/original.csv` contains the bundled 112-site CAST reference database, with native search, sorting, page-size selection, and pagination. Copy, filtered CSV/XLSX/PDF downloads, and Print apply to the user-uploaded database; `static/sample_db.csv` is the downloadable upload example. `plot_functions.py` uses the reference file for reference-data plots. The `/dispersivity-data` page uses the legacy `static/fig1_plots.csv` dataset and its histogram, box plot, and scatter plot assets with the current responsive table controls.
 
-### Numerical Work Is Synchronous and User-sized
+### Numerical Work Is User-sized
 
-Numerical runs execute synchronously in Panel callbacks and PDF routes. There is no queue, worker pool, cancellation API, persisted run history, or explicit grid-size cap. Fine grids can consume substantial CPU, memory, and request time.
+Numerical and AEM runs go through the asynchronous queue described above, with cancellation, a concurrency cap, and stale-job reaping. Grid cost is still the user's responsibility: `NUMERICAL_MAX_CELLS` bounds the grid and `NUMERICAL_SOLVER_TIMEOUT_S` can bound the solver, but fine grids consume substantial CPU and memory. Job results are pickled to disk and are not pruned automatically, so `NUMERICAL_JOB_ROOT` grows until it is cleaned.
 
 BIOSCREEN also uses a loop with a high safety cap of `100000` distance steps.
 
@@ -866,6 +1054,43 @@ The suite covers analytical and empirical equation regressions, canonical symbol
 ## Change History
 
 Keep this section updated whenever implementation, configuration, reporting, or documentation behaviour changes. Add new entries above older entries before committing.
+
+### 12 August 2026 - README Brought Forward
+
+- Documented the AEM toolbox, the data-analysis workbench, the asynchronous job queue, guest access, and the security model, none of which this handbook previously covered.
+- Added the AEM, numerical job, site export/delete, contact, health, `/me`, and About routes to the route tables.
+- Added the newer configuration variables: cookie and proxy trust settings, contact/SMTP delivery, upload and request caps, job-queue roots, concurrency, timeouts, and the AEM export directory.
+- Removed stale entries: the deleted `plot_routes.py` and `CAST_Implementation_Specification.md`, the forced-`output_only` limitation, the missing-conceptual-image limitation, and the synchronous-numerical-work limitation.
+- Added `CAST_Brief.md` (user-focused capability briefing) and `CAST_Toolkit_Technical_Brief.md` (technical reference) for the manuscript work.
+
+### 6 August 2026 - Plot and Interaction Polish
+
+- Recoloured the plume comparison plot and set the `Lmax` label with a subscript.
+- Added parameter sliders to single-run dashboards for live sensitivity exploration.
+
+### 4 August 2026 - Reference Database by Default
+
+- Made the bundled 112-site reference database the default data source and accounts optional.
+- Added per-session guest identity so anonymous visitors can run every model without their runs mixing.
+
+### July 2026 - AEM Toolbox End to End
+
+- Synced the AEM package with upstream and wired its grid export through to the data-analysis workbench.
+- Added multi-element selection and an adjustable packing radius to the source designer.
+- Added `.npz` grid support so a run round-trips into the workbench losslessly.
+- Fixed the designer canvas resize loop and versioned the designer and inverse script tags for cache busting.
+
+### June 2026 - Analysis Workbench and Model UI
+
+- Expanded the analysis workbench: distribution fits, KDE, curve fits with confidence bands, gridded contour/profile/quiver views, and MODFLOW binary ingestion.
+- Added source-geometry headbar links and rendered numerical multiple-scenario graphs.
+- Made the numerical domain length a parameter rather than a literal, and reported one plume length per run.
+
+### June 2026 - Asynchronous Numerical Jobs
+
+- Moved MODFLOW runs off the request path into a SQLite-backed queue with subprocess workers.
+- Added status polling, cancellation, stale-job reaping, a concurrency cap, and a per-comparison run cap.
+- Added validation of vertical numerical site selection before a run is queued.
 
 ### 9 June 2026 - MODFLOW 6 Numerical Reference Alignment
 
@@ -1018,13 +1243,14 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 Use these files as the primary implementation references:
 
 - `data_queries.py` for active database behaviour.
-- `analytical_models.py`, `empirical_models.py`, `bioscreen_model.py`, and `numerical_models.py` for calculations.
-- `analytical_routes.py`, `empirical_routes.py`, `numerical_routes.py`, and `site_routes.py` for public Flask behaviour.
+- `analytical_models.py`, `empirical_models.py`, `bioscreen_model.py`, `numerical_models.py`, and `aem/at_simulation.py` for calculations.
+- `analytical_routes.py`, `empirical_routes.py`, `numerical_routes.py`, `aem_routes.py`, and `site_routes.py` for public Flask behaviour.
 - `panel_server.py` for mounted Panel apps.
-- `symbol_registry.py` for canonical database mappings.
+- `symbol_registry.py` and `param_meta.py` for canonical database mappings and input notation.
+- `model_site_validation.py` for which sites each model will accept.
+- `numerical_jobs.py` for background execution semantics.
+- `security.py` and `panel_auth.py` for identity and request-hardening behaviour.
 - `pdf_report.py` for generated report layout.
-
-`CAST_Implementation_Specification.md` remains useful as design history, but it should not override the current code when the two disagree.
 
 ### Adding a New Model
 

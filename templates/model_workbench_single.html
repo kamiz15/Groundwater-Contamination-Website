@@ -32,7 +32,7 @@
         <p class="model-input-empty">{{ invalid_site_message }}</p>
       </div>
       {% endif %}
-      {% if sites %}
+      {% if sites and show_site_loader | default(true) %}
       <div class="card-like site-loader-card">
         <h3>Site Data</h3>
         <form method="GET" class="workbench-site-form">
@@ -53,7 +53,7 @@
       </div>
       {% endif %}
 
-      {% include "model_input_form.html" %}
+      {% block input_form %}{% include "model_input_form.html" %}{% endblock %}
 
       {% block sidebar_extra %}{% endblock %}
 

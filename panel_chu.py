@@ -6,10 +6,10 @@ from panel_auth import authenticated_email
 
 from analytical_models import chu_lmax
 from panel_analytical_common import (
-    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int,
 )
-from panel_site_comparison import site_comparison_app
+from panel_model_scenarios import scenario_app
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
@@ -77,10 +77,9 @@ def chu_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(
+        return output_only_layout(
             result_pane, plot_pane,
             explore_sliders([("W", w), ("alpha_Th", alpha_th), ("gamma", gamma)], _run),
-            sizing_mode="stretch_width", styles={"gap": "14px"},
         )
 
     controls = pn.Column(
@@ -95,4 +94,4 @@ def chu_single_app():
 
 def chu_multiple_app():
     """Multiple simulation: one run per site picked in the sidebar."""
-    return site_comparison_app("chu")
+    return scenario_app("chu")

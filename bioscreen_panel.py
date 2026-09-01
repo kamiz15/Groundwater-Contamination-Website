@@ -6,10 +6,10 @@ from panel_auth import authenticated_email
 
 from bioscreen_model import bio
 from panel_analytical_common import (
-    baseline_delta, comparison_plot, error_card, explore_sliders, info_card,
+    baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int,
 )
-from panel_site_comparison import site_comparison_app
+from panel_model_scenarios import scenario_app
 from pdf_report import CASTReport
 
 pn.extension(sizing_mode="stretch_width")
@@ -18,7 +18,7 @@ pn.extension(sizing_mode="stretch_width")
 def _base_widgets():
     cthres = pn.widgets.FloatInput(name="Threshold Contaminant Concentration C_thres [mg/L]", value=query_float("Cthres", 5e-5), step=1e-5, start=1e-8)
     time = pn.widgets.IntInput(name="Simulation Time t [a]", value=query_int("time", 20), start=1, end=1000)
-    h = pn.widgets.FloatSlider(name="Source Thickness S_T [m]", value=query_float("H", 6.1), start=0.1, end=50, step=0.1)
+    h = pn.widgets.FloatSlider(name="Source Thickness T_s [m]", value=query_float("H", 6.1), start=0.1, end=50, step=0.1)
     c0 = pn.widgets.FloatSlider(name="Contamination Concentration C_D^0 [mg/L]", value=query_float("c0", 106.35), start=0.1, end=1000, step=1)
     w = pn.widgets.FloatSlider(name="Source Width S_W [m]", value=query_float("W", 20), start=0.1, end=1000, step=0.1)
     v = pn.widgets.FloatInput(name="Groundwater Seepage Velocity v [m/a]", value=query_float("v", 292), start=10, end=1000)
@@ -84,7 +84,7 @@ def bioscreen_single_app():
                 "parameters": [
                     {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres.value, "unit": "mg/L"},
                     {"symbol": "t", "name": "Time", "value": time.value, "unit": "yr"},
-                    {"symbol": "S_T", "name": "Source Thickness", "value": h.value, "unit": "m"},
+                    {"symbol": "T_s", "name": "Source Thickness", "value": h.value, "unit": "m"},
                     {"symbol": "C_D0", "name": "Contamination Concentration", "value": c0.value, "unit": "mg/L"},
                     {"symbol": "S_W", "name": "Source Width", "value": w.value, "unit": "m"},
                     {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v.value, "unit": "m/yr"},
@@ -110,10 +110,9 @@ def bioscreen_single_app():
     if query_int("output_only", 0):
         if query_int("run", 0):
             _run()
-        return pn.Column(
+        return output_only_layout(
             result_pane, plot_pane,
             explore_sliders([("H", h), ("W", w), ("ax", ax), ("lam", lam)], _run),
-            sizing_mode="stretch_width", styles={"gap": "14px"},
         )
 
     controls = pn.Column(
@@ -129,4 +128,4 @@ def bioscreen_single_app():
 
 def bioscreen_multiple_app():
     """Multiple simulation: one run per site picked in the sidebar."""
-    return site_comparison_app("bioscreen")
+    return scenario_app("bioscreen")

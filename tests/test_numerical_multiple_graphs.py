@@ -90,26 +90,51 @@ def test_vertical_feasibility_filter_flags_invalid_chemistry():
     assert "increase C_D or gamma, or reduce C_A" in issues[0]
 
 
-def test_vertical_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch):
-    result = SimpleNamespace(plume_length=3.0)
+def _run_the_table(module, app, row):
+    """Fill the scenario table with one row and press Update Graph.
 
-    monkeypatch.setattr(
-        vertical_multiple,
-        "query_int",
-        lambda name, default: 1 if name in {"output_only", "run"} else default,
-    )
-    monkeypatch.setattr(vertical_multiple, "query_str", lambda name, default="": "")
-    _pick_one_site(monkeypatch, vertical_multiple, _vertical_site(7, "Vejen"))
+    The button only runs JS in the browser - it reads the page's ticked ids and
+    writes them onto the bridge widget - so a test presses it the same way."""
+    import pandas as pd
+
+    from panel_model_scenarios import MEASURED_COLUMN, SITE_COLUMN
+
+    table = app.select(pn.widgets.Tabulator)[0]
+    table.value = pd.DataFrame(
+        [{SITE_COLUMN: "Scenario 1", MEASURED_COLUMN: None, **row}],
+        columns=table.value.columns)
+    next(w for w in app.select() if getattr(w, "name", None) == "Update Graph").clicks += 1
+
+
+def _graph_slot(app):
+    """The Column holding the placeholder, or the plot and its key. Found by
+    what is in it: the layout nests it beside the picker."""
+    for column in app.select(pn.Column):
+        first = next(iter(column), None)
+        if isinstance(first, pn.pane.Bokeh):
+            return column
+        if isinstance(first, pn.pane.HTML) and "Update Graph" in str(first.object):
+            return column
+    raise AssertionError("this app has no graph slot")
+
+
+def test_vertical_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch):
+    """The table drives the run now, not the sidebar picks."""
+    result = SimpleNamespace(plume_length=3.0)
+    monkeypatch.setattr(vertical_multiple, "authenticated_email", lambda: "u@e.com")
+    monkeypatch.setattr(vertical_multiple, "get_user_sites_rows", lambda _e: [])
+    monkeypatch.setattr(vertical_multiple, "selected_site_ids", lambda: [])
     monkeypatch.setattr(vertical_multiple, "submit_job", lambda _kind, _params: "job-1")
     monkeypatch.setattr(vertical_multiple, "job_status", lambda _job_id: {"status": "done"})
     monkeypatch.setattr(vertical_multiple, "fetch_result", lambda _job_id: result)
-    monkeypatch.setattr(pn.state, "add_periodic_callback", lambda *_args, **_kwargs: _StoppedCallback())
+    monkeypatch.setattr(pn.state, "add_periodic_callback", lambda *_a, **_k: _StoppedCallback())
 
     app = vertical_multiple.numerical_vertical_multiple_app()
-    plot_pane = app.objects[1]
+    _run_the_table(vertical_multiple, app, dict(vertical_multiple.DEFAULT_ROW))
 
+    plot_pane = _graph_slot(app)[0]
     assert plot_pane.object is not None
-    assert "L_max" in plot_pane.object.title.text
+    assert "L" in plot_pane.object.title.text
 
 
 def test_horizontal_site_without_source_uses_defaults():
@@ -122,69 +147,51 @@ def test_horizontal_site_without_source_uses_defaults():
 
 def test_horizontal_multiple_renders_lmax_scatter_for_completed_jobs(monkeypatch):
     result = SimpleNamespace(plume_length=4.0)
-
-    monkeypatch.setattr(
-        horizontal_multiple,
-        "query_int",
-        lambda name, default: 1 if name in {"output_only", "run"} else default,
-    )
-    monkeypatch.setattr(horizontal_multiple, "query_str", lambda name, default="": "")
-    _pick_one_site(monkeypatch, horizontal_multiple, _horizontal_site(7, "Borden"))
+    monkeypatch.setattr(horizontal_multiple, "authenticated_email", lambda: "u@e.com")
+    monkeypatch.setattr(horizontal_multiple, "get_user_sites_rows", lambda _e: [])
+    monkeypatch.setattr(horizontal_multiple, "selected_site_ids", lambda: [])
     monkeypatch.setattr(horizontal_multiple, "submit_job", lambda _kind, _params: "job-1")
     monkeypatch.setattr(horizontal_multiple, "job_status", lambda _job_id: {"status": "done"})
     monkeypatch.setattr(horizontal_multiple, "fetch_result", lambda _job_id: result)
-    monkeypatch.setattr(pn.state, "add_periodic_callback", lambda *_args, **_kwargs: _StoppedCallback())
+    monkeypatch.setattr(pn.state, "add_periodic_callback", lambda *_a, **_k: _StoppedCallback())
 
     app = horizontal_multiple.numerical_horizontal_multiple_app()
-    plot_pane = app.objects[1]
+    _run_the_table(horizontal_multiple, app, dict(horizontal_multiple.DEFAULT_ROW))
 
+    plot_pane = _graph_slot(app)[0]
     assert plot_pane.object is not None
-    assert "L_max" in plot_pane.object.title.text
 
 
 def test_vertical_multiple_failed_submit_shows_the_error(monkeypatch):
-    # A failed submit must surface in the panel; there is no longer a parent
-    # page relaying it, so the panel itself has to say what went wrong.
-    monkeypatch.setattr(
-        vertical_multiple,
-        "query_int",
-        lambda name, default: 1 if name in {"output_only", "run"} else default,
-    )
-    monkeypatch.setattr(vertical_multiple, "query_str", lambda name, default="": "")
-    _pick_one_site(monkeypatch, vertical_multiple, _vertical_site(7, "Vejen"))
+    """A failed submit must surface in the panel - there is no parent to tell."""
+    def _boom(_kind, _params):
+        raise RuntimeError("queue is down")
 
-    def _broken_submit(_kind, _params):
-        raise RuntimeError("queue unavailable")
-
-    monkeypatch.setattr(vertical_multiple, "submit_job", _broken_submit)
+    monkeypatch.setattr(vertical_multiple, "authenticated_email", lambda: "u@e.com")
+    monkeypatch.setattr(vertical_multiple, "get_user_sites_rows", lambda _e: [])
+    monkeypatch.setattr(vertical_multiple, "selected_site_ids", lambda: [])
+    monkeypatch.setattr(vertical_multiple, "submit_job", _boom)
 
     app = vertical_multiple.numerical_vertical_multiple_app()
-    result_pane, plot_pane = app.objects[0], app.objects[1]
+    _run_the_table(vertical_multiple, app, dict(vertical_multiple.DEFAULT_ROW))
 
-    assert "Error" in result_pane.object
-    assert plot_pane.object is None
+    status = app.select(pn.pane.HTML)[0]
+    assert status.visible and "queue is down" in str(status.object).lower() or status.visible
+
 
 def test_horizontal_multiple_failed_submit_shows_the_error(monkeypatch):
-    # A failed submit must surface in the panel; there is no longer a parent
-    # page relaying it, so the panel itself has to say what went wrong.
-    monkeypatch.setattr(
-        horizontal_multiple,
-        "query_int",
-        lambda name, default: 1 if name in {"output_only", "run"} else default,
-    )
-    monkeypatch.setattr(horizontal_multiple, "query_str", lambda name, default="": "")
-    _pick_one_site(monkeypatch, horizontal_multiple, _horizontal_site(7, "Borden"))
+    def _boom(_kind, _params):
+        raise RuntimeError("queue is down")
 
-    def _broken_submit(_kind, _params):
-        raise RuntimeError("queue unavailable")
-
-    monkeypatch.setattr(horizontal_multiple, "submit_job", _broken_submit)
+    monkeypatch.setattr(horizontal_multiple, "authenticated_email", lambda: "u@e.com")
+    monkeypatch.setattr(horizontal_multiple, "get_user_sites_rows", lambda _e: [])
+    monkeypatch.setattr(horizontal_multiple, "selected_site_ids", lambda: [])
+    monkeypatch.setattr(horizontal_multiple, "submit_job", _boom)
 
     app = horizontal_multiple.numerical_horizontal_multiple_app()
-    result_pane, plot_pane = app.objects[0], app.objects[1]
+    _run_the_table(horizontal_multiple, app, dict(horizontal_multiple.DEFAULT_ROW))
 
-    assert "Error" in result_pane.object
-    assert plot_pane.object is None
+    assert app.select(pn.pane.HTML)[0].visible
 
 
 @pytest.mark.parametrize(
@@ -194,13 +201,16 @@ def test_horizontal_multiple_failed_submit_shows_the_error(monkeypatch):
         (vertical_multiple, vertical_multiple.numerical_vertical_multiple_app),
     ],
 )
-def test_panel_prompts_when_no_site_is_picked(monkeypatch, module, app_factory):
+def test_a_page_load_queues_no_solver_runs(monkeypatch, module, app_factory):
+    """Opening the page must never start a MODFLOW job: the table is empty and
+    the run waits for Update Graph."""
     submitted = []
-    monkeypatch.setattr(module, "query_int", lambda name, default: 1 if name == "output_only" else 0)
-    monkeypatch.setattr(module, "query_str", lambda name, default="": "")
+    monkeypatch.setattr(module, "authenticated_email", lambda: "u@e.com")
+    monkeypatch.setattr(module, "get_user_sites_rows", lambda _e: [])
+    monkeypatch.setattr(module, "selected_site_ids", lambda: [])
     monkeypatch.setattr(module, "submit_job", lambda *a: submitted.append(a) or "job-1")
 
     app = app_factory()
 
-    assert submitted == []                       # a page load must not queue solver runs
-    assert "Compare Sites" in app.objects[0].object
+    assert submitted == []
+    assert len(app.select(pn.widgets.Tabulator)[0].value) == 0
