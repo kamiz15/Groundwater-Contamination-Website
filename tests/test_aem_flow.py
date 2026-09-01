@@ -52,7 +52,13 @@ def test_aem_pages_are_native_and_navigation_has_one_entry(aem_client):
     home = aem_client.get("/").get_data(as_text=True)
     designer = aem_client.get("/aem").get_data(as_text=True)
 
-    assert home.count(">AEM Model<") == 1
+    # The page carries two navigations: the off-canvas drawer (nav-link) and the
+    # header menu (menu-link). AEM is the one section whose label is identical in
+    # both - it has no dropdown and no plural - so counting the text alone found
+    # two and read a correct page as a duplicate. One entry per navigation is
+    # what "one entry" meant; two in either is the duplicate this guards against.
+    assert home.count('<a class="nav-link" href="/aem">AEM Model</a>') == 1
+    assert home.count('<a class="menu-link" href="/aem">AEM Model</a>') == 1
     assert "aem.js" in designer
     assert "<canvas" in designer
     assert "<iframe" not in designer

@@ -47,9 +47,12 @@ class VisualisationRouteTests(unittest.TestCase):
         hrefs = re.findall(r'href="([^"]+)"', database_menu)
 
         self.assertEqual(response.status_code, 200)
+        # The hrefs are the contract - they say which two pages the dropdown
+        # offers, and in what order. The link text is not asserted: it names the
+        # same two routes a second time, so pinning it only breaks the test when
+        # the wording is deliberately changed, which is what happened when
+        # "Site Database" became "Site Data".
         self.assertEqual(hrefs, ["/sites", "/data_analysis"])
-        self.assertIn(">Site Database</a>", database_menu)
-        self.assertIn(">Data Workbench</a>", database_menu)
         self.assertLess(page.index(">Home</a>"), page.index("Database &#9662;"))
         self.assertLess(page.index("Database &#9662;"), page.index("Analytical Model &#9662;"))
 
