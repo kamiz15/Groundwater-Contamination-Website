@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}CAST{% endblock %}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=20260831a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v={{ asset_v('styles.css') }}">
 
   {# Inter is self-hosted via @font-face in styles.css (GDPR: no visitor IPs to Google). #}
   {# BokehJS (~2 MB of render-blocking scripts) is only needed by pages that
@@ -164,6 +164,6 @@
     </footer>
   </div>
 
-  <script src="{{ url_for('static', filename='script.js') }}?v=20260831a"></script>
+  <script src="{{ url_for('static', filename='script.js') }}?v={{ asset_v('script.js') }}"></script>
 </body>
 </html>

@@ -51,6 +51,21 @@ logger.setLevel(logging.INFO)
 logger.propagate = False
 
 
+# Transport timestepping, both orientations. dt is sized for this Courant number
+# and the step count is then capped, so a long domain buys longer steps rather
+# than a run that never ends. Only the final (steady) field is read, and perlen
+# already carries a +1000 d settling buffer, so the cap costs resolution in the
+# transient the pages do not show.
+COURANT_TARGET = 2.0
+MAX_TIMESTEPS = 50
+
+# Source segments the plan-view CSV can carry (Orlando's script reads 10).
+MAX_SOURCE_SEGMENTS = 10
+
+# Plan-view domain width, as a multiple of the source zone length.
+HORIZONTAL_WIDTH_FACTOR = 5.0
+
+
 @dataclass(frozen=True)
 class NumericalModelResult:
     plume_length: float
@@ -62,7 +77,7 @@ class NumericalModelResult:
     domain_length: float = 0.0
     aquifer_thickness: float = 0.0
     peclet: float = 0.0
-    courant: float = 5.0
+    courant: float = COURANT_TARGET
     perlen: float = 0.0
     k_warning: str = ""
     head_file: bytes = b""
@@ -79,7 +94,7 @@ class HorizontalModelResult:
     domain_length: float = 0.0
     domain_width: float = 0.0
     peclet: float = 0.0
-    courant: float = 5.0
+    courant: float = COURANT_TARGET
     perlen: float = 0.0
     k_warning: str = ""
     head_file: bytes = b""
@@ -154,30 +169,6 @@ def _mf6_exe() -> str:
     return _resolve_executable("MF6_EXE", ["mf6.exe", "mf6"])
 
 
-def _nstp(Lx: float, ncol: int, prsity: float, al: float, h1: float, h2: float, hk: float, perlen: float) -> int:
-    """Number of timesteps at Courant = 1 (matching Orlando's script approach)."""
-    gradient = (h1 - h2) / Lx
-    q = hk * gradient
-    v = q / prsity
-    if v <= 0:
-        raise UserMessageError("Set the left boundary head higher than the right boundary head.")
-    delr = Lx / ncol
-    dt_target = delr / v
-    return max(int(math.ceil(perlen / dt_target)), 1)
-
-
-def _steady_state_perlen(Lx, prsity, h1, h2, hk, plume_length, buffer_days=1000.0):
-    """Auto simulation time: advective travel time to reach the (analytical) plume
-    length, plus a buffer to settle into a steady shape. Used when perlen is None so
-    the fixed placeholder time can be dropped (Anton: time should not be a user input).
-    Falls back to the domain length when no analytical plume length is supplied."""
-    gradient = (h1 - h2) / Lx
-    v = hk * gradient / prsity
-    if v <= 0:
-        raise UserMessageError("Set the left boundary head higher than the right boundary head.")
-    return (float(plume_length) / v) + float(buffer_days)
-
-
 def balanced_source_buffers(domain_thickness: float, source_thickness: float) -> tuple[float, float]:
     """Center a source vertically when the user has not supplied buffer overrides."""
     if domain_thickness <= 0 or source_thickness <= 0:
@@ -186,6 +177,100 @@ def balanced_source_buffers(domain_thickness: float, source_thickness: float) ->
         raise UserMessageError("Enter a source thickness smaller than the aquifer thickness.")
     buffer = (domain_thickness - source_thickness) / 2.0
     return buffer, buffer
+
+
+def _unique_cells(cells):
+    """Constant-concentration cells with the first value per cell kept.
+
+    MF6 rejects a duplicated CNC cell outright. A source segment can legitimately
+    land on the acceptor boundary row, and two overlapping segments can name the
+    same row twice, so the list is filtered rather than trusted. Dicts keep
+    insertion order, so a list with no duplicates comes back unchanged.
+    """
+    unique = {}
+    for cell, value in cells:
+        unique.setdefault(cell, value)
+    return list(unique.items())
+
+
+def _contiguous_spans(rows):
+    """(first, last) per unbroken run in a sorted list of row indices."""
+    spans = []
+    for row in rows:
+        if spans and row == spans[-1][1] + 1:
+            spans[-1][1] = row
+        else:
+            spans.append([row, row])
+    return [(first, last) for first, last in spans]
+
+
+def horizontal_source_rows(nrow, delc, domain_width, zone_length, segments=None):
+    """Grid rows carrying the source in a plan-view run.
+
+    `segments` are (start, end) offsets in metres from the start of the source
+    ZONE, which is itself centred across the domain - the shape Orlando's
+    horizontal script reads out of its CSV. None means the whole zone is one
+    source, which is what this page has always run.
+
+    Rows are clamped to the grid and de-duplicated: a segment reaching past the
+    zone, or two that overlap, would otherwise emit cells MF6 refuses.
+    """
+    nrow = int(nrow)
+    delc = float(delc)
+    if segments is None:
+        n_src = max(int(np.round(zone_length / delc)), 1)
+        centre = nrow // 2
+        half = n_src // 2
+        start = centre - half
+        end = centre + half if n_src % 2 == 0 else centre + half + 1
+        return list(range(max(start, 0), min(end, nrow)))
+
+    segments = [tuple(seg) for seg in segments]
+    if not segments:
+        raise UserMessageError("Add at least one source segment, then run it again.")
+    if len(segments) > MAX_SOURCE_SEGMENTS:
+        raise UserMessageError(
+            f"Use at most {MAX_SOURCE_SEGMENTS} source segments, then run it again.")
+    zone_start = (float(domain_width) - float(zone_length)) / 2.0
+    rows = set()
+    for start_m, end_m in segments:
+        start_m, end_m = float(start_m), float(end_m)
+        if not 0.0 <= start_m < end_m <= float(zone_length):
+            raise UserMessageError(
+                "Give every source segment a start and end inside the source zone "
+                "(0 to the source width), with the start below the end.")
+        first = int(math.floor((zone_start + start_m) / delc))
+        last = int(math.ceil((zone_start + end_m) / delc))
+        rows.update(range(max(first, 0), min(last, nrow)))
+    if not rows:
+        raise UserMessageError(FINER_GRID)
+    return sorted(rows)
+
+
+def vertical_source_layers(nlay, direction=None, percentage=None):
+    """Layers carrying the source in a cross-section run.
+
+    `direction` None is what this page has always run: every layer but the
+    topmost, because the top row is the acceptor boundary. 'top' or 'bottom'
+    takes the first or last ceil(nlay * percentage / 100) layers instead.
+
+    ponytail: the None branch exists only to keep the current pages producing the
+    numbers they produce today. Delete it, and default direction/percentage to
+    'bottom'/100, the day the two reach the input form.
+    """
+    nlay = int(nlay)
+    if direction is None:
+        return list(range(1, nlay))
+    key = str(direction).strip().lower()
+    if key not in ("top", "bottom"):
+        raise UserMessageError("Set the source direction to either top or bottom.")
+    if percentage is None or not 0.0 < float(percentage) <= 100.0:
+        raise UserMessageError(
+            "Set the source coverage to a percentage above 0 and at most 100.")
+    count = min(max(int(math.ceil(nlay * float(percentage) / 100.0)), 1), nlay)
+    if key == "top":
+        return list(range(0, count))
+    return list(range(nlay - count, nlay))
 
 
 def _plume_length(x_grid: np.ndarray, y_grid: np.ndarray, concentration: np.ndarray, c0: float) -> float:
@@ -395,13 +480,20 @@ def run_numerical_model_horizontal(
     gradient: float = 0.0125,
     h_left: float = 20.0,
     domain_factor: float = 1.5,
+    *,
+    source_segments=None,
 ) -> HorizontalModelResult:
     """Plan-view (horizontal) reactive transport, matching Orlando's horizontal_W.py.
 
     Seven modifiable inputs: source_thickness (Sw), grid_size, al, at, gamma, Cd, Ca.
     Domain length L_D and width are DERIVED (Cirpka analytical, x domain_factor); heads come from a
-    fixed gradient; simulation time is auto (travel time + 1000 d) at Courant target 5.
+    fixed gradient; simulation time is auto (travel time + 1000 d) at COURANT_TARGET.
     porosity, K and gradient are standard defaults the caller may override.
+
+    source_thickness is the source ZONE across the middle of the domain.
+    source_segments cuts that zone into (start, end) pieces measured in metres
+    from its start, the shape Orlando's script reads from its CSV; left None the
+    whole zone is one source, which is what this page has always run.
     """
     if flopy is None:
         logger.error("flopy is not installed.")
@@ -414,7 +506,7 @@ def run_numerical_model_horizontal(
 
     delr = delc = float(grid_size)
     nlay = 1
-    Ly = source_thickness * 10.0                 # domain width = 10 * Sw
+    Ly = source_thickness * HORIZONTAL_WIDTH_FACTOR
     # domain_factor multiplies the analytical L_max to give the simulated domain.
     # 1.5 is the published sizing; raising it is the only way to see the plume
     # continue past L_max, at proportionally more cells.
@@ -432,8 +524,8 @@ def run_numerical_model_horizontal(
         raise UserMessageError("Enter a hydraulic conductivity and gradient greater than zero.")
     peclet = delr / al
     perlen = float(int(Lx / v + 1000.0))
-    dt_target = 5.0 * delr / v                    # Courant target = 5
-    nts = max(int(math.ceil(perlen / dt_target)), 1)
+    dt_target = COURANT_TARGET * delr / v
+    nts = min(max(int(math.ceil(perlen / dt_target)), 1), MAX_TIMESTEPS)
     h1 = float(h_left)
     h2 = float(h1 - gradient * Lx)
     c0 = ca
@@ -493,19 +585,15 @@ def run_numerical_model_horizontal(
         flopy.mf6.ModflowGwtdsp(gwt, alh=np.full((nlay, nrow, ncol), al), ath1=at)
         flopy.mf6.ModflowGwtssm(gwt)
 
-        n_src = max(int(np.round(source_thickness / delc)), 1)
-        ci = nrow // 2
-        half = n_src // 2
-        if n_src % 2 == 0:
-            s_start, s_end = ci - half, ci + half
-        else:
-            s_start, s_end = ci - half, ci + half + 1
-        s_start = max(s_start, 0)
-        s_end = min(s_end, nrow)
+        source_rows = horizontal_source_rows(nrow, delc, Ly, source_thickness,
+                                             source_segments)
         source_conc = (gamma * cd) + ca
-        cnc_cells = [((0, k, 0), source_conc) for k in range(s_start, s_end)]
+        # Source first: where a segment reaches the acceptor boundary row, the
+        # source is what that cell is for.
+        cnc_cells = [((0, k, 0), source_conc) for k in source_rows]
         cnc_cells += [((0, 0, col), 0) for col in range(ncol)]
         cnc_cells += [((0, nrow - 1, col), 0) for col in range(ncol)]
+        cnc_cells = _unique_cells(cnc_cells)
         flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: cnc_cells}, filename=f"{run_name}.cnc")
         flopy.mf6.ModflowGwtfmi(gwt, packagedata=[
             ("GWFHEAD", str(gwf_ws / f"{flow_name}.hds")),
@@ -549,10 +637,13 @@ def run_numerical_model_horizontal(
                 ax.set_xlabel("Distance Lx [m]")
                 ax.set_ylabel("Horizontal Width [m]")
                 ax.set_title("Contaminant Plume \u2014 Horizontal Model (Plan View)")
-                sy0 = (Ly - source_thickness) / 2.0
-                sy1 = (Ly + source_thickness) / 2.0
-                ax.plot([0, 0], [sy0, sy1], color="#7a0a0a", lw=7, solid_capstyle="butt",
-                        clip_on=False, zorder=5)
+                # One band per contiguous run of source rows, so a segmented
+                # source is drawn as the segments it actually is.
+                for first, last in _contiguous_spans(source_rows):
+                    ax.plot([0, 0], [first * delc, (last + 1) * delc], color="#7a0a0a",
+                            lw=7, solid_capstyle="butt", clip_on=False, zorder=5)
+                sy0 = min(source_rows) * delc
+                sy1 = (max(source_rows) + 1) * delc
                 ax.text((ncol * delr) * 0.012, (sy0 + sy1) / 2.0, "CD (Sw)", color="#7a0a0a",
                         ha="left", va="center", fontsize=8, zorder=7,
                         bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.8))
@@ -575,7 +666,7 @@ def run_numerical_model_horizontal(
                          f"$L_D$ = {Lx:.2f} m ({domain_factor:g}\u00b7$L_{{max}}$, Cirpka et al. 2005)   |   "
                          f"\u0394x=\u0394y = {delr:.2f} m   |   porosity = {prsity:.2f}   |   "
                          f"K = {hk:.2f} m/d   |   gradient = {gradient:.4f}   |   "
-                         f"P\u00e9clet = {peclet:.2f}   |   Courant target = 5",
+                         f"P\u00e9clet = {peclet:.2f}   |   Courant target = {COURANT_TARGET:g}",
                          ha="center", fontsize=7, color="dimgray")
                 pos = ax.get_position()
                 cax_ca = fig.add_axes([pos.x1 + 0.02, pos.y0, 0.015, pos.height])
@@ -600,7 +691,7 @@ def run_numerical_model_horizontal(
         domain_length=Lx,
         domain_width=Ly,
         peclet=peclet,
-        courant=5.0,
+        courant=COURANT_TARGET,
         perlen=perlen,
         k_warning=_k_range_warning(hk),
         head_file=head_file,
@@ -621,13 +712,20 @@ def run_numerical_model(
     gradient: float = 0.0125,
     h_left: float = 20.0,
     domain_factor: float = 1.5,
+    *,
+    source_direction=None,
+    source_percentage=None,
 ) -> NumericalModelResult:
     """Vertical cross-section reactive transport, matching Orlando's vertical_W.py.
 
     Seven modifiable inputs: Lz (aquifer thickness), grid_size, al, atv, gamma, Cd, Ca.
     Domain length L_D is DERIVED (Liedl analytical, x domain_factor); heads from a fixed gradient;
-    simulation time auto (travel time + 1000 d) at Courant target 5. Source spans the
-    full thickness (top cell kept clean); no right-hand boundary (Orlando's choice).
+    simulation time auto (travel time + 1000 d) at COURANT_TARGET. No right-hand
+    boundary (Orlando's choice).
+
+    The source spans the full thickness with the top cell kept clean, unless
+    source_direction ('top'/'bottom') and source_percentage place it over part of
+    the thickness instead - see vertical_source_layers.
     """
     if flopy is None:
         logger.error("flopy is not installed.")
@@ -664,8 +762,8 @@ def run_numerical_model(
         raise UserMessageError("Enter a hydraulic conductivity and gradient greater than zero.")
     peclet = delr / al
     perlen = float(int(Lx / v + 1000.0))
-    dt_target = 5.0 * delr / v                    # Courant target = 5
-    nts = max(int(math.ceil(perlen / dt_target)), 1)
+    dt_target = COURANT_TARGET * delr / v
+    nts = min(max(int(math.ceil(perlen / dt_target)), 1), MAX_TIMESTEPS)
     h1 = float(h_left)
     h2 = float(h1 - gradient * Lx)
     c0 = ca
@@ -726,8 +824,11 @@ def run_numerical_model(
         flopy.mf6.ModflowGwtssm(gwt)
 
         source_conc = (gamma * cd) + ca
-        cnc_cells = [((lay, 0, 0), source_conc) for lay in range(1, nlay)]
+        cnc_cells = [((lay, 0, 0), source_conc)
+                     for lay in vertical_source_layers(nlay, source_direction,
+                                                       source_percentage)]
         cnc_cells += [((0, 0, col), 0) for col in range(ncol)]
+        cnc_cells = _unique_cells(cnc_cells)
         flopy.mf6.ModflowGwtcnc(gwt, stress_period_data={0: cnc_cells}, filename=f"{run_name}.cnc")
         flopy.mf6.ModflowGwtfmi(gwt, packagedata=[
             ("GWFHEAD", str(gwf_ws / f"{flow_name}.hds")),
@@ -792,7 +893,7 @@ def run_numerical_model(
                          f"$L_D$ = {Lx:.2f} m ({domain_factor:g}\u00b7$L_{{max}}$, Liedl et al. 2005)   |   "
                          f"\u0394x=\u0394z = {delr:.2f} m   |   porosity = {prsity:.2f}   |   "
                          f"K = {hk:.2f} m/d   |   gradient = {gradient:.4f}   |   "
-                         f"P\u00e9clet = {peclet:.2f}   |   Courant target = 5",
+                         f"P\u00e9clet = {peclet:.2f}   |   Courant target = {COURANT_TARGET:g}",
                          ha="center", fontsize=7, color="dimgray")
                 pos = ax.get_position()
                 cax_ca = fig.add_axes([pos.x1 + 0.02, pos.y0, 0.015, pos.height])
@@ -817,7 +918,7 @@ def run_numerical_model(
         domain_length=Lx,
         aquifer_thickness=Lz,
         peclet=peclet,
-        courant=5.0,
+        courant=COURANT_TARGET,
         perlen=perlen,
         k_warning=_k_range_warning(hk),
         head_file=head_file,

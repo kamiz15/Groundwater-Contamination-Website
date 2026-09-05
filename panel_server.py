@@ -22,6 +22,8 @@ from panel_maier_single import maier_single_app
 from panel_maier_multiple import maier_multiple_app
 from panel_birla_single import birla_single_app
 from panel_birla_multiple import birla_multiple_app
+from panel_kohler_single import kohler_single_app
+from panel_kohler_multiple import kohler_multiple_app
 from panel_numerical_horizontal_single import numerical_horizontal_single_app
 from panel_numerical_horizontal_multiple import numerical_horizontal_multiple_app
 from panel_numerical_vertical_single import numerical_vertical_single_app
@@ -63,6 +65,8 @@ apps = {
     "panel_maier_multiple": maier_multiple_app,
     "panel_birla_single": birla_single_app,
     "panel_birla_multiple": birla_multiple_app,
+    "panel_kohler_single": kohler_single_app,
+    "panel_kohler_multiple": kohler_multiple_app,
     "panel_numerical_horizontal_single": numerical_horizontal_single_app,
     "panel_numerical_horizontal_multiple": numerical_horizontal_multiple_app,
     "panel_numerical_vertical_single": numerical_vertical_single_app,

@@ -78,12 +78,15 @@ def _numerical_analytical_fields(orientation, input_fields):
     try:
         if orientation == "horizontal":
             from analytical_models import cirpka_2005
+            # Local, like cirpka_2005 above: numerical_models pulls in flopy and
+            # matplotlib, which no other route on this page needs.
+            from numerical_models import HORIZONTAL_WIDTH_FACTOR
             sw = float(vals["source_thickness"])
             lmax = cirpka_2005(Sw=sw, Ath=float(vals["at"]), Ca=float(vals["C_A"]),
                                Cd=float(vals["C_D"]), Ga=float(vals["gamma"]))
             return [
                 {"label": "Domain Length L_D [m]", "value": 1.5 * lmax},
-                {"label": "Domain Width W_D [m]", "value": 10.0 * sw},
+                {"label": "Domain Width W_D [m]", "value": HORIZONTAL_WIDTH_FACTOR * sw},
             ]
         import numpy as _np
         lz = float(vals["Lz"])
@@ -500,7 +503,7 @@ def numerical_job_report(job_id):
             {"label": "Domain Length L_D", "value": f"{getattr(result, 'domain_length', 0.0):.2f}", "unit": "m"},
             {"label": cross_label, "value": f"{cross_value:.2f}", "unit": "m"},
             {"label": "Peclet Number", "value": f"{getattr(result, 'peclet', 0.0):.2f}", "unit": "-"},
-            {"label": "Courant Target", "value": f"{getattr(result, 'courant', 5.0):.2f}", "unit": "-"},
+            {"label": "Courant Target", "value": f"{getattr(result, 'courant', 2.0):.2f}", "unit": "-"},
         ],
         {
             "labels": [meta["plot_label"]],

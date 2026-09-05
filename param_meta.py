@@ -105,6 +105,8 @@ _MODEL_CONTEXTS = {
     "panel_maier_multiple": "maier",
     "panel_birla_single": "birla",
     "panel_birla_multiple": "birla",
+    "panel_kohler_single": "kohler",
+    "panel_kohler_multiple": "kohler",
 }
 
 _MODEL_DISPLAY_NAMES = {
@@ -116,6 +118,9 @@ _MODEL_DISPLAY_NAMES = {
     "cirpka": {"Sw": "Source Width", "C_A": "Acceptor Concentration at Source", "C_D": "Donor Concentration at Source"},
     "maier": {"M": "Source Thickness", "g": "Stoichiometry Coefficient", "Ca": "Acceptor Concentration at Source", "Cd": "Donor Concentration at Source"},
     "birla": {"M": "Source Thickness", "g": "Stoichiometry Coefficient", "Ca": "Acceptor Concentration at Source", "Cd": "Donor Concentration at Source"},
+    # gamma here is the SOURCE DECAY rate constant, not the stoichiometric
+    # coefficient every other model on the site means by that name.
+    "kohler": {"lam": "First-order Decay Coefficient", "v": "Groundwater Seepage Velocity", "gamma": "Source Decay Coefficient"},
 }
 
 _MODEL_SYMBOLS = {
@@ -127,6 +132,7 @@ _MODEL_SYMBOLS = {
     "cirpka": {"Sw": "<i>S</i><sub>w</sub>", "C_A": "<i>C</i><sub>A</sub><sup>0</sup>", "C_D": "<i>C</i><sub>D</sub><sup>0</sup>"},
     "maier": {"M": "<i>T</i><sub>s</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
     "birla": {"M": "<i>T</i><sub>s</sub>", "Ca": "<i>C</i><sub>A</sub><sup>0</sup>", "Cd": "<i>C</i><sub>D</sub><sup>0</sup>"},
+    "kohler": {"lam": "&lambda;<sub>e</sub>", "v": "<i>v</i>", "gamma": "&Gamma;"},
 }
 
 _TABLE_TITLES = {
@@ -165,6 +171,9 @@ _CONTEXT_TABLE_TITLES = {
     "maier": {"M": "Source Thickness T_s [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
     "birla": {"M": "Source Thickness T_s [m]", "tv": "Vertical Transverse Dispersivity α_Tv [m]", "R": "Recharge Rate R_c [m/yr]", "g": "Stoichiometry Coefficient γ [-]", "Ca": "Acceptor Concentration at Source C_A^0 [mg/L]", "Cd": "Donor Concentration at Source C_D^0 [mg/L]"},
     "numerical_vertical": {"grid_size": "Grid Spacing Δx = Δz [m]"},
+    # Without this the shared fallback would head the gamma column
+    # "Stoichiometry Ratio γ [-]" - the wrong quantity in the wrong unit.
+    "kohler": {"lam": "First-order Decay Coefficient λ_e [1/yr]", "v": "Groundwater Seepage Velocity v [m/yr]", "gamma": "Source Decay Coefficient Γ [1/yr]"},
 }
 
 
@@ -187,7 +196,10 @@ _TABLE_SYMBOL_MARKUP = {
     "C_A": "<i>C</i><sub>A</sub>",
     "C_D": "<i>C</i><sub>D</sub>",
     "α_T": "&alpha;<sub>T</sub>",
+    "λ_e": "&lambda;<sub>e</sub>",
+    "Γ": "&Gamma;",
     "γ": "&gamma;",
+    "v": "<i>v</i>",
     "ε": "&epsilon;",
     "q": "<i>q</i>",
 }

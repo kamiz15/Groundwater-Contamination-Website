@@ -6,15 +6,20 @@ import pandas as pd
 import pytest
 
 from numerical_models import (
+    COURANT_TARGET,
+    MAX_TIMESTEPS,
     _check_grid_size,
     _checked_run_sim,
     _mf6_exe,
     _resolve_executable,
     _solver_timeout_seconds,
     balanced_source_buffers,
+    horizontal_source_rows,
     run_numerical_model,
     run_numerical_model_horizontal,
+    vertical_source_layers,
 )
+from numerical_input_validation import UserMessageError
 from analytical_models import cirpka_2005, cirpka_domain_length
 
 
@@ -160,9 +165,13 @@ def test_orlando_horizontal_reference_runs_and_sizes_domain():
     assert result.x_grid[0] == pytest.approx(0.5)
     assert result.x_grid[-1] == pytest.approx(142.5)
     assert result.y_grid[0] == pytest.approx(0.5)
-    assert result.y_grid[-1] == pytest.approx(49.5)
-    # Matches horizontal_W (2).py: contour over extent=[0, ncol*delr, 0, nrow*delc].
-    assert result.plume_length == pytest.approx(118.31, rel=0.03)  # real MODFLOW 6.7.0 run
+    # Domain width is HORIZONTAL_WIDTH_FACTOR (5) x Sw = 25 m, so 25 rows.
+    assert result.y_grid[-1] == pytest.approx(24.5)
+    assert result.domain_width == pytest.approx(25.0)
+    # Matches horizontal_W-1.py: contour over extent=[0, ncol*delr, 0, nrow*delc].
+    # 116.63, not the 118.31 of the 10xSw domain: halving the width brings the
+    # fixed-acceptor top and bottom boundaries twice as close to the plume.
+    assert result.plume_length == pytest.approx(116.63, rel=0.03)  # real MODFLOW 6.7.0 run
 
 
 @mf6_required
@@ -181,3 +190,64 @@ def test_orlando_vertical_reference_runs_and_sizes_domain():
     # the plume length now agrees with the reference script (513.6 m) instead of
     # the previously stretched 514.21 m.
     assert result.plume_length == pytest.approx(513.6, rel=0.03)  # real MODFLOW 6.7.0 run
+
+
+# --- source geometry (pure; no solver needed) ---------------------------------
+
+def test_no_segments_is_the_centred_source_the_page_has_always_run():
+    # Sw = 5 m at 1 m cells in a 25 m domain -> the middle five rows.
+    assert horizontal_source_rows(25, 1.0, 25.0, 5.0) == [10, 11, 12, 13, 14]
+
+
+def test_one_segment_covering_the_zone_matches_the_unsegmented_source():
+    assert (horizontal_source_rows(25, 1.0, 25.0, 5.0, [(0.0, 5.0)])
+            == horizontal_source_rows(25, 1.0, 25.0, 5.0))
+
+
+def test_segments_carve_the_zone_and_leave_the_gap_between_them_clean():
+    assert horizontal_source_rows(25, 1.0, 25.0, 5.0, [(0, 1), (3, 5)]) == [10, 13, 14]
+
+
+def test_overlapping_segments_name_each_row_once():
+    """MF6 rejects a duplicated constant-concentration cell outright."""
+    assert horizontal_source_rows(25, 1.0, 25.0, 5.0, [(0, 3), (2, 5)]) == [10, 11, 12, 13, 14]
+
+
+@pytest.mark.parametrize("segments", [[(0, 9)], [(-1, 3)], [(4, 2)], [(2, 2)], []])
+def test_a_segment_outside_the_zone_is_refused(segments):
+    with pytest.raises(UserMessageError):
+        horizontal_source_rows(25, 1.0, 25.0, 5.0, segments)
+
+
+def test_more_than_ten_segments_is_refused():
+    with pytest.raises(UserMessageError):
+        horizontal_source_rows(25, 1.0, 25.0, 5.0, [(i * 0.4, i * 0.4 + 0.2) for i in range(11)])
+
+
+def test_vertical_default_is_every_layer_but_the_acceptor_boundary():
+    assert vertical_source_layers(10) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+def test_vertical_source_sits_where_the_direction_says():
+    assert vertical_source_layers(10, "top", 30) == [0, 1, 2]
+    assert vertical_source_layers(10, "bottom", 50) == [5, 6, 7, 8, 9]
+    # Rounds up, and never past the grid.
+    assert vertical_source_layers(10, "top", 5) == [0]
+    assert vertical_source_layers(10, "bottom", 100) == list(range(10))
+
+
+@pytest.mark.parametrize("direction,percentage", [
+    ("sideways", 50), ("top", 0), ("top", 101), ("top", None), (" TOP ", 30),
+])
+def test_a_bad_direction_or_coverage_is_refused(direction, percentage):
+    if direction.strip().lower() == "top" and percentage == 30:
+        # Whitespace and case are tolerated; this one must succeed.
+        assert vertical_source_layers(10, direction, percentage) == [0, 1, 2]
+        return
+    with pytest.raises(UserMessageError):
+        vertical_source_layers(10, direction, percentage)
+
+
+def test_timestepping_is_capped_so_a_long_domain_buys_longer_steps():
+    assert COURANT_TARGET == 2.0
+    assert MAX_TIMESTEPS == 50

@@ -1,0 +1,10 @@
+{% extends "model_workbench_multiple.html" %}
+{% block model_kicker %}Hybrid Toolbox{% endblock %}
+{% block model_title %}K&ouml;hler et al. (2024) - Multiple Simulation{% endblock %}
+{% block model_hint %}Pick the sites to compare against on the left of the panel, then build the scenario table underneath &mdash; upload a CSV, or add rows with <strong>+</strong> and type your parameters into them. Press Update Graph and one run plots every modelled L<sub>max</sub> together with every picked site's measured plume length. The run also writes the time to maximum extent and a range check back into the table: <em>extrapolated</em> means at least one input fell outside the band the polynomials were fitted in. Picked sites supply a measurement only, not model parameters.{% endblock %}
+{% block toolbox_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
+{% block toolbox_label %}All hybrid models{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('empirical_bp.kohler_single') }}">Single simulation</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='kohler') }}">About</a>
+{% endblock %}

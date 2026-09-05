@@ -20,6 +20,13 @@ FONT_FAMILY = "Inter, 'Source Sans 3', system-ui, 'Segoe UI', Roboto, Arial, san
 # Document-level (light DOM): fonts + page base
 GLOBAL_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Panel documents are separate cross-origin frames, so static/styles.css never
+   reaches them - without this the shell scales on a large display and every
+   panel inside it stays put, reading as progressively smaller. Same curve as the
+   shell, but vw here is the FRAME's width, not the window's, so a panel scales
+   with the room it actually has. Clamped flat at small sizes: a phone frame is
+   ~350px wide and must keep today's metrics exactly. */
+html { font-size: clamp(1rem, 0.53vw + 0.567rem, 1.25rem); }
 html, body {
   font-family: Inter, 'Source Sans 3', system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
   background: #f5f7fa;
@@ -83,7 +90,7 @@ INPUT_CSS = """
 label {
   font-family: %(font)s;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #5b6b7f;
 }
 .bk-input {
@@ -112,7 +119,7 @@ SLIDER_CSS = """
 .bk-slider-title {
   font-family: %(font)s;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: #5b6b7f;
   margin-bottom: 2px;
   /* CAST parameter names are long ("Horizontal Transverse Dispersivity a_Th
@@ -211,7 +218,7 @@ TABULATOR_CSS = """
 }
 .tabulator .tabulator-header .tabulator-col-title {
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: #5b6b7f;
 }
 .tabulator-row {

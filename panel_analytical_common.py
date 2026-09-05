@@ -132,8 +132,8 @@ def info_card(message: str) -> str:
     """
 
 
-def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simulation Result",
-                delta: str = "") -> str:
+def _metric_row(label: str, value_text: str, unit: str, delta: str) -> str:
+    """One label / value / unit / chip line inside a result card."""
     unit_html = f'<span style="font-size:1rem;font-weight:700;color:#1f72cd;">{unit}</span>' if unit else ''
     # The chip is deliberately neutral-toned: a longer or shorter plume is not
     # "good" or "bad", so red/green would assert a judgement the model does not make.
@@ -141,6 +141,25 @@ def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simu
         f'<span style="font-size:0.8rem;font-weight:600;color:#5b6b7f;background:#e3e8ef;'
         f'border-radius:999px;padding:3px 10px;white-space:nowrap;">{delta}</span>'
     ) if delta else ''
+    return (
+        '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">'
+        f'<span style="font-size:1rem;font-weight:600;color:#5b6b7f;">{label}</span>'
+        '<span class="cast-result-value" '
+        f'style="font-size:1.9rem;font-weight:800;color:#0b2c4f;line-height:1;">{value_text}</span>'
+        f'{unit_html}{delta_html}</div>'
+    )
+
+
+def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simulation Result",
+                delta: str = "", extra_rows=()) -> str:
+    """A result card: one kicker, then a row per number.
+
+    extra_rows carries further (label, value_text, unit, delta) rows inside the
+    SAME card, for a model that returns more than one number. Left empty the
+    card is a single row, exactly as every other single page draws it.
+    """
+    rows = "".join(_metric_row(*row)
+                   for row in ((label, value_text, unit, delta), *extra_rows))
     # The card is rebuilt on every run, so the browser replays this animation
     # each time a new number lands - which is what ties a dragged slider at the
     # bottom of the panel to the result at the top. No JS: a freshly inserted
@@ -163,12 +182,7 @@ def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simu
     </style>
     <div style="background:#eef1f5;border:1px solid #e3e8ef;border-left:3px solid #1f72cd;border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,0.07);">
       <div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#5b6b7f;margin-bottom:8px;">{title}</div>
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-        <span style="font-size:1rem;font-weight:600;color:#5b6b7f;">{label}</span>
-        <span class="cast-result-value" style="font-size:1.9rem;font-weight:800;color:#0b2c4f;line-height:1;">{value_text}</span>
-        {unit_html}
-        {delta_html}
-      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">{rows}</div>
     </div>
     """
 
@@ -209,6 +223,13 @@ SLIDER_RANGES = {
     "Cthres": (0.001, 5.0),
     "epsilon": (0.0, 5.0),
     "R": (0.0, 5.0),           # recharge rate (Birla)
+    # Koehler: the band its polynomials were fitted in (paper Table 1). The
+    # inputs themselves are not clamped to it - outside it the model
+    # extrapolates and says so - this is only where the explore slider tracks
+    # start and end. BIOSCREEN sets its own bounds on both widgets, so it is
+    # unaffected.
+    "lam": (0.0, 1.0),
+    "v": (1.0, 61.0),
 }
 
 

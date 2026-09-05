@@ -148,3 +148,67 @@ def test_panel_aem_loader_rejects_another_users_job(monkeypatch):
 
     with pytest.raises(ValueError, match="unavailable"):
         workbench._load_aem_job_frame("job-1", "user@example.com")
+
+
+# --- "Load my last AEM run" must land where "Explore in Data Workbench" does ---
+
+def _npz_bytes(orientation_rows=2):
+    """A tiny cached export, in the .npz layout the AEM model writes."""
+    import io as _io
+    import numpy as np
+    buffer = _io.BytesIO()
+    np.savez_compressed(
+        buffer,
+        x_m=np.array([0.0, 1.0]),
+        y_m=np.array([-1.0, 0.0]),
+        concentration_mgL=np.array([[1.0, 2.0], [3.0, 4.0]]),
+    )
+    return buffer.getvalue()
+
+
+def _click_last_aem(monkeypatch, tmp_path, sidecar):
+    """Build the workbench and press "Load my last AEM run"."""
+    stem = str(tmp_path / "abc123")
+    with open(stem + ".npz", "wb") as handle:
+        handle.write(_npz_bytes())
+    monkeypatch.setattr(workbench, "authenticated_email", lambda: "user@example.com")
+    monkeypatch.setattr(workbench, "user_export_stem", lambda _email: stem)
+    monkeypatch.setattr(workbench, "read_run_sidecar", lambda _stem: sidecar)
+    monkeypatch.setattr(workbench, "get_user_sites_rows", lambda _email: [])
+
+    app = workbench.data_analysis_app()
+    button = _named_widget(app, pn.widgets.Button, "Load my last AEM run")
+    button.clicks += 1
+    return app
+
+
+def test_the_cached_run_opens_on_the_scientific_tab_like_a_fresh_one(monkeypatch, tmp_path):
+    """The export always worked; what it opened into did not - the workbench sat
+    on Univariate with the grid unbuilt and the raw npz keys as column names."""
+    app = _click_last_aem(monkeypatch, tmp_path, {"orientation": "vertical",
+                                                  "run_at": "2026-09-05T17:44:00"})
+
+    tabs = next(widget for widget in app.select(pn.Tabs))
+    assert tabs.active == 2
+    assert _named_widget(app, pn.widgets.Select, "Grid X column").value == "x [m]"
+    assert _named_widget(app, pn.widgets.Select, "Grid Y column").value == "z [m]"
+    assert _named_widget(app, pn.widgets.Select, "Grid value column").value == "concentration [mg/L]"
+    assert any("Grid ready: 2" in str(pane.object) for pane in app.select(pn.pane.HTML))
+    # The recorded run time, not the file's mtime.
+    assert any("2026-09-05T17:44:00" in str(pane.object) for pane in app.select(pn.pane.HTML))
+
+
+def test_a_horizontal_cached_run_is_labelled_across_not_down(monkeypatch, tmp_path):
+    app = _click_last_aem(monkeypatch, tmp_path, {"orientation": "horizontal"})
+
+    assert _named_widget(app, pn.widgets.Select, "Grid Y column").value == "y [m]"
+
+
+def test_an_export_with_no_sidecar_still_opens_as_a_grid(monkeypatch, tmp_path):
+    """Written before sidecars existed: no orientation to read, so it takes the
+    same horizontal default aem_result_grid takes."""
+    app = _click_last_aem(monkeypatch, tmp_path, {})
+
+    tabs = next(widget for widget in app.select(pn.Tabs))
+    assert tabs.active == 2
+    assert _named_widget(app, pn.widgets.Select, "Grid Y column").value == "y [m]"

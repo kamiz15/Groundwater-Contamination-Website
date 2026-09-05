@@ -1,0 +1,108 @@
+{% extends "model_about_base.html" %}
+
+{% block about_category %}Hybrid Model{% endblock %}
+{% block about_equation_label %}Solution{% endblock %}
+{% block about_title %}K&ouml;hler et al. (2024){% endblock %}
+{% block back_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
+{% block back_label %}All hybrid models{% endblock %}
+
+{% block about_lead %}
+<p>A data-driven surrogate for BIOSCREEN-AT. Two second-order polynomials were
+fitted to roughly 1000 synthetic BIOSCREEN-AT runs, and between them they return
+the maximum plume length (<math><msub><mi>L</mi><mi>max</mi></msub></math>) and
+the time taken to reach it
+(<math><msub><mi>T</mi><mrow><mi>L</mi><mi>max</mi></mrow></msub></math>) from
+three field parameters, algebraically &mdash; where BIOSCREEN-AT itself needs
+more than ten parameters and an iterative search.</p>
+<p>The <math><mi>A</mi></math> and <math><mi>B</mi></math> coefficients are
+empirical, fixed by the publication and not physically interpretable. They are
+not inputs.</p>
+{% endblock %}
+
+{% block about_equation %}
+<math display="block">
+  <mrow>
+    <msub><mi>L</mi><mi>max</mi></msub>
+    <mo>=</mo>
+    <msub><mi>A</mi><mn>1</mn></msub><mo>+</mo>
+    <msub><mi>A</mi><mn>2</mn></msub><msub><mi>&lambda;</mi><mi>e</mi></msub><mo>+</mo>
+    <msub><mi>A</mi><mn>3</mn></msub><mi>v</mi><mo>+</mo>
+    <msub><mi>A</mi><mn>4</mn></msub><msubsup><mi>&lambda;</mi><mi>e</mi><mn>2</mn></msubsup><mo>+</mo>
+    <msub><mi>A</mi><mn>5</mn></msub><msup><mi>v</mi><mn>2</mn></msup><mo>+</mo>
+    <msub><mi>A</mi><mn>6</mn></msub><msub><mi>&lambda;</mi><mi>e</mi></msub><mi>v</mi>
+  </mrow>
+</math>
+<math display="block">
+  <mrow>
+    <msub><mi>T</mi><mrow><mi>L</mi><mi>max</mi></mrow></msub>
+    <mo>=</mo>
+    <msub><mi>B</mi><mn>1</mn></msub><mo>+</mo>
+    <msub><mi>B</mi><mn>2</mn></msub><msub><mi>&lambda;</mi><mi>e</mi></msub><mo>+</mo>
+    <msub><mi>B</mi><mn>3</mn></msub><mi>&Gamma;</mi><mo>+</mo>
+    <msub><mi>B</mi><mn>4</mn></msub><msubsup><mi>&lambda;</mi><mi>e</mi><mn>2</mn></msubsup><mo>+</mo>
+    <msub><mi>B</mi><mn>5</mn></msub><msup><mi>&Gamma;</mi><mn>2</mn></msup><mo>+</mo>
+    <msub><mi>B</mi><mn>6</mn></msub><msub><mi>&lambda;</mi><mi>e</mi></msub><mi>&Gamma;</mi>
+  </mrow>
+</math>
+{% endblock %}
+
+{% block about_equation_note %}
+<p class="about-note">Eqs. (13) and (14); coefficients from Table 2
+of the publication. The units are those the coefficients were fitted in and are
+not interchangeable &mdash; a velocity in m/day produces a number, and it is
+wrong.</p>
+{% endblock %}
+
+{% block about_figure %}
+<table class="about-range-table">
+  <caption>Range of the synthetic training data (Table 1).</caption>
+  <thead>
+    <tr><th>Parameter</th><th>Range</th><th>Used by</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><math><msub><mi>&lambda;</mi><mi>e</mi></msub></math></td><td>0.1 &ndash; 0.45 1/yr</td><td>both</td></tr>
+    <tr><td><math><mi>v</mi></math></td><td>1 &ndash; 61 m/yr</td><td><math><msub><mi>L</mi><mi>max</mi></msub></math></td></tr>
+    <tr><td><math><mi>&Gamma;</mi></math></td><td>0 &ndash; 1 1/yr</td><td><math><msub><mi>T</mi><mrow><mi>L</mi><mi>max</mi></mrow></msub></math></td></tr>
+  </tbody>
+</table>
+<p>Outside these ranges the polynomials extrapolate. The model returns the value
+and flags it rather than refusing to run &mdash; the publication extrapolates
+too, as both of its field sites sit outside the
+<math><msub><mi>&lambda;</mi><mi>e</mi></msub></math> band.</p>
+{% endblock %}
+
+{% block about_parameters %}
+<dt><math><msub><mi>&lambda;</mi><mi>e</mi></msub></math></dt><dd>Effective first-order decay rate constant in the plume (1/yr)</dd>
+<dt><math><mi>v</mi></math></dt><dd>Linear (average) groundwater seepage velocity (m/yr)</dd>
+<dt><math><mi>&Gamma;</mi></math></dt><dd>Source decay rate constant (1/yr). <strong>Not</strong> the stoichiometric coefficient &gamma; of the Liedl, Cirpka, Maier and Ham models &mdash; this is the quantity BIOSCREEN calls the source decay coefficient.</dd>
+{% endblock %}
+
+{% block about_assumptions %}
+<li>The polynomials are surrogates for BIOSCREEN-AT and inherit its assumptions: a
+uniform flow field, a rectangular patch source, and instantaneous
+reaction between donor and acceptor.</li>
+<li>The fitted coefficients are fixed by the publication and are not physically
+interpretable, so they are never exposed as inputs.</li>
+<li><math><msub><mi>L</mi><mi>max</mi></msub></math> is not monotonic in
+<math><msub><mi>&lambda;</mi><mi>e</mi></msub></math>. Eq. (13) is a conic
+section with <math><msub><mi>A</mi><mn>4</mn></msub><mo>&gt;</mo><mn>0</mn></math>,
+so it has a minimum at
+<math><msub><mi>&lambda;</mi><mo>*</mo></msub><mo>=</mo><mfrac><mrow><mn>5808.705</mn><mo>+</mo><mn>85.617</mn><mi>v</mi></mrow><mrow><mn>2</mn><mo>&sdot;</mo><mn>10338.393</mn></mrow></mfrac></math>
+&mdash; about 0.36 1/yr at <math><mi>v</mi><mo>=</mo><mn>20</mn></math> m/yr,
+inside the fitted band. A slider dragged through that point visibly reverses
+direction. This is the published model behaving as published.</li>
+<li>An extreme parameter combination can drive either output negative. The raw
+value is returned rather than clipped, so the condition stays visible.</li>
+{% endblock %}
+
+{% block about_reference %}
+<p>K&ouml;hler, A., P.K. Yadav, R. Liedl, J.B. Shil, T. Grischek, and P. Dietrich.
+2024. A data-driven approach for simplifying the estimation of time for
+contaminant plumes to reach their maximum extent. Journal of Contaminant
+Hydrology 263: 104336,
+<a href="https://doi.org/10.1016/j.jconhyd.2024.104336" target="_blank" rel="noopener noreferrer">https://doi.org/10.1016/j.jconhyd.2024.104336</a>.
+Code and data: <a href="https://github.com/prabhasyadav/Tmax" target="_blank" rel="noopener noreferrer">github.com/prabhasyadav/Tmax</a>.</p>
+{% endblock %}
+
+{% block run_single_href %}{{ url_for('empirical_bp.kohler_single') }}{% endblock %}
+{% block run_multiple_href %}{{ url_for('empirical_bp.kohler_multiple') }}{% endblock %}

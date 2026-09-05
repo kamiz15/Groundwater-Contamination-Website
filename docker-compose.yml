@@ -40,6 +40,11 @@ services:
       # Queue DB, results, and report metadata live on the named volume below
       # so queued jobs and downloadable reports survive redeploys.
       NUMERICAL_JOB_ROOT: /data/numerical_jobs
+      # The AEM grid export is written by the job here in flask and read by the
+      # Data Workbench over in panel. It has to be on the shared volume: left at
+      # its relative default it lands in each container's own layer, and the
+      # workbench's "Load my last AEM run" never finds the file flask wrote.
+      AEM_EXPORT_DIR: /data/numerical_jobs/aem_exports
       # Solver scratch files are ephemeral; keep them off the image layer.
       NUMERICAL_RUN_ROOT: /tmp/numerical_runs
     volumes:
@@ -66,6 +71,8 @@ services:
       DB_USER: ${DB_USER:?Set DB_USER}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
       NUMERICAL_JOB_ROOT: /data/numerical_jobs
+      # Read side of the AEM export - must match the flask service above.
+      AEM_EXPORT_DIR: /data/numerical_jobs/aem_exports
     volumes:
       - numerical_jobs:/data/numerical_jobs
     healthcheck:

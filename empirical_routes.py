@@ -7,6 +7,7 @@ from data_queries import get_user_sites_rows
 from model_site_validation import filter_valid_sites_for_model
 from route_guards import compare_site_ids, guard_model_errors, request_finite_float
 from empirical_models import birla_lmax, maier_lmax
+from kohler_model import kohler_model
 from panel_empirical_common import comparison_plot_data
 from param_meta import attach_meta
 from pdf_report import CASTReport
@@ -46,6 +47,19 @@ EMPIRICAL_INPUT_SPECS = {
         ("Ca", "Contaminant Concentration [mg/L]", 8.0, "0.5", "0.000001"),
         ("Cd", "Reactant Concentration [mg/L]", 5.0, "0.5", "0.000001"),
         ("R", "Recharge Rate [m/yr]", 1.0, "0.1", "0.000001"),
+    ],
+    # Koehler takes three parameters and no more. gamma is the SOURCE DECAY
+    # rate constant here, not the stoichiometric coefficient - param_meta's
+    # "kohler" context is what keeps the label off the wrong quantity.
+    "panel_kohler_single": [
+        ("lam", "First-order Decay Coefficient [1/yr]", 0.2, "0.01", "0"),
+        ("v", "Groundwater Seepage Velocity [m/yr]", 20.0, "1", "0.000001"),
+        ("gamma", "Source Decay Coefficient [1/yr]", 0.5, "0.01", "0"),
+    ],
+    "panel_kohler_multiple": [
+        ("lam", "First-order Decay Coefficient [1/yr]", 0.2, "0.01", "0"),
+        ("v", "Groundwater Seepage Velocity [m/yr]", 20.0, "1", "0.000001"),
+        ("gamma", "Source Decay Coefficient [1/yr]", 0.5, "0.01", "0"),
     ],
 }
 
@@ -106,7 +120,10 @@ _request_float = request_finite_float
 
 
 def _model_from_path(path):
-    return "maier" if "maier" in path else "birla"
+    for model in ("maier", "kohler"):
+        if model in path:
+            return model
+    return "birla"
 
 
 # Canonical symbol -> empirical panel input name. db_to_model only returns the
@@ -299,3 +316,54 @@ def birla_single_export():
 @empirical_bp.route("/empirical/birla/multiple")
 def birla_multiple():
     return _render_multiple("birla")
+
+
+@empirical_bp.route("/empirical/kohler/single")
+def kohler_single():
+    sites, selected_site = _selected_site("kohler")
+    input_fields = _input_fields("panel_kohler_single", selected_site)
+    return render_template(
+        "panel_kohler_single.html",
+        panel_src=_panel_src("panel_kohler_single", selected_site, auto_run=True),
+        sites=sites,
+        selected_site_id=selected_site.get("id") if selected_site else None,
+        input_fields=input_fields,
+        export_href=_export_href(input_fields),
+    )
+
+
+@empirical_bp.route("/empirical/kohler/single/export")
+@guard_model_errors
+def kohler_single_export():
+    lam = _request_float("lam", 0.2)
+    v = _request_float("v", 20.0)
+    gamma = _request_float("gamma", 0.5)
+    out = kohler_model(lam, v, gamma)
+    selected_site_id = request.args.get("site_id", default=0, type=int)
+    report = CASTReport("Köhler et al. (2024) — Single Simulation", "Köhler et al. (2024)")
+    pdf_bytes = report.generate(
+        parameters=[
+            {"symbol": "lambda_e", "name": "First-order Decay Coefficient", "value": lam, "unit": "1/yr"},
+            {"symbol": "v", "name": "Groundwater Seepage Velocity", "value": v, "unit": "m/yr"},
+            {"symbol": "Gamma", "name": "Source Decay Coefficient", "value": gamma, "unit": "1/yr"},
+        ],
+        outputs=[
+            {"label": "Maximum Plume Length Lmax", "value": "%.2f" % out["Lmax"], "unit": "m"},
+            {"label": "Time to Maximum Extent T_Lmax", "value": "%.2f" % out["TLmax"], "unit": "yr"},
+        ],
+        plot_data=comparison_plot_data(
+            "Köhler et al. (2024)", "Köhler model plume length",
+            [selected_site_id or 1], [out["Lmax"]],
+            selected_site_id, _current_email(), "Run Number",
+        ),
+    )
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=kohler_single_report.pdf"},
+    )
+
+
+@empirical_bp.route("/empirical/kohler/multiple")
+def kohler_multiple():
+    return _render_multiple("kohler")

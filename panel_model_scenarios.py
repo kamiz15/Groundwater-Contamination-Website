@@ -61,6 +61,13 @@ _GRAPH_HEIGHT = 420
 _RUN_ROW_HEIGHT = 46
 _STAGE_HEIGHT = _GRAPH_HEIGHT + _RUN_ROW_HEIGHT
 
+# How the picker and the graph share the stage row. The picker holds 340px and
+# never grows; the graph takes what is left. Below the two min-widths (plus the
+# 14px gap, so about 574px of frame) they stop fitting and the graph wraps under
+# the picker - which is the whole point, since a phone frame is ~350px wide.
+_PICKER_FLEX = {"flex": "0 1 340px", "min-width": "260px", "max-width": "100%"}
+_GRAPH_FLEX = {"flex": "1 1 420px", "min-width": "300px", "max-width": "100%"}
+
 
 def scenario_columns(model: str) -> list[str]:
     return [SITE_COLUMN, *MODEL_SPECS[model]["args"], MEASURED_COLUMN]
@@ -129,6 +136,24 @@ def run_rows(model: str, frame: pd.DataFrame):
         value = raw.get(MEASURED_COLUMN)
         measured.append(float(value) if pd.notna(value) else None)
     return labels, lengths, measured
+
+
+def extra_columns(model: str, frame: pd.DataFrame) -> dict:
+    """Result columns beyond Lmax, for a model that produces more than one.
+
+    Empty for every model but Koehler, whose Eq. (14) gives a second number the
+    graph has nothing to plot it against - a time in years, next to a length in
+    metres. Keyed by column name with one value per row, ready for
+    DataFrame.assign, so the table, the exports and the PDF all pick it up
+    without a second path through any of them.
+    """
+    spec = MODEL_SPECS[model]
+    extra = spec.get("extra")
+    if extra is None or frame.empty:
+        return {}
+    rows = [extra(*(float(raw[arg]) for arg in spec["args"]))
+            for _index, raw in frame.iterrows()]
+    return {column: [row[column] for row in rows] for column in rows[0]}
 
 
 def measured_series(measured):
@@ -503,17 +528,25 @@ def scenario_layout(*, status, picker, search, run_btn, graph_slot, toolbar,
         pn.pane.HTML(_SECTION_TITLE % "Site data", sizing_mode="stretch_width"),
         search,
         picker,
-        width=340, height=_STAGE_HEIGHT, sizing_mode="fixed",
-        styles=dict(_CARD),
+        height=_STAGE_HEIGHT, sizing_mode="stretch_width",
+        # flex-basis 340px with no grow is the old fixed width while the two fit
+        # side by side; max-width keeps it inside a frame narrower than that.
+        styles={**_CARD, **_PICKER_FLEX},
     )
-    stage = pn.Row(
+    # FlexBox, not Row: a Row never wraps, so on a phone the 340px picker and the
+    # graph beside it demanded more than the frame had and were clipped at both
+    # edges. Wrapped, they sit side by side exactly as before while they fit and
+    # stack when they do not - the two min-widths are what decide "do not",
+    # because without them the pair would squeeze to unreadable slivers instead.
+    # Same shape the single pages already use for their controls/plot split.
+    stage = pn.FlexBox(
         picker_card,
         pn.Column(
             pn.Row(run_btn, sizing_mode="stretch_width", height=_RUN_ROW_HEIGHT),
             graph_slot,
-            sizing_mode="stretch_width",
+            sizing_mode="stretch_width", styles=dict(_GRAPH_FLEX),
         ),
-        sizing_mode="stretch_width", styles={"gap": "14px"},
+        flex_wrap="wrap", sizing_mode="stretch_width", styles={"gap": "14px"},
     )
     # The wrapper is what position: absolute in the menu resolves against, so
     # the drop-down hangs under Save Data instead of off the end of the toolbar.
@@ -800,7 +833,16 @@ def scenario_app(model: str):
             show_graph(True)
             clear_error()           # a drawn graph needs no box to announce it
 
-            results["frame"] = frame.assign(**{RESULT_COLUMN: lengths}) if lengths else None
+            extras = extra_columns(model, frame) if lengths else {}
+            results["frame"] = (
+                frame.assign(**{RESULT_COLUMN: lengths}, **extras) if lengths else None
+            )
+            if extras:
+                # A model with a second output has nowhere else to show it: the
+                # graph carries Lmax, and the run's numbers belong on the table
+                # anyway. Only the input columns are stored, so every read of
+                # table.value elsewhere still narrows back to `columns`.
+                table.value = results["frame"]
             _refresh_exports()
             if not lengths:
                 # Measured points only. No model ran, but the graph on screen is
@@ -833,12 +875,16 @@ def scenario_app(model: str):
                 # number where it can be read against its inputs.
                 parameters=[
                     entry
-                    for label, (_index, row), length in zip(labels, frame.iterrows(), lengths)
+                    for position, (label, (_index, row), length)
+                    in enumerate(zip(labels, frame.iterrows(), lengths))
                     for entry in (
                         *({"symbol": symbol, "name": name, "value": row[key], "unit": unit,
                            "site": label} for key, symbol, name, unit in spec["report"]),
                         {"symbol": "L_max", "name": "Model Plume Length", "value": length,
                          "unit": "m", "site": label},
+                        *({"symbol": symbol, "name": name, "value": extras[column][position],
+                           "unit": unit, "site": label}
+                          for column, symbol, name, unit in spec.get("extra_report", ())),
                     )
                 ],
                 outputs=[],

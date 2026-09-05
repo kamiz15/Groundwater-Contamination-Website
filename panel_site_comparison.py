@@ -15,6 +15,7 @@ import panel as pn
 from analytical_models import chu_lmax, cirpka_lmax, ham_lmax, liedl_lmax, liedl3d_lmax
 from bioscreen_model import bio
 from data_queries import get_user_sites_rows
+from kohler_model import kohler_model
 from empirical_models import birla_lmax, maier_lmax
 from model_site_validation import filter_valid_sites_for_model
 from panel_analytical_common import comparison_plot, error_card, query_float, query_str
@@ -23,6 +24,36 @@ from panel_theme import report_bridge_html
 from symbol_registry import db_to_model
 
 pn.extension(sizing_mode="stretch_width")
+
+
+# Extra result columns, for a model whose spec carries an "extra" callable.
+# Here rather than in panel_model_scenarios so the spec that names them and the
+# module that writes them do not import each other.
+KOHLER_TLMAX_COLUMN = "Model T_Lmax [yr]"
+RANGE_CHECK_COLUMN = "Range check"
+
+
+def _kohler_lmax(lam, v, gamma):
+    """Koehler Lmax. gamma is in the signature but unused: it is what Eq. (14)
+    needs, so the scenario table has to carry it, and every fn here is called
+    with the model's full argument row."""
+    return kohler_model(lam, v, gamma)["Lmax"]
+
+
+def _kohler_extra(lam, v, gamma):
+    """The second Koehler output, plus the fitted-range verdict, as table columns.
+
+    Eq. (14) is the point of the paper and has no measured counterpart to plot
+    against, so it rides in the scenario table rather than on the graph. The
+    warnings kohler_model returns are full sentences meant to sit beside a
+    result; a table cell gets the verdict and the single page prints the
+    sentences.
+    """
+    out = kohler_model(lam, v, gamma)
+    return {
+        KOHLER_TLMAX_COLUMN: round(out["TLmax"], 2),
+        RANGE_CHECK_COLUMN: "extrapolated" if out["warnings"] else "ok",
+    }
 
 
 def _bioscreen_lmax(Cthres, time, M, C_D, S_w, v, ax, ay, az, Df, R, gamma, lam, ng):
@@ -158,6 +189,26 @@ MODEL_SPECS = {
             ("gamma", "gamma", "Stoichiometry Ratio", "-"),
             ("C_A", "C_A0", "Acceptor Concentration at Source", "mg/L"),
             ("C_D", "C_D0", "Donor Concentration at Source", "mg/L"),
+        ),
+    },
+    "kohler": {
+        "title": "Köhler et al. (2024)",
+        "fn": _kohler_lmax,
+        # lam, v, gamma - and in that order, which is the CSV column order the
+        # model handoff specifies.
+        "args": ("lam", "v", "gamma"),
+        # Mid-range values of the fit (Table 1), so the page opens inside the
+        # band the polynomials were fitted in.
+        "defaults": {"lam": 0.2, "v": 20.0, "gamma": 0.5},
+        "report": (
+            ("lam", "lambda_e", "First-order Decay Coefficient", "1/yr"),
+            ("v", "v", "Groundwater Seepage Velocity", "m/yr"),
+            ("gamma", "Gamma", "Source Decay Coefficient", "1/yr"),
+        ),
+        # The only model here with a second output. See _kohler_extra.
+        "extra": _kohler_extra,
+        "extra_report": (
+            (KOHLER_TLMAX_COLUMN, "T_Lmax", "Time to Maximum Plume Extent", "yr"),
         ),
     },
 }

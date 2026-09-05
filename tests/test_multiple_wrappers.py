@@ -22,6 +22,7 @@ MULTIPLE_WRAPPERS = [
     "/cirpka/multiple",
     "/empirical/maier/multiple",
     "/empirical/birla/multiple",
+    "/empirical/kohler/multiple",
     "/numerical/horizontal/multiple",
     "/numerical/vertical/multiple",
 ]
@@ -29,6 +30,7 @@ MULTIPLE_WRAPPERS = [
 SINGLE_WRAPPERS = [
     "/liedl/single",
     "/empirical/maier/single",
+    "/empirical/kohler/single",
     "/numerical/horizontal/single",
 ]
 

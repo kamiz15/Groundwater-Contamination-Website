@@ -8,11 +8,21 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 import aem_routes
 import app as app_module
-from aem_jobs import build_config, load_aem_design, save_aem_design
+import aem_jobs
+from aem_jobs import (
+    build_config,
+    load_aem_design,
+    read_run_sidecar,
+    run_aem_forward,
+    save_aem_design,
+    user_export_stem,
+    write_run_sidecar,
+)
 from aem_source_geometry import greedy_circle_pack
 from aem.at_simulation import ATSimulation
 
@@ -613,3 +623,129 @@ def test_job_endpoints_enforce_owner(aem_client, monkeypatch):
     assert aem_client.get("/aem/jobs/job-1/result").status_code == 404
     assert aem_client.get("/aem/jobs/job-1/result.csv").status_code == 404
     assert _post(aem_client, "/aem/jobs/job-1/cancel", json={}).status_code == 404
+
+
+# --- the AEM run cache the Data Workbench reads ------------------------------
+
+def test_a_run_sidecar_round_trips_beside_its_grid(tmp_path):
+    stem = str(tmp_path / "exports" / "abc123")
+    write_run_sidecar(stem, {"kind": "forward", "alpha_l": 1.5, "L_max": 142.3})
+
+    assert Path(stem + ".json").exists()          # parent directory was created
+    assert read_run_sidecar(stem) == {"kind": "forward", "alpha_l": 1.5, "L_max": 142.3}
+
+
+def test_an_export_with_no_sidecar_reads_as_empty_rather_than_raising(tmp_path):
+    """Exports written before sidecars existed carry only the .npz, and the
+    workbench still has to open those."""
+    assert read_run_sidecar(str(tmp_path / "never-written")) == {}
+
+
+@pytest.mark.parametrize("junk", [b"{ not json", b"", b"[1, 2, 3]"])
+def test_an_unreadable_sidecar_never_takes_the_grid_down_with_it(tmp_path, junk):
+    stem = str(tmp_path / "abc123")
+    Path(stem + ".json").write_bytes(junk)
+
+    assert read_run_sidecar(stem) == {}
+
+
+def test_a_rerun_replaces_the_sidecar_rather_than_appending(tmp_path):
+    stem = str(tmp_path / "abc123")
+    write_run_sidecar(stem, {"L_max": 1.0})
+    write_run_sidecar(stem, {"L_max": 2.0})
+
+    assert read_run_sidecar(stem) == {"L_max": 2.0}
+
+
+def test_the_workbench_renders_only_the_values_a_sidecar_actually_carries():
+    from panel_data_analysis import _run_values_card
+
+    full = _run_values_card({
+        "orientation": "horizontal", "alpha_l": 1.5, "alpha_t": 0.15, "ca": 8.0,
+        "gamma": 3.5, "dom_inc": 0.5, "num_elements": 3, "num_terms": 30,
+        "num_cp": 60, "L_max": 142.3175,
+    })
+    assert full.count("justify-content") == 10
+    assert "142.32" in full and "horizontal" in full
+
+    # An older export: one known key, and nothing invented around it.
+    assert _run_values_card({"L_max": 10}).count("justify-content") == 1
+    # Nothing to show is no card at all, not an empty one.
+    assert _run_values_card({}) == ""
+    # A value that is not a number is skipped, not crashed on.
+    assert _run_values_card({"alpha_l": "n/a", "L_max": 10}).count("justify-content") == 1
+
+
+def test_the_export_is_wired_to_the_shared_volume_in_both_containers():
+    """flask writes the export and panel reads it, so the path has to be on the
+    volume they share - the relative default lands in each container's own layer."""
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    assert compose.count("AEM_EXPORT_DIR: /data/numerical_jobs/aem_exports") == 2
+
+
+class _StubSimulation:
+    """ATSimulation with the solver taken out.
+
+    run_aem_forward's own wiring is what is under test - that a job carrying an
+    email reaches write_run_sidecar with the config it ran. A real Mathieu solve
+    proves nothing extra here and takes minutes.
+    """
+
+    def __init__(self, config):
+        self.config = config
+        self.result = np.zeros((2, 2))
+        self.xaxis = np.array([0.0, 1.0])
+        self.yaxis = np.array([0.0, 1.0])
+        self.L_max = 142.3175
+        self.interface_length = 3.0
+        self.validation_passed = True
+        self.validation_reason = ""
+        self.num_elements_original = len(config.elements)
+
+    def run(self):
+        return None
+
+
+def test_a_job_with_an_email_is_configured_to_export_its_grid(tmp_path, monkeypatch):
+    monkeypatch.setattr(aem_jobs, "AEM_EXPORT_DIR", str(tmp_path))
+    config = build_config({"config_json": VALID_CONFIG, "email": "someone@example.com"})
+
+    assert config.concentration_output == "npz"
+    assert config.export_path == user_export_stem("someone@example.com")
+
+
+def test_a_job_with_no_email_exports_nothing():
+    """Nobody to file it under, so a run stays as it was before exports existed."""
+    config = build_config({"config_json": VALID_CONFIG})
+
+    assert config.concentration_output == "none"
+    assert config.export_path == ""
+
+
+def test_a_forward_run_records_the_values_it_ran_with(tmp_path, monkeypatch):
+    monkeypatch.setattr(aem_jobs, "AEM_EXPORT_DIR", str(tmp_path))
+    monkeypatch.setattr("aem.at_simulation.ATSimulation", _StubSimulation)
+
+    result = run_aem_forward({"config_json": VALID_CONFIG, "email": "someone@example.com",
+                              "alpha_t": 0.25})
+
+    values = read_run_sidecar(user_export_stem("someone@example.com"))
+    assert values["kind"] == "forward"
+    assert values["alpha_t"] == 0.25                  # the job's override, not the sample's
+    assert values["ca"] == VALID_CONFIG["ca"]
+    assert values["gamma"] == VALID_CONFIG["gamma"]
+    assert values["orientation"] == VALID_CONFIG["orientation"]
+    assert values["L_max"] == pytest.approx(result.L_max)
+    assert values["run_at"]                           # a real timestamp, not the file mtime
+    # Everything the workbench renders is present.
+    from panel_data_analysis import _run_values_card
+    assert _run_values_card(values).count("justify-content") == 10
+
+
+def test_a_run_nobody_can_file_writes_no_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(aem_jobs, "AEM_EXPORT_DIR", str(tmp_path))
+    monkeypatch.setattr("aem.at_simulation.ATSimulation", _StubSimulation)
+
+    run_aem_forward({"config_json": VALID_CONFIG})
+
+    assert list(tmp_path.iterdir()) == []

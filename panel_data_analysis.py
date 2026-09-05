@@ -49,7 +49,7 @@ from data_analysis.kde import BANDWIDTHS, KERNELS
 from data_analysis.plots import COLORMAPS, DEFAULT_COLORMAP, profile_line_options
 from data_analysis.scales import SCALES
 from data_analysis.stats import DISTRIBUTIONS
-from aem_jobs import user_export_stem
+from aem_jobs import read_run_sidecar, user_export_stem
 from data_queries import get_user_sites_rows
 from numerical_jobs import fetch_result, job_status, load_job_meta
 from panel_auth import authenticated_email
@@ -81,6 +81,58 @@ _UPLOAD_HELP = (
     + ". Custom columns keep their original names."
 )
 logger = logging.getLogger(__name__)
+
+# What a forward run's sidecar carries, in the order it reads best: label, key,
+# and how many decimals the value is worth. Keys the sidecar does not have are
+# skipped, so an export written by an older build still renders what it does have.
+_AEM_RUN_FIELDS = (
+    ("Orientation", "orientation", None),
+    ("Longitudinal dispersivity α_L", "alpha_l", 4),
+    ("Transverse dispersivity α_T", "alpha_t", 4),
+    ("Acceptor concentration C_A", "ca", 3),
+    ("Stoichiometric ratio γ", "gamma", 3),
+    ("Grid increment Δ", "dom_inc", 3),
+    ("Source elements", "num_elements", 0),
+    ("Series terms", "num_terms", 0),
+    ("Control points", "num_cp", 0),
+    ("Maximum plume length L_max", "L_max", 2),
+)
+
+
+def _run_values_card(values: dict) -> str:
+    """The parameters a cached AEM run was made with, under its data summary.
+
+    The grid alone says nothing about how it was produced; this is what makes
+    the cached run reproducible rather than just plottable.
+    """
+    rows = []
+    for label, key, places in _AEM_RUN_FIELDS:
+        value = values.get(key)
+        if value is None:
+            continue
+        if places is None:
+            shown = html.escape(str(value))
+        else:
+            try:
+                shown = f"{float(value):.{places}f}"
+            except (TypeError, ValueError):
+                continue
+        rows.append(
+            f'<div style="display:flex;justify-content:space-between;gap:14px;">'
+            f'<span style="color:#5b6b7f;">{label}</span>'
+            f'<span style="font-variant-numeric:tabular-nums;">{shown}</span></div>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<div style="margin-top:10px;">'
+        + info_card(
+            '<div style="font-size:0.78rem;font-weight:700;letter-spacing:0.08em;'
+            'text-transform:uppercase;color:#5b6b7f;margin-bottom:8px;">Run parameters</div>'
+            '<div style="display:grid;gap:4px;font-size:0.92rem;">' + "".join(rows) + "</div>"
+        )
+        + "</div>"
+    )
 
 
 def _request_argument(name: str) -> str:
@@ -248,10 +300,29 @@ def data_analysis_app():
             return
         _apply_dataframe(frame, "Site database")
 
+    def _show_as_grid(frame: pd.DataFrame, source_name: str) -> bool:
+        """Land on the Scientific tab with the contour already drawn.
+
+        Both AEM intakes - a job just finished, and the cached last run - arrive
+        as the same three-column x/y/value field, and both want the same thing:
+        the plume, not a histogram of its coordinates. Shared so the two cannot
+        drift apart, which is exactly what they had done.
+
+        False when the grid could not be built; the caller says so its own way.
+        """
+        _apply_dataframe(frame, source_name)
+        grid_x.value, grid_y.value, grid_v.value = frame.columns
+        _build_grid()
+        if state["grid"] is None:
+            return False
+        tabs.active = 2
+        return True
+
     def _load_last_aem(_=None):
         """Open the .npz an AEM forward run wrote for this user (one per user)."""
         email = authenticated_email()
-        path = user_export_stem(email) + ".npz" if email else ""
+        stem = user_export_stem(email) if email else ""
+        path = stem + ".npz" if stem else ""
         try:
             with open(path, "rb") as handle:
                 raw = handle.read()
@@ -267,9 +338,27 @@ def data_analysis_app():
         except Exception as exc:
             status_pane.object = error_card(exc)
             return
-        # _apply_dataframe prints the row × column count; the timestamp here is
-        # what tells the user *which* run they are looking at.
-        _apply_dataframe(df, f"Last AEM run ({when:%Y-%m-%d %H:%M})")
+        # The values that run was made with, when it recorded them. An export
+        # written before sidecars existed has only the grid, and still opens.
+        values = read_run_sidecar(stem)
+        stamp = values.get("run_at") or f"{when:%Y-%m-%d %H:%M}"
+        # The column names the Explore-in-Workbench button produces, so a cached
+        # run opens on the same axes as a fresh one. The cross-axis is depth for
+        # a vertical run: the .npz cannot say which it was, but the sidecar can,
+        # and without it every cached run was labelled as horizontal.
+        cross = "z [m]" if values.get("orientation") == "vertical" else "y [m]"
+        df = df.rename(columns={"x_m": "x [m]", "y_m": cross,
+                                "concentration_mgL": "concentration [mg/L]"})
+        # "forward" on purpose: an inverse run recovers a parameter and exports
+        # no grid, so what is on disk is always the last FORWARD run - saying
+        # "last AEM run" after an inverse one would point at the wrong thing.
+        if not _show_as_grid(df, f"Last AEM forward run ({stamp})"):
+            status_pane.object = error_card(
+                "The cached AEM grid could not be prepared."
+            )
+            return
+        if values:
+            status_pane.object = (status_pane.object or "") + _run_values_card(values)
 
     def _on_upload(_=None):
         if not file_input.value:
@@ -599,12 +688,8 @@ def data_analysis_app():
             if not email:
                 raise ValueError("Authenticated user information is unavailable.")
             frame, source_name = _load_aem_job_frame(aem_job_id, email)
-            _apply_dataframe(frame, source_name)
-            grid_x.value, grid_y.value, grid_v.value = frame.columns
-            _build_grid()
-            if state["grid"] is None:
+            if not _show_as_grid(frame, source_name):
                 raise ValueError("The AEM concentration grid could not be prepared.")
-            tabs.active = 2
         except Exception:
             logger.exception("Could not load the requested AEM result into the Data Workbench")
             _clear_dataframe("The requested AEM result could not be loaded.")

@@ -1,0 +1,10 @@
+{% extends "model_workbench_single.html" %}
+{% block model_kicker %}Hybrid Toolbox{% endblock %}
+{% block model_title %}K&ouml;hler et al. (2024) - Single Simulation{% endblock %}
+{% block model_hint %}Set the three input parameters on the left and press Run Model &mdash; the panel on the right returns the maximum plume length and the time to reach it. Inputs outside the range the polynomials were fitted in still return a value, flagged as an extrapolation.{% endblock %}
+{% block toolbox_href %}{{ url_for('empirical_bp.empirical_landing') }}{% endblock %}
+{% block toolbox_label %}All hybrid models{% endblock %}
+{% block model_about_link %}
+<a class="ghost-btn model-workbench-back" href="{{ url_for('empirical_bp.kohler_multiple') }}">Multiple simulations</a>
+<a class="ghost-btn model-workbench-back" href="{{ url_for('model_about', slug='kohler') }}">About</a>
+{% endblock %}

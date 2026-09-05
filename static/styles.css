@@ -69,12 +69,21 @@ html[data-theme="dark"] {
 /* ---------- Base ---------- */
 * { box-sizing: border-box }
 html, body { height: 100% }
+/* Type scale for large displays. Most of this sheet is already rem-based
+   against an unset root, so moving the root moves the whole shell with it -
+   without this the site sits at a fixed 15px inside a 1480px column and a 4K
+   screen just gets more empty margin.
+   Written in rem, not px, so a reader who has raised their browser's default
+   font size keeps it as the floor rather than having it overridden.
+   16px up to a 1600px viewport, 20px from 2560px, linear between. */
+html { font-size: clamp(1rem, 0.42vw + 0.58rem, 1.25rem); }
 body{
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: Inter, "Source Sans 3", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 15px;
+  /* 15px at the default root, and it scales with the rule above. */
+  font-size: 0.9375rem;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -253,7 +262,10 @@ html[data-theme="dark"] .nav-link:hover{ background: rgba(94, 168, 255, 0.10); c
 .backdrop.open{ opacity: 1; visibility: visible }
 
 /* ---------- Main Content ---------- */
-.content{ padding: 48px 24px; max-width: 1480px; margin: 0 auto; width: 100%; }
+/* 1480px up to roughly a 1800px viewport, widening to 2100px on a 2560px one.
+   The prose blocks keep their own ch-based caps, so a wider column grows the
+   cards and tables without stretching paragraphs into unreadable lines. */
+.content{ padding: 48px 24px; max-width: clamp(1480px, 82vw, 2100px); margin: 0 auto; width: 100%; }
 .content.home-content { padding-top: 0; }
 
 /* ---------- HERO (deep navy band with contour pattern) ---------- */
@@ -1123,7 +1135,8 @@ html[data-theme="dark"] .data-table tbody tr:hover {
 /* The uploaded-site database can contain many model-specific columns. Keep
    this table inside the viewport without changing shared tables elsewhere. */
 .content.site-database-content {
-  max-width: 1800px;
+  /* Already wider than a normal page; it keeps that lead on a large display. */
+  max-width: clamp(1800px, 92vw, 2400px);
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -1214,7 +1227,7 @@ html[data-theme="dark"] .data-table tbody tr:hover {
 }
 
 .content.data-page-content {
-  max-width: 1800px;
+  max-width: clamp(1800px, 92vw, 2400px);
   padding-right: 16px;
   padding-left: 16px;
 }
@@ -2865,6 +2878,13 @@ html[data-theme="dark"] .about-equation-label{ color: var(--brand-400); }
   background: #fff;
 }
 .about-figure figcaption{ color: var(--muted); font-size: .88rem; margin-top: 6px; }
+
+/* Koehler's About page has no conceptual sketch: the model is a polynomial fit,
+   so the Conceptual Model card carries the range the fit is valid over. */
+.about-range-table{ width: 100%; border-collapse: collapse; font-size: .92rem; }
+.about-range-table caption{ caption-side: bottom; color: var(--muted); font-size: .88rem; margin-top: 6px; text-align: left; }
+.about-range-table th, .about-range-table td{ border-bottom: 1px solid var(--panel-border); padding: 7px 10px; text-align: left; }
+.about-range-table th{ font-weight: 600; color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; }
 .about-figure-zoomable{ cursor: zoom-in; }
 .about-params{
   display: grid; grid-template-columns: max-content 1fr;

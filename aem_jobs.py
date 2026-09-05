@@ -12,6 +12,8 @@ arrays and scalars so it round-trips cleanly through the job queue.
 from __future__ import annotations
 
 import hashlib
+import datetime as dt
+import logging
 import os
 import json
 import re
@@ -24,6 +26,8 @@ from typing import Any
 import numpy as np
 
 from settings import AEM_EXPORT_DIR
+
+logger = logging.getLogger(__name__)
 
 
 # Directory holding the sample designer exports bundled with the project.
@@ -45,6 +49,48 @@ def user_export_stem(email: str) -> str:
     """
     token = hashlib.sha256(email.encode()).hexdigest()[:16]
     return os.path.join(AEM_EXPORT_DIR, token)
+
+
+def write_run_sidecar(stem: str, values: dict[str, Any]) -> str:
+    """Record the values a run was made with, beside its .npz grid export.
+
+    A sidecar rather than more keys inside the archive: the npz is written by
+    at_simulation.py, which is kept byte-identical to the reference
+    implementation, and np.load runs with allow_pickle=False so an archive
+    cannot carry a nested object anyway. Written from here, the export stays a
+    pair of files that either half can be read without the other.
+
+    Replaced atomically, so a reader never sees a half-written file.
+    """
+    path = stem + ".json"
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(values, handle)
+        os.replace(tmp, path)
+    except OSError:
+        # An export nobody can write is not a reason to fail a finished run.
+        logger.exception("Could not write the AEM run sidecar to %s", path)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+    return path
+
+
+def read_run_sidecar(stem: str) -> dict[str, Any]:
+    """The values in a run's sidecar, or {} when there is none to read.
+
+    Empty is not an error: exports written before sidecars existed have only the
+    .npz, and the workbench still opens those.
+    """
+    try:
+        with open(stem + ".json", encoding="utf-8") as handle:
+            values = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return values if isinstance(values, dict) else {}
 
 
 def _design_root() -> Path:
@@ -428,6 +474,26 @@ def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
                 "horizontal orientation."
             ) from exc
         raise
+
+    # The values this run was made with, beside the grid it exported. Only when
+    # the run actually exported one - build_config sets export_path for a job
+    # that carries an email, and nothing else writes to that stem.
+    if getattr(config, "export_path", ""):
+        write_run_sidecar(config.export_path, {
+            "kind": "forward",
+            "run_at": dt.datetime.now().isoformat(timespec="seconds"),
+            "orientation": str(config.orientation),
+            "alpha_l": float(config.alpha_l),
+            "alpha_t": float(config.alpha_t),
+            "ca": float(config.ca),
+            "gamma": float(config.gamma),
+            "dom_inc": float(config.dom_inc),
+            "num_terms": int(config.num_terms),
+            "num_cp": int(config.num_cp),
+            "num_elements": int(getattr(sim, "num_elements_original", len(config.elements))),
+            "L_max": (float(sim.L_max) if sim.L_max is not None else None),
+        })
+
     return AEMForwardResult(
         result=np.asarray(sim.result, dtype=float),
         xaxis=np.asarray(sim.xaxis, dtype=float),

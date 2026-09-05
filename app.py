@@ -100,6 +100,20 @@ _warn_about_panel_embedding()
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
+
+@app.template_global()
+def asset_v(filename):
+    """Cache-buster for a static file, taken from the file's own mtime.
+
+    base.html used to carry a hardcoded "?v=20260831a", which only busts the
+    cache when someone remembers to bump it - and an edited stylesheet that
+    nobody bumped is simply never served to anyone who has visited before.
+    """
+    try:
+        return str(int(os.path.getmtime(os.path.join(app.static_folder, filename))))
+    except OSError:
+        return "0"
+
 # Cookie hardening for the login session and "remember me" cookie.
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,      # not readable by JavaScript (mitigates XSS theft)
@@ -224,6 +238,7 @@ MODEL_ABOUT_TEMPLATES = {
     "cirpka": "about_cirpka.html",
     "maier": "about_maier.html",
     "birla": "about_birla.html",
+    "kohler": "about_kohler.html",
     "numerical": "about_numerical.html",
 }
 
