@@ -16,10 +16,12 @@ from numerical_jobs import (
 from security import csrf_protect, current_email, rate_limit
 from route_guards import compare_site_ids, guard_model_errors, request_finite_float
 from numerical_input_validation import (
+    MAX_FORM_SEGMENTS,
     SOURCE_DIRECTION_HELP,
-    SOURCE_SEGMENTS_FORMAT,
+    SOURCE_FULL_HELP,
+    SOURCE_SEGMENT_COUNT_HELP,
     format_issues,
-    parse_source_segments,
+    source_segments_from_form,
     vertical_inputs_from_site,
 )
 from param_meta import GRID_SIZE_VERTICAL_SYMBOL, attach_meta
@@ -33,6 +35,10 @@ logger = logging.getLogger(__name__)
 NUMERICAL_INPUT_SPECS = {
     "horizontal": [
         ("source_thickness", "Source Width [m]", 5.0, "0.1", "0.000001"),
+        ("y1_start", "Segment 1 Start [m]", 0.0, "0.1", "0"),
+        ("y1_end", "Segment 1 End [m]", 2.0, "0.1", "0"),
+        ("y2_start", "Segment 2 Start [m]", 3.0, "0.1", "0"),
+        ("y2_end", "Segment 2 End [m]", 5.0, "0.1", "0"),
         ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
         ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
         ("at", "Horizontal Transverse Dispersivity [m]", 0.2, "0.01", "0.000001"),
@@ -60,19 +66,31 @@ NUMERICAL_INPUT_SPECS = {
 
 # The horizontal source width can be broken into separate contaminated strips,
 # the way the source CSV does with its source_start_i / source_end_i pairs.
-# Free text rather than 20 number boxes: the count is variable, and blank
-# (one continuous source) has to stay the effortless default.
-SOURCE_SEGMENTS_SPEC = {
-    "name": "source_segments",
-    "label": "Source Segments [m]",
-    "value": "",
+# One dropdown decides how many, and the start/end pair per segment follows it;
+# a select rather than a checkbox because an unticked box submits nothing, so
+# "full source" and "never asked" would arrive identical.
+SOURCE_FULL_SPEC = {
+    "name": "source_full",
+    "label": "Full Source [-]",
+    "value": True,
     "step": None,
     "min": None,
     "from_db": False,
     "advanced": False,
     "column": "physical",
-    "text": True,
-    "placeholder": "blank = whole width, or 0-2, 3-5",
+    "checkbox": True,
+}
+
+SOURCE_SEGMENT_COUNT_SPEC = {
+    "name": "source_segment_count",
+    "label": "Number of Segments [-]",
+    "value": "1",
+    "step": None,
+    "min": None,
+    "from_db": False,
+    "advanced": False,
+    "column": "physical",
+    "choices": [(str(n), str(n)) for n in range(1, MAX_FORM_SEGMENTS + 1)],
 }
 
 # The vertical source can sit on part of the aquifer thickness instead of all
@@ -166,6 +184,17 @@ def _default_query(orientation):
 _request_float = request_finite_float
 
 
+def _request_checkbox(name, default):
+    """A tick box's state. Absent means the form was never submitted, so the
+    field keeps its own default rather than reading as unticked."""
+    values = request.args.getlist(name)
+    if not values:
+        return default
+    # The PDF export link re-submits these values, so "False" has to read
+    # as unticked too - urlencode writes a bool that way.
+    return values[0].strip().lower() not in ("", "0", "false")
+
+
 def _input_fields(orientation, site):
     try:
         db_query = _build_panel_query(site, orientation=orientation)
@@ -195,13 +224,20 @@ def _input_fields(orientation, site):
             direction_field["description"] = SOURCE_DIRECTION_HELP
             fields.append(direction_field)
         if name == "source_thickness":
-            # Directly under the width it subdivides.
-            segments_field = attach_meta(dict(
-                SOURCE_SEGMENTS_SPEC,
-                value=request.args.get("source_segments", ""),
+            # Directly under the width it subdivides, above its own start/end pairs.
+            full_field = attach_meta(dict(
+                SOURCE_FULL_SPEC,
+                value=_request_checkbox("source_full", SOURCE_FULL_SPEC["value"]),
             ))
-            segments_field["description"] = SOURCE_SEGMENTS_FORMAT
-            fields.append(segments_field)
+            full_field["description"] = SOURCE_FULL_HELP
+            fields.append(full_field)
+            count_field = attach_meta(dict(
+                SOURCE_SEGMENT_COUNT_SPEC,
+                value=request.args.get("source_segment_count",
+                                       SOURCE_SEGMENT_COUNT_SPEC["value"]),
+            ))
+            count_field["description"] = SOURCE_SEGMENT_COUNT_HELP
+            fields.append(count_field)
     for name, label, default, step, minimum in NUMERICAL_ADVANCED_INPUT_SPECS.get(orientation, []):
         fields.append(attach_meta({
             "name": name,
@@ -427,7 +463,11 @@ def _horizontal_pdf(input_fields):
             "prsity": values["prsity"],
             "hk": values["hk"],
             "gradient": values["gradient"],
-            "source_segments": parse_source_segments(values.get("source_segments")),
+            "source_segments": source_segments_from_form(
+                values.get("source_full"),
+                values.get("source_segment_count"),
+                [(values["y1_start"], values["y1_end"]),
+                 (values["y2_start"], values["y2_end"])]),
         },
         input_fields,
         {

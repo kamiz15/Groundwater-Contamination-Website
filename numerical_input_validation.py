@@ -273,3 +273,43 @@ SOURCE_DIRECTION_HELP = (
     "Source Coverage % of it. Full thickness contaminates every layer but the "
     "topmost, which stays clean as the acceptor boundary."
 )
+
+
+# The form asks for the source geometry the way the schema draws it: how many
+# segments (or a full source), then a start/end pair per segment.
+MAX_FORM_SEGMENTS = 2
+SOURCE_FULL_HELP = (
+    "Ticked, the whole source zone width is the source. Untick it to "
+    "contaminate only the segments below instead."
+)
+SOURCE_SEGMENT_COUNT_HELP = (
+    "How many separate contaminated segments sit inside the source zone. Each "
+    "one takes a start and an end offset in metres from the start of the zone."
+)
+
+
+def source_segments_from_form(full, count, bounds):
+    """(full source?, count, [(start, end), ...]) -> segments, or None.
+
+    None means the whole source zone is one source - what the Full source tick
+    box asks for, and what this page has always run. Otherwise `count` says how
+    many of `bounds` to take. Whether a pair fits inside the source zone is
+    still horizontal_source_rows' call - it owns the grid.
+    """
+    if full:
+        return None
+    try:
+        wanted = int(float(count))
+    except (TypeError, ValueError):
+        return None
+    if wanted < 1:
+        return None
+    segments = []
+    for start, end in list(bounds)[:wanted]:
+        try:
+            segments.append((float(start), float(end)))
+        except (TypeError, ValueError):
+            raise UserMessageError(
+                "Give every source segment a start and an end in metres, then "
+                "run it again.") from None
+    return segments

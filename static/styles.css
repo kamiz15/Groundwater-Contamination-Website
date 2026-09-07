@@ -1973,6 +1973,21 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   background: var(--panel);
   color: var(--text);
 }
+/* The tick box keeps its own size - the full-width rule above is for the text
+   and number boxes it shares a grid with. */
+.model-input-form .model-input-check {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+.model-input-form input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  accent-color: var(--brand-600, #1f72cd);
+}
+
 .model-input-form input:focus,
 .model-input-form select:focus {
   outline: none;

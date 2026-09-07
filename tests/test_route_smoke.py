@@ -199,8 +199,11 @@ def test_numerical_orlando_grid_fields_are_rendered_and_forwarded(
         # The source geometry the CSV scripts carry: which strips of the
         # horizontal source width are contaminated, and where in the vertical
         # aquifer thickness the source sits.
-        ("/numerical/horizontal/single", {"source_segments": "0-1, 3-5"},
-         {"source_segments": ["0-1, 3-5"]}),
+        ("/numerical/horizontal/single",
+         {"source_full": "0", "source_segment_count": "2", "y1_start": "0",
+          "y1_end": "1", "y2_start": "3", "y2_end": "5"},
+         {"source_full": ["0"], "source_segment_count": ["2"], "y1_start": ["0"],
+          "y2_end": ["5"]}),
         ("/numerical/vertical/single", {"source_direction": "bottom", "source_percentage": "40"},
          {"source_direction": ["bottom"], "source_percentage": ["40"]}),
     ],

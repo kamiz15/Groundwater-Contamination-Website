@@ -6,8 +6,10 @@ import panel as pn
 
 from numerical_input_validation import (
     POSITIVE_INPUTS,
-    SOURCE_SEGMENTS_FORMAT,
-    parse_source_segments,
+    MAX_FORM_SEGMENTS,
+    SOURCE_FULL_HELP,
+    SOURCE_SEGMENT_COUNT_HELP,
+    source_segments_from_form,
     user_instruction,
 )
 from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
@@ -53,10 +55,39 @@ def _loading_status_card(items, title):
 def numerical_horizontal_single_app():
     # Input (user / database)
     source = pn.widgets.FloatInput(name="Source Thickness S_w [m]", value=query_float("source_thickness", query_float("source", query_float("Sw", 5.0))), step=0.1)
-    segments = pn.widgets.TextInput(
-        name="Source Segments [m]", value=query_str("source_segments", ""),
-        placeholder="blank = whole width, or 0-2, 3-5",
-        description=SOURCE_SEGMENTS_FORMAT)
+    # Checkbox only grew a description on later Panel builds, so it is set after
+    # construction when the build has it - passing it always is a TypeError.
+    full_source = pn.widgets.Checkbox(
+        name="Full Source",
+        value=query_str("source_full", "1").strip().lower() not in ("0", "false", ""),
+        **({"description": SOURCE_FULL_HELP}
+           if "description" in pn.widgets.Checkbox.param else {}))
+    segment_count = pn.widgets.Select(
+        name="Number of Segments [-]",
+        options=[str(n) for n in range(1, MAX_FORM_SEGMENTS + 1)],
+        value=query_str("source_segment_count", "1"),
+        description=SOURCE_SEGMENT_COUNT_HELP)
+    # One start/end pair per segment, shown only while that segment is asked for.
+    segment_bounds = [
+        (pn.widgets.FloatInput(name=f"Segment {n} Start [m]",
+                               value=query_float(f"y{n}_start", 0.0 if n == 1 else 3.0), step=0.1),
+         pn.widgets.FloatInput(name=f"Segment {n} End [m]",
+                               value=query_float(f"y{n}_end", 2.0 if n == 1 else 5.0), step=0.1))
+        for n in range(1, MAX_FORM_SEGMENTS + 1)
+    ]
+    segment_inputs = [widget for pair in segment_bounds for widget in pair]
+
+    def _sync_segments(*_events):
+        """A full source needs neither a count nor any bounds, so it hides both."""
+        wanted = 0 if full_source.value else int(segment_count.value or 0)
+        segment_count.visible = not full_source.value
+        for n, pair in enumerate(segment_bounds, start=1):
+            for widget in pair:
+                widget.visible = n <= wanted
+
+    full_source.param.watch(_sync_segments, "value")
+    segment_count.param.watch(_sync_segments, "value")
+    _sync_segments()
     grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394y [m]", value=query_float("grid_size", 1.0), step=0.1)
     alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
     at = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
@@ -70,7 +101,7 @@ def numerical_horizontal_single_app():
     # Analytical column (computed, read-only; filled after a run)
     ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
     dw_out = pn.widgets.StaticText(name="Domain Width W_D [m]", value="\u2014")
-    for _w in (source, segments, grid_size, alpha_l, at, gamma, cd, ca, prsity, hk, gradient, ld_out, dw_out):
+    for _w in (source, full_source, segment_count, *segment_inputs, grid_size, alpha_l, at, gamma, cd, ca, prsity, hk, gradient, ld_out, dw_out):
         _w.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
 
     run_btn = pn.widgets.Button(name="Run Horizontal Simulation", button_type="primary", sizing_mode="stretch_width")
@@ -139,7 +170,11 @@ def numerical_horizontal_single_app():
         state.update({
             "parameters": [
                 {"symbol": "Sw", "name": "Source Thickness", "value": source.value, "unit": "m"},
-                {"symbol": "segments", "name": "Source Segments", "value": segments.value or "whole width", "unit": "m"},
+                {"symbol": "segments", "name": "Source Segments",
+                 "value": ("full source" if full_source.value else
+                           "; ".join(f"{a.value:g}-{b.value:g}" for a, b in
+                                     segment_bounds[:int(segment_count.value or 0)])),
+                 "unit": "m"},
                 {"symbol": "dx", "name": "Grid Size", "value": grid_size.value, "unit": "m"},
                 {"symbol": "alpha_L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
                 {"symbol": "alpha_Th", "name": "Horizontal Transverse Dispersivity", "value": at.value, "unit": "m"},
@@ -241,7 +276,10 @@ def numerical_horizontal_single_app():
                 "prsity": prsity.value,
                 "hk": hk.value,
                 "gradient": gradient.value,
-                "source_segments": parse_source_segments(segments.value),
+                "source_segments": source_segments_from_form(
+                    full_source.value,
+                    segment_count.value,
+                    [(a.value, b.value) for a, b in segment_bounds]),
             }
             job_id = submit_job("horizontal_single", params)
             state["job_id"] = job_id
@@ -282,7 +320,7 @@ def numerical_horizontal_single_app():
     return pn.Column(
         "## Horizontal Numerical Model",
         pn.FlexBox(
-            pn.Column("#### Input", source, segments, grid_size, alpha_l, at, gamma, cd, ca, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
+            pn.Column("#### Input", source, full_source, segment_count, *segment_inputs, grid_size, alpha_l, at, gamma, cd, ca, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
             pn.Column("#### Analytical", ld_out, dw_out, "#### Standard (editable)", prsity, hk, gradient, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
             flex_wrap="wrap", sizing_mode="stretch_width", styles={"gap": "18px"}),
         run_btn,

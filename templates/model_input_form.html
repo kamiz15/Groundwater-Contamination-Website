@@ -21,8 +21,18 @@
     <em class="input-source-badge input-source-badge--advanced">Override</em>
     {% endif %}
   </span>
+  {# field.checkbox: an on/off input (e.g. the horizontal full-source tick box).
+     An unticked box submits nothing, so a "0" behind it keeps ticked and
+     unticked apart from never-submitted. The box is written first, so the
+     value read first is the answer. #}
+  {% if field.checkbox %}
+  <span class="model-input-check">
+    <input type="checkbox" name="{{ field.name }}" value="1"
+           {% if field.value %}checked{% endif %}>
+    <input type="hidden" name="{{ field.name }}" value="0">
+  </span>
   {# field.choices: a fixed set of options (e.g. the vertical source position). #}
-  {% if field.choices %}
+  {% elif field.choices %}
   <select name="{{ field.name }}">
     {% for value, caption in field.choices %}
     <option value="{{ value }}" {% if value == field.value %}selected{% endif %}>{{ caption }}</option>

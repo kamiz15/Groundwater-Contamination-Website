@@ -19,7 +19,11 @@ from numerical_models import (
     run_numerical_model_horizontal,
     vertical_source_layers,
 )
-from numerical_input_validation import UserMessageError, parse_source_segments
+from numerical_input_validation import (
+    UserMessageError,
+    parse_source_segments,
+    source_segments_from_form,
+)
 from analytical_models import cirpka_2005, cirpka_domain_length
 
 
@@ -222,6 +226,28 @@ def test_a_segment_outside_the_zone_is_refused(segments):
 def test_more_than_ten_segments_is_refused():
     with pytest.raises(UserMessageError):
         horizontal_source_rows(25, 1.0, 25.0, 5.0, [(i * 0.4, i * 0.4 + 0.2) for i in range(11)])
+
+
+def test_the_full_source_tick_box_wins_over_the_segments_below_it():
+    """Ticked is the form's default, and what this page has always run."""
+    bounds = [(0.0, 2.0), (3.0, 5.0)]
+    assert source_segments_from_form(True, "2", bounds) is None
+    assert source_segments_from_form(False, "", bounds) is None
+
+
+def test_the_segment_count_decides_how_many_pairs_are_read():
+    """Pairs past the count are still on the form; they must not reach the grid."""
+    bounds = [(0.0, 1.0), (3.0, 5.0)]
+    assert source_segments_from_form(False, "1", bounds) == [(0.0, 1.0)]
+    assert source_segments_from_form(False, "2", bounds) == [(0.0, 1.0), (3.0, 5.0)]
+    assert horizontal_source_rows(
+        25, 1.0, 25.0, 5.0,
+        source_segments_from_form(False, "2", bounds)) == [10, 13, 14]
+
+
+def test_a_blank_segment_bound_is_refused():
+    with pytest.raises(UserMessageError):
+        source_segments_from_form(False, "1", [(None, 2.0)])
 
 
 def test_blank_source_segments_means_one_continuous_source():
