@@ -61,8 +61,15 @@
       {% for f in scenario_fields | default([]) %}
       <div class="scenario-dialog-field">
         <label for="scenario_{{ f.key }}">{{ f.label }}</label>
+        {# f.text: a free-text parameter (the numerical source geometry). Not
+           required - blank is a real answer there. #}
+        {% if f.text %}
+        <input type="text" id="scenario_{{ f.key }}" name="{{ f.key }}"
+               value="{{ f.value }}" autocomplete="off">
+        {% else %}
         <input type="number" step="any" id="scenario_{{ f.key }}" name="{{ f.key }}"
                value="{{ f.value }}" required>
+        {% endif %}
       </div>
       {% endfor %}
     </div>

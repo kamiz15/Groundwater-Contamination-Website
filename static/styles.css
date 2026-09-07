@@ -1962,7 +1962,8 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   max-width: 24rem;
 }
 
-.model-input-form input {
+.model-input-form input,
+.model-input-form select {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--panel-border);
@@ -1972,7 +1973,8 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   background: var(--panel);
   color: var(--text);
 }
-.model-input-form input:focus {
+.model-input-form input:focus,
+.model-input-form select:focus {
   outline: none;
   border-color: var(--brand-400);
   box-shadow: 0 0 0 3px rgba(31, 114, 205, 0.12);
@@ -2071,7 +2073,8 @@ html[data-theme="dark"] .model-input-advanced summary { color: var(--brand-300);
   justify-content: flex-start;
   align-items: center;
 }
-.model-workbench-sidebar .model-input-form input{
+.model-workbench-sidebar .model-input-form input,
+.model-workbench-sidebar .model-input-form select{
   flex: none; width: 100%;
   min-height: 32px;
   padding: 0.28rem 0.5rem;

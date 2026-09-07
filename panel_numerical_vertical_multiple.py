@@ -124,6 +124,8 @@ def _vertical_site_row(site):
 
     row = {
         "Lz": lz,
+        "source_direction": "",
+        "source_percentage": 100.0,
         "grid_size": 1.0,
         "al": 1.0,
         "atv": atv,
@@ -160,9 +162,12 @@ ORIENTATION = "vertical"
 TITLE = "Numerical Vertical Model"
 JOB_KIND = "vertical_single"
 # First entries are the job payload keys; C_D/C_A are submitted as cd/ca.
-SCENARIO_COLUMNS = ("Lz", "grid_size", "al", "atv", "gamma", "C_D", "C_A")
+SCENARIO_COLUMNS = ("Lz", "source_direction", "source_percentage", "grid_size",
+                    "al", "atv", "gamma", "C_D", "C_A")
 COLUMN_TITLES = {
     "Lz": "Aquifer Thickness L_z [m]",
+    "source_direction": "Source Position (top / bottom / blank = full) [-]",
+    "source_percentage": "Source Coverage [%]",
     "grid_size": "Grid Size [m]",
     "al": "Longitudinal Dispersivity \u03b1_L [m]",
     "atv": "Vertical Transverse Dispersivity \u03b1_Tv [m]",
@@ -170,8 +175,9 @@ COLUMN_TITLES = {
     "C_D": "Donor Concentration at Source C_D^0 [mg/L]",
     "C_A": "Acceptor Concentration at Source C_A^0 [mg/L]",
 }
-DEFAULT_ROW = {"Lz": 10.0, "grid_size": 1.0, "al": 1.0, "atv": 0.1,
-               "gamma": 3.5, "C_D": 5.0, "C_A": 8.0}
+DEFAULT_ROW = {"Lz": 10.0, "source_direction": "", "source_percentage": 100.0,
+               "grid_size": 1.0, "al": 1.0, "atv": 0.1, "gamma": 3.5,
+               "C_D": 5.0, "C_A": 8.0}
 SITE_ROW = _vertical_site_row
 
 

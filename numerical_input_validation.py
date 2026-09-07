@@ -233,3 +233,43 @@ def filter_valid_vertical_sites(sites: list[dict[str, Any]]) -> tuple[list[dict[
 
 def format_issues(issues: list[ValidationIssue]) -> str:
     return "; ".join(issue.reason for issue in issues)
+
+
+SOURCE_SEGMENTS_FORMAT = (
+    "Write the source segments as start-end pairs in metres from the start of "
+    "the source width, e.g. 0-2, 3-5. Leave it blank for one continuous source."
+)
+
+
+def parse_source_segments(text):
+    """"0-2, 3-5" -> [(0.0, 2.0), (3.0, 5.0)]; blank -> None (one whole source).
+
+    Only the shape is checked here. Whether a pair fits inside the source width,
+    and how many pairs are allowed, is horizontal_source_rows' job - it owns the
+    grid the segments land on.
+    """
+    if text is None:
+        return None
+    text = str(text).strip()
+    if not text:
+        return None
+    segments = []
+    for piece in text.replace(";", ",").split(","):
+        piece = piece.strip()
+        if not piece:
+            continue
+        start, _, end = piece.partition("-")
+        try:
+            segments.append((float(start), float(end)))
+        except ValueError:
+            raise UserMessageError(SOURCE_SEGMENTS_FORMAT) from None
+    if not segments:
+        raise UserMessageError(SOURCE_SEGMENTS_FORMAT)
+    return segments
+
+
+SOURCE_DIRECTION_HELP = (
+    "Where the source sits in the aquifer thickness: the top or the bottom "
+    "Source Coverage % of it. Full thickness contaminates every layer but the "
+    "topmost, which stays clean as the acceptor boundary."
+)

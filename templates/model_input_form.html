@@ -21,6 +21,22 @@
     <em class="input-source-badge input-source-badge--advanced">Override</em>
     {% endif %}
   </span>
+  {# field.choices: a fixed set of options (e.g. the vertical source position). #}
+  {% if field.choices %}
+  <select name="{{ field.name }}">
+    {% for value, caption in field.choices %}
+    <option value="{{ value }}" {% if value == field.value %}selected{% endif %}>{{ caption }}</option>
+    {% endfor %}
+  </select>
+  {# field.text: a free-text input (e.g. the source segment list), not a number. #}
+  {% elif field.text %}
+  <input
+    type="text"
+    name="{{ field.name }}"
+    {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+    value="{{ field.value or '' }}"
+  >
+  {% else %}
   <input
     type="number"
     step="any"
@@ -28,6 +44,7 @@
     name="{{ field.name }}"
     {% if field.value is not none %}value="{{ '%.6g'|format(field.value) }}"{% endif %}
   >
+  {% endif %}
 </label>
 {%- endmacro %}
 {# One grouped card of numerical inputs (chemical / physical / standard / numerical). #}

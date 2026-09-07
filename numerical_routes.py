@@ -15,7 +15,13 @@ from numerical_jobs import (
 )
 from security import csrf_protect, current_email, rate_limit
 from route_guards import compare_site_ids, guard_model_errors, request_finite_float
-from numerical_input_validation import format_issues, vertical_inputs_from_site
+from numerical_input_validation import (
+    SOURCE_DIRECTION_HELP,
+    SOURCE_SEGMENTS_FORMAT,
+    format_issues,
+    parse_source_segments,
+    vertical_inputs_from_site,
+)
 from param_meta import GRID_SIZE_VERTICAL_SYMBOL, attach_meta
 from pdf_report import CASTReport
 from settings import NUMERICAL_MULTIPLE_MAX_RUNS, PANEL_PUBLIC_BASE
@@ -39,6 +45,7 @@ NUMERICAL_INPUT_SPECS = {
     ],
     "vertical": [
         ("Lz", "Aquifer Thickness [m]", 10.0, "0.1", "0.000001"),
+        ("source_percentage", "Source Coverage [%]", 100.0, "5", "0.000001"),
         ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
         ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
         ("atv", "Vertical Transverse Dispersivity [m]", 0.1, "0.01", "0.000001"),
@@ -49,6 +56,39 @@ NUMERICAL_INPUT_SPECS = {
         ("hk", "Hydraulic Conductivity [m/d]", 8.64, "0.1", "0.000001"),
         ("gradient", "Hydraulic Gradient [-]", 0.0125, "0.001", "0.000001"),
     ],
+}
+
+# The horizontal source width can be broken into separate contaminated strips,
+# the way the source CSV does with its source_start_i / source_end_i pairs.
+# Free text rather than 20 number boxes: the count is variable, and blank
+# (one continuous source) has to stay the effortless default.
+SOURCE_SEGMENTS_SPEC = {
+    "name": "source_segments",
+    "label": "Source Segments [m]",
+    "value": "",
+    "step": None,
+    "min": None,
+    "from_db": False,
+    "advanced": False,
+    "column": "physical",
+    "text": True,
+    "placeholder": "blank = whole width, or 0-2, 3-5",
+}
+
+# The vertical source can sit on part of the aquifer thickness instead of all
+# of it, the way the source CSV does with source_direction / source_percentage.
+# Blank keeps what this page has always run: the full thickness with the top
+# cell left clean for the acceptor boundary, which no direction reproduces.
+SOURCE_DIRECTION_SPEC = {
+    "name": "source_direction",
+    "label": "Source Position [-]",
+    "value": "",
+    "step": None,
+    "min": None,
+    "from_db": False,
+    "advanced": False,
+    "column": "physical",
+    "choices": [("", "Full thickness"), ("top", "Top"), ("bottom", "Bottom")],
 }
 
 NUMERICAL_ADVANCED_INPUT_SPECS = {
@@ -65,6 +105,7 @@ NUMERICAL_ADVANCED_INPUT_SPECS = {
 NUMERICAL_FIELD_COLUMN = {
     "gamma": "chemical", "C_D": "chemical", "C_A": "chemical",
     "source_thickness": "physical", "Lz": "physical",
+    "source_direction": "physical", "source_percentage": "physical",
     "al": "physical", "at": "physical", "atv": "physical",
     "prsity": "standard", "hk": "standard", "gradient": "standard",
     "grid_size": "numerical",
@@ -145,6 +186,22 @@ def _input_fields(orientation, site):
         if name == "grid_size" and orientation == "vertical":
             field["symbol"] = GRID_SIZE_VERTICAL_SYMBOL
         fields.append(field)
+        if name == "Lz":
+            # Directly above the coverage percentage it enables.
+            direction_field = attach_meta(dict(
+                SOURCE_DIRECTION_SPEC,
+                value=request.args.get("source_direction", ""),
+            ))
+            direction_field["description"] = SOURCE_DIRECTION_HELP
+            fields.append(direction_field)
+        if name == "source_thickness":
+            # Directly under the width it subdivides.
+            segments_field = attach_meta(dict(
+                SOURCE_SEGMENTS_SPEC,
+                value=request.args.get("source_segments", ""),
+            ))
+            segments_field["description"] = SOURCE_SEGMENTS_FORMAT
+            fields.append(segments_field)
     for name, label, default, step, minimum in NUMERICAL_ADVANCED_INPUT_SPECS.get(orientation, []):
         fields.append(attach_meta({
             "name": name,
@@ -370,6 +427,7 @@ def _horizontal_pdf(input_fields):
             "prsity": values["prsity"],
             "hk": values["hk"],
             "gradient": values["gradient"],
+            "source_segments": parse_source_segments(values.get("source_segments")),
         },
         input_fields,
         {
@@ -400,6 +458,8 @@ def _vertical_pdf(input_fields):
             "prsity": values["prsity"],
             "hk": values["hk"],
             "gradient": values["gradient"],
+            "source_direction": values.get("source_direction") or None,
+            "source_percentage": values.get("source_percentage"),
         },
         input_fields,
         {

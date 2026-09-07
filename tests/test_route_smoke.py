@@ -194,6 +194,30 @@ def test_numerical_orlando_grid_fields_are_rendered_and_forwarded(
 
 
 @pytest.mark.parametrize(
+    "path, submitted, expected",
+    [
+        # The source geometry the CSV scripts carry: which strips of the
+        # horizontal source width are contaminated, and where in the vertical
+        # aquifer thickness the source sits.
+        ("/numerical/horizontal/single", {"source_segments": "0-1, 3-5"},
+         {"source_segments": ["0-1, 3-5"]}),
+        ("/numerical/vertical/single", {"source_direction": "bottom", "source_percentage": "40"},
+         {"source_direction": ["bottom"], "source_percentage": ["40"]}),
+    ],
+)
+def test_numerical_source_geometry_is_rendered_and_forwarded(
+    path, submitted, expected, authenticated_wrapper_client
+):
+    page = authenticated_wrapper_client.get(path, query_string=submitted).get_data(as_text=True)
+    iframe_query = parse_qs(urlparse(
+        html.unescape(page.split('iframe src="', 1)[1].split('"', 1)[0])).query)
+
+    for field, value in expected.items():
+        assert f'name="{field}"' in page
+        assert iframe_query[field] == value
+
+
+@pytest.mark.parametrize(
     "path",
     ["/numerical/horizontal/single", "/numerical/vertical/single"],
 )

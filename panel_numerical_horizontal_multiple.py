@@ -68,6 +68,7 @@ def _horizontal_site_row(site):
 
     row = {
         "source_thickness": source,
+        "source_segments": "",
         "grid_size": 1.0,
         "al": 1.0,
         "at": at,
@@ -105,9 +106,11 @@ ORIENTATION = "horizontal"
 TITLE = "Numerical Horizontal Model"
 JOB_KIND = "horizontal_single"
 # First entries are the job payload keys; C_D/C_A are submitted as cd/ca.
-SCENARIO_COLUMNS = ("source_thickness", "grid_size", "al", "at", "gamma", "C_D", "C_A")
+SCENARIO_COLUMNS = ("source_thickness", "source_segments", "grid_size", "al", "at",
+                    "gamma", "C_D", "C_A")
 COLUMN_TITLES = {
     "source_thickness": "Source Thickness T_s [m]",
+    "source_segments": "Source Segments (blank = whole width) [m]",
     "grid_size": "Grid Size [m]",
     "al": "Longitudinal Dispersivity \u03b1_L [m]",
     "at": "Horizontal Transverse Dispersivity \u03b1_Th [m]",
@@ -115,8 +118,8 @@ COLUMN_TITLES = {
     "C_D": "Donor Concentration at Source C_D^0 [mg/L]",
     "C_A": "Acceptor Concentration at Source C_A^0 [mg/L]",
 }
-DEFAULT_ROW = {"source_thickness": 5.0, "grid_size": 1.0, "al": 1.0, "at": 0.2,
-               "gamma": 3.5, "C_D": 5.0, "C_A": 8.0}
+DEFAULT_ROW = {"source_thickness": 5.0, "source_segments": "", "grid_size": 1.0,
+               "al": 1.0, "at": 0.2, "gamma": 3.5, "C_D": 5.0, "C_A": 8.0}
 SITE_ROW = _horizontal_site_row
 
 

@@ -4,9 +4,20 @@ import logging
 
 import panel as pn
 
-from numerical_input_validation import POSITIVE_INPUTS, user_instruction
+from numerical_input_validation import (
+    POSITIVE_INPUTS,
+    SOURCE_DIRECTION_HELP,
+    user_instruction,
+)
 from numerical_jobs import cancel_job, fetch_result, job_status, submit_job
-from panel_analytical_common import error_card, info_card, query_float, query_int, summary_card
+from panel_analytical_common import (
+    error_card,
+    info_card,
+    query_float,
+    query_int,
+    query_str,
+    summary_card,
+)
 from panel_theme import report_bridge_html
 from panel_numerical_animation import play_growth_once, stop_growth
 
@@ -41,6 +52,13 @@ def _loading_status_card(items, title):
 def numerical_vertical_single_app():
     # Input (user / database)
     lz = pn.widgets.FloatInput(name="Aquifer Thickness T_A [m]", value=query_float("Lz", query_float("M", 10.0)), step=0.1)
+    direction = pn.widgets.Select(
+        name="Source Position [-]",
+        options={"Full thickness": "", "Top": "top", "Bottom": "bottom"},
+        value=query_str("source_direction", ""),
+        description=SOURCE_DIRECTION_HELP)
+    percentage = pn.widgets.FloatInput(
+        name="Source Coverage [%]", value=query_float("source_percentage", 100.0), step=5)
     grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394z [m]", value=query_float("grid_size", 1.0), step=0.1)
     alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
     atv = pn.widgets.FloatInput(name="Vertical Transverse Dispersivity \u03b1_Tv [m]", value=query_float("atv", query_float("alpha_Tv", 0.1)), step=0.01)
@@ -54,7 +72,7 @@ def numerical_vertical_single_app():
     # Analytical column (computed, read-only; filled after a run)
     ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
     at_out = pn.widgets.StaticText(name="Aquifer Thickness T_A [m]", value="\u2014")
-    for _w in (lz, grid_size, alpha_l, atv, gamma, cd, ca, prsity, hk, gradient, ld_out, at_out):
+    for _w in (lz, direction, percentage, grid_size, alpha_l, atv, gamma, cd, ca, prsity, hk, gradient, ld_out, at_out):
         _w.stylesheets = ["label { white-space: normal; overflow-wrap: anywhere; }"]
 
     run_btn = pn.widgets.Button(name="Run Vertical Simulation", button_type="primary", sizing_mode="stretch_width")
@@ -122,6 +140,8 @@ def numerical_vertical_single_app():
         state.update({
             "parameters": [
                 {"symbol": "Lz", "name": "Aquifer Thickness", "value": lz.value, "unit": "m"},
+                {"symbol": "source", "name": "Source Position", "value": direction.value or "full thickness", "unit": "-"},
+                {"symbol": "source_pct", "name": "Source Coverage", "value": percentage.value, "unit": "%"},
                 {"symbol": "dx", "name": "Grid Size", "value": grid_size.value, "unit": "m"},
                 {"symbol": "alpha_L", "name": "Longitudinal Dispersivity", "value": alpha_l.value, "unit": "m"},
                 {"symbol": "alpha_Tv", "name": "Vertical Transverse Dispersivity", "value": atv.value, "unit": "m"},
@@ -223,6 +243,8 @@ def numerical_vertical_single_app():
                 "prsity": prsity.value,
                 "hk": hk.value,
                 "gradient": gradient.value,
+                "source_direction": direction.value or None,
+                "source_percentage": percentage.value,
             }
             job_id = submit_job("vertical_single", params)
             state["job_id"] = job_id
@@ -263,7 +285,7 @@ def numerical_vertical_single_app():
     return pn.Column(
         "## Vertical Numerical Model",
         pn.FlexBox(
-            pn.Column("#### Input", lz, grid_size, alpha_l, atv, gamma, cd, ca, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
+            pn.Column("#### Input", lz, direction, percentage, grid_size, alpha_l, atv, gamma, cd, ca, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
             pn.Column("#### Analytical", ld_out, at_out, "#### Standard (editable)", prsity, hk, gradient, styles={"flex": "1 1 240px", "min-width": "210px", "gap": "8px"}),
             flex_wrap="wrap", sizing_mode="stretch_width", styles={"gap": "18px"}),
         run_btn,

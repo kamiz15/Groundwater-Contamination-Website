@@ -132,6 +132,37 @@ def test_the_sample_maps_the_reference_sites_to_this_orientation(panel, size_key
     assert len(reread) == len(frame)
 
 
+@pytest.mark.parametrize(
+    "panel,edits,expected",
+    [
+        # The source geometry the CSV scripts carry, now per scenario row.
+        (horiz, {}, {"source_segments": None}),
+        (horiz, {"source_segments": "0-1, 3-5"},
+         {"source_segments": [(0.0, 1.0), (3.0, 5.0)]}),
+        (vert, {}, {"source_direction": None, "source_percentage": 100.0}),
+        (vert, {"source_direction": "bottom", "source_percentage": 40.0},
+         {"source_direction": "bottom", "source_percentage": 40.0}),
+    ],
+)
+def test_a_rows_source_geometry_reaches_the_solver(panel, edits, expected, monkeypatch):
+    """Blank means the model's own default source, not a refused row."""
+    submitted = []
+    monkeypatch.setattr(panel, "submit_job",
+                        lambda kind, payload: submitted.append(payload) or "job-1")
+    monkeypatch.setattr(panel, "job_status", lambda _job: {"status": "running"})
+    app = _app(panel, monkeypatch)
+    table = app.select(pn.widgets.Tabulator)[0]
+    table.value = pd.DataFrame(
+        [{SITE_COLUMN: "S", MEASURED_COLUMN: None, **dict(panel.DEFAULT_ROW), **edits}],
+        columns=table.value.columns)
+
+    _update_graph(app)
+
+    assert len(submitted) == 1
+    for key, value in expected.items():
+        assert submitted[0][key] == value
+
+
 @pytest.mark.parametrize("panel,size_key", PANELS)
 def test_the_add_row_dialog_gets_this_orientations_fields(panel, size_key, monkeypatch):
     specs = common.numerical_field_specs(panel)

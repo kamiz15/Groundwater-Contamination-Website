@@ -254,9 +254,10 @@ def vertical_source_layers(nlay, direction=None, percentage=None):
     topmost, because the top row is the acceptor boundary. 'top' or 'bottom'
     takes the first or last ceil(nlay * percentage / 100) layers instead.
 
-    ponytail: the None branch exists only to keep the current pages producing the
-    numbers they produce today. Delete it, and default direction/percentage to
-    'bottom'/100, the day the two reach the input form.
+    ponytail: the None branch stays. It is the vertical form's default and no
+    direction/percentage pair reproduces it - 'top'/100 and 'bottom'/100 both
+    make layer 0 a source cell, which is exactly the layer this branch keeps
+    clean for the acceptor boundary.
     """
     nlay = int(nlay)
     if direction is None:

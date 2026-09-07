@@ -19,7 +19,7 @@ from numerical_models import (
     run_numerical_model_horizontal,
     vertical_source_layers,
 )
-from numerical_input_validation import UserMessageError
+from numerical_input_validation import UserMessageError, parse_source_segments
 from analytical_models import cirpka_2005, cirpka_domain_length
 
 
@@ -222,6 +222,24 @@ def test_a_segment_outside_the_zone_is_refused(segments):
 def test_more_than_ten_segments_is_refused():
     with pytest.raises(UserMessageError):
         horizontal_source_rows(25, 1.0, 25.0, 5.0, [(i * 0.4, i * 0.4 + 0.2) for i in range(11)])
+
+
+def test_blank_source_segments_means_one_continuous_source():
+    """The form always submits the field, so blank has to stay the old behaviour."""
+    assert parse_source_segments("") is None
+    assert parse_source_segments(None) is None
+
+
+def test_typed_source_segments_reach_the_grid():
+    segments = parse_source_segments(" 0-1, 3-5 ")
+    assert segments == [(0.0, 1.0), (3.0, 5.0)]
+    assert horizontal_source_rows(25, 1.0, 25.0, 5.0, segments) == [10, 13, 14]
+
+
+@pytest.mark.parametrize("text", ["abc", "1", "1-", "-2", "1-2-3", ","])
+def test_unparseable_source_segments_are_refused(text):
+    with pytest.raises(UserMessageError):
+        parse_source_segments(text)
 
 
 def test_vertical_default_is_every_layer_but_the_acceptor_boundary():

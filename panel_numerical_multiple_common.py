@@ -35,7 +35,7 @@ import pandas as pd
 import panel as pn
 
 from data_queries import reference_sites_rows
-from numerical_input_validation import user_instruction
+from numerical_input_validation import parse_source_segments, user_instruction
 from panel_analytical_common import (
     MEASURED_COLOR, comparison_plot, error_card, summary_card,
 )
@@ -56,6 +56,14 @@ logger = logging.getLogger(__name__)
 # Each row triggers a full MODFLOW run, so cap how many a single comparison can
 # queue to keep one user from flooding the job worker.
 MAX_MULTIPLE_RUNS = 12
+
+
+def _text_cell(value) -> str:
+    """A text scenario cell as typed. Blank, None and the NaN pandas leaves in an
+    empty CSV cell all read as "" - the model's own default source geometry."""
+    if value is None or value != value:  # NaN is the only value unequal to itself
+        return ""
+    return str(value).strip()
 
 
 def scenario_columns(mod) -> list[str]:
@@ -85,6 +93,23 @@ def sample_scenarios(mod) -> pd.DataFrame:
             **row,
         })
     return pd.DataFrame(rows, columns=columns)
+
+
+def _job_payload(params, row) -> dict:
+    """One scenario row as the solver's keyword arguments.
+
+    C_D/C_A are submitted as cd/ca, and the two source-geometry columns reach
+    the solver in its own shape: parsed segment pairs, and no direction at all
+    when the cell is blank (which is the full-thickness source).
+    """
+    payload = {key: row[key] for key in params if key not in ("C_D", "C_A")}
+    payload["cd"] = row["C_D"]
+    payload["ca"] = row["C_A"]
+    if "source_segments" in payload:
+        payload["source_segments"] = parse_source_segments(payload["source_segments"])
+    if "source_direction" in payload:
+        payload["source_direction"] = payload["source_direction"] or None
+    return payload
 
 
 def numerical_multiple_app(mod):
@@ -272,9 +297,15 @@ def numerical_multiple_app(mod):
     def _collect_scenarios(frame):
         """Every row in the table is one MODFLOW run; the Site cell labels it."""
         rows = []
+        defaults = dict(mod.DEFAULT_ROW)
         for position, (_index, raw) in enumerate(frame.iterrows(), start=1):
             try:
-                row = {key: float(raw[key]) for key in params}
+                # A string default marks a text parameter (the source geometry):
+                # it is passed through, and an empty cell - blank, or the NaN an
+                # uploaded CSV leaves - means the model's own default.
+                row = {key: (_text_cell(raw.get(key))
+                             if isinstance(defaults[key], str) else float(raw[key]))
+                       for key in params}
             except (TypeError, ValueError, KeyError):
                 raise ValueError(f"Row {position} has a missing or non-numeric input.")
             row["label"] = str(raw.get(SITE_COLUMN) or f"Scenario {position}")
@@ -360,14 +391,8 @@ def numerical_multiple_app(mod):
 
             scenario_rows = _collect_scenarios(frame)
             run_btn.disabled = True
-            job_ids = [
-                mod.submit_job(mod.JOB_KIND, {
-                    **{key: row[key] for key in params if key not in ("C_D", "C_A")},
-                    "cd": row["C_D"],
-                    "ca": row["C_A"],
-                })
-                for row in scenario_rows
-            ]
+            job_ids = [mod.submit_job(mod.JOB_KIND, _job_payload(params, row))
+                       for row in scenario_rows]
 
             def _poll():
                 statuses = [mod.job_status(job_id) for job_id in job_ids]

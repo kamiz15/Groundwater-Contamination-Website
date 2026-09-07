@@ -300,9 +300,12 @@ def drop_rows(frame: pd.DataFrame, positions) -> pd.DataFrame:
 
 
 def field_specs(titles: dict, defaults: dict) -> list[dict]:
-    """[{key, label, value}] per parameter, for a page rendering its own Add-row
-    form. Model-free: the numerical pages pass their own titles and defaults."""
-    return [{"key": key, "label": titles.get(key, key), "value": value}
+    """[{key, label, value, text}] per parameter, for a page rendering its own
+    Add-row form. Model-free: the numerical pages pass their own titles and
+    defaults. A string default (the numerical source geometry) marks the field
+    as free text - a number box could not hold "0-2, 3-5" or "bottom"."""
+    return [{"key": key, "label": titles.get(key, key), "value": value,
+             "text": isinstance(value, str)}
             for key, value in defaults.items()]
 
 
@@ -388,6 +391,11 @@ def row_from_payload(data: dict, defaults: dict) -> dict:
     row = {SITE_COLUMN: str(data.get("name") or "").strip() or "Manual",
            MEASURED_COLUMN: _optional_float(data.get("measured"))}
     for arg, fallback in defaults.items():
+        if isinstance(fallback, str):
+            # A text parameter: blank is a real answer (it means the model's own
+            # default source geometry), so it is kept rather than defaulted.
+            row[arg] = str(data.get(arg) or "").strip()
+            continue
         value = _optional_float(data.get(arg))
         row[arg] = fallback if value is None else value
     return row
