@@ -31,6 +31,16 @@
            {% if field.value %}checked{% endif %}>
     <input type="hidden" name="{{ field.name }}" value="0">
   </span>
+  {# field.buttons: the choices as stacked click buttons (e.g. the segment
+     count). The radio covers its whole button, so every click lands on it
+     rather than on the outer label's first control. #}
+  {% elif field.buttons %}
+  <span class="model-input-choice">
+    {% for value, caption in field.choices %}
+    <span class="model-input-choice__opt"><input type="radio" name="{{ field.name }}" value="{{ value }}"
+          {% if value == field.value %}checked{% endif %}>{{ caption }}</span>
+    {% endfor %}
+  </span>
   {# field.choices: a fixed set of options (e.g. the vertical source position). #}
   {% elif field.choices %}
   <select name="{{ field.name }}">
@@ -146,6 +156,100 @@
       <button type="submit" class="primary-btn">Run Model</button>
     </div>
     {% endif %}
+    <p class="small model-input-estimate" hidden></p>
   </form>
 </div>
+{# Source geometry rows follow the Full Source tick box: ticked, the segment
+   count / direction / coverage are hidden, and the segment count decides how
+   many Y start/end pairs are shown. Hidden rows are also disabled, so the
+   browser never submits them and the model gets the full-source defaults. #}
+<script>
+(function () {
+  const form = document.getElementById("model-input-form");
+  if (!form || !form.elements.source_full) return;
+  // A repeated name (the tick box and the hidden "0" behind it, or a radio
+  // group) comes back as a list rather than an element.
+  const field = (name) => {
+    const found = form.elements[name];
+    return found && (found.closest ? found : found[0]);
+  };
+  const show = (name, on) => {
+    const el = field(name);
+    const row = el && el.closest("label");
+    if (!row) return;
+    row.hidden = !on;
+    for (const input of row.querySelectorAll("input, select")) input.disabled = !on;
+  };
+  const sync = () => {
+    const full = field("source_full").checked;
+    const count = form.elements.source_segment_count;
+    const wanted = full || !count ? 0 : parseInt(count.value, 10) || 0;
+    show("source_segment_count", !full);
+    show("source_direction", !full);
+    show("source_percentage", !full);
+    for (let n = 1; field("y" + n + "_start"); n++) {
+      show("y" + n + "_start", n <= wanted);
+      show("y" + n + "_end", n <= wanted);
+    }
+  };
+  form.addEventListener("change", sync);
+  sync();
+})();
+</script>
+{# Long-run notice for the numerical single pages: the grid is sized from the
+   analytical domain length the model derives, so the cell count is known
+   before running. Measured cost is ~linear in cells for both models (50 time
+   steps each): 57k cells ~ 1 min, 1.2M cells ~ 20 min -> cells / 1000 s. #}
+<script>
+(function () {
+  const form = document.getElementById("model-input-form");
+  const note = form && form.querySelector(".model-input-estimate");
+  const el = form && form.elements;
+  if (!note || !el || !el.gamma || !el.C_D || !el.C_A || !el.grid_size) return;
+  const horizontal = !!(el.source_thickness && el.at);
+  if (!horizontal && !(el.Lz && el.atv)) return;
+  const num = (name) => parseFloat(el[name].value);
+  // Giles (2010) single-precision erfinv: ~1e-3 relative, enough for an estimate.
+  const erfinv = (x) => {
+    let w = -Math.log((1 - x) * (1 + x)), p;
+    if (w < 5) {
+      w -= 2.5;
+      p = 2.81022636e-08; p = 3.43273939e-07 + p * w; p = -3.5233877e-06 + p * w;
+      p = -4.39150654e-06 + p * w; p = 0.00021858087 + p * w; p = -0.00125372503 + p * w;
+      p = -0.00417768164 + p * w; p = 0.246640727 + p * w; p = 1.50140941 + p * w;
+    } else {
+      w = Math.sqrt(w) - 3;
+      p = -0.000200214257; p = 0.000100950558 + p * w; p = 0.00134934322 + p * w;
+      p = -0.00367342844 + p * w; p = 0.00573950773 + p * w; p = -0.0076224613 + p * w;
+      p = 0.00943887047 + p * w; p = 1.00167406 + p * w; p = 2.83297682 + p * w;
+    }
+    return p * x;
+  };
+  const cells = () => {
+    const dx = num("grid_size"), g = num("gamma"), cd = num("C_D"), ca = num("C_A");
+    let lx, cross;
+    if (horizontal) {
+      const sw = num("source_thickness"), at = num("at");
+      lx = 1.5 * sw * sw / (16 * at * Math.pow(erfinv(ca / (g * cd + ca)), 2));
+      cross = 5 * sw;
+    } else {
+      const lz = num("Lz"), atv = num("atv");
+      lx = 1.5 * 4 * lz * lz / (Math.PI * Math.PI * atv) * Math.log((4 * g * cd + ca) / (Math.PI * ca));
+      cross = lz;
+    }
+    return Math.floor(lx / dx) * Math.floor(cross / dx);
+  };
+  const update = () => {
+    const n = cells();
+    const minutes = n / 1000 / 60;
+    note.hidden = !(isFinite(n) && minutes > 2);
+    if (!note.hidden) {
+      note.textContent = "≈ " + n.toLocaleString() + " grid cells — this run will take roughly " +
+        (minutes < 60 ? Math.round(minutes) + " min." : (minutes / 60).toFixed(1) + " h.");
+    }
+  };
+  form.addEventListener("input", update);
+  update();
+})();
+</script>
 {% endif %}

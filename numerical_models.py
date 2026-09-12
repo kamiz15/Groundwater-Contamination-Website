@@ -421,11 +421,14 @@ def _terminate_solver_process(proc: subprocess.Popen) -> None:
         return
 
 
-def _checked_run_sim(sim, label: str) -> None:
-    """Run MF6 directly so a timeout can terminate the external solver process."""
+def _checked_run_sim(sim, label: str, *, timeout: float | None = None) -> None:
+    """Run MF6 directly so a timeout can terminate the external solver process.
+
+    `timeout` None reads NUMERICAL_SOLVER_TIMEOUT_S; 0 lets the solver run to
+    the end whatever the environment says."""
     executable = str(Path(sim.exe_name).resolve())
     workspace = Path(sim.simulation_data.mfpath.get_sim_path()).resolve()
-    timeout = _solver_timeout_seconds()
+    timeout = _solver_timeout_seconds() if timeout is None else float(timeout)
     logger.info("%s executable: %s", label, executable)
     logger.info("%s workspace: %s", label, workspace)
     logger.info("%s report=True capture enabled for solver stdout/stderr", label)
@@ -477,7 +480,7 @@ def run_numerical_model_horizontal(
     cd: float,
     ca: float,
     prsity: float = 0.3,
-    hk: float = 8.64,
+    hk: float = 8.4,
     gradient: float = 0.0125,
     h_left: float = 20.0,
     domain_factor: float = 1.5,
@@ -517,7 +520,8 @@ def run_numerical_model_horizontal(
     if ncol < 2 or nrow < 2:
         raise UserMessageError(FINER_GRID)
     _log_grid("Horizontal", Lx, Ly, ncol, nrow)
-    _check_grid_size(ncol, nrow, grid_size=grid_size, domain_length=Lx, cross_extent=Ly)
+    # No cell cap and no solver timeout here: horizontal_W-1.py runs whatever
+    # grid the inputs give for as long as it takes, and so does this page.
 
     q = hk * gradient
     v = q / prsity
@@ -568,7 +572,7 @@ def run_numerical_model_horizontal(
         gwf.name_file.save_flows = True
         with _timed_stage("MF6 horizontal flow write_input"):
             sim.write_simulation()
-        _checked_run_sim(sim, "MF6 horizontal flow")
+        _checked_run_sim(sim, "MF6 horizontal flow", timeout=0)
 
         # Transport model
         sim_name = f"gwt{mid}"
@@ -606,7 +610,7 @@ def run_numerical_model_horizontal(
             saverecord=[("CONCENTRATION", "LAST"), ("BUDGET", "LAST")])
         with _timed_stage("MF6 horizontal transport write_input"):
             simf.write_simulation()
-        _checked_run_sim(simf, "MF6 horizontal transport")
+        _checked_run_sim(simf, "MF6 horizontal transport", timeout=0)
 
         conc_slice = np.asarray(gwt.output.concentration().get_data()[0], dtype=float)
         x_grid = _cell_centers(delr, ncol)

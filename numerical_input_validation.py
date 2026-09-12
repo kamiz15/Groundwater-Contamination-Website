@@ -282,6 +282,11 @@ SOURCE_FULL_HELP = (
     "Ticked, the whole source zone width is the source. Untick it to "
     "contaminate only the segments below instead."
 )
+SOURCE_FULL_VERTICAL_HELP = (
+    "Ticked, the whole aquifer thickness is the source (the topmost layer stays "
+    "clean as the acceptor boundary). Untick it to place the source at the top "
+    "or bottom instead, covering the given share of the thickness."
+)
 SOURCE_SEGMENT_COUNT_HELP = (
     "How many separate contaminated segments sit inside the source zone. Each "
     "one takes a start and an end offset in metres from the start of the zone."

@@ -19,6 +19,7 @@ from numerical_input_validation import (
     MAX_FORM_SEGMENTS,
     SOURCE_DIRECTION_HELP,
     SOURCE_FULL_HELP,
+    SOURCE_FULL_VERTICAL_HELP,
     SOURCE_SEGMENT_COUNT_HELP,
     format_issues,
     source_segments_from_form,
@@ -34,19 +35,19 @@ logger = logging.getLogger(__name__)
 
 NUMERICAL_INPUT_SPECS = {
     "horizontal": [
-        ("source_thickness", "Source Width [m]", 5.0, "0.1", "0.000001"),
-        ("y1_start", "Segment 1 Start [m]", 0.0, "0.1", "0"),
-        ("y1_end", "Segment 1 End [m]", 2.0, "0.1", "0"),
-        ("y2_start", "Segment 2 Start [m]", 3.0, "0.1", "0"),
-        ("y2_end", "Segment 2 End [m]", 5.0, "0.1", "0"),
+        ("source_thickness", "Source Width [m]", 10.0, "0.1", "0.000001"),
+        ("y1_start", "Y1 Start [m]", 0.0, "0.1", "0"),
+        ("y1_end", "Y1 End [m]", 2.0, "0.1", "0"),
+        ("y2_start", "Y2 Start [m]", 5.0, "0.1", "0"),
+        ("y2_end", "Y2 End [m]", 8.0, "0.1", "0"),
         ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
         ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
-        ("at", "Horizontal Transverse Dispersivity [m]", 0.2, "0.01", "0.000001"),
+        ("at", "Horizontal Transverse Dispersivity [m]", 0.1, "0.01", "0.000001"),
         ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
         ("C_D", "Electron Donor [mg/L]", 5.0, "0.1", "0.000001"),
         ("C_A", "Electron Acceptor [mg/L]", 8.0, "0.1", "0.000001"),
         ("prsity", "Porosity [-]", 0.3, "0.01", "0.000001"),
-        ("hk", "Hydraulic Conductivity [m/d]", 8.64, "0.1", "0.000001"),
+        ("hk", "Hydraulic Conductivity [m/d]", 8.4, "0.1", "0.000001"),
         ("gradient", "Hydraulic Gradient [-]", 0.0125, "0.001", "0.000001"),
     ],
     "vertical": [
@@ -66,12 +67,12 @@ NUMERICAL_INPUT_SPECS = {
 
 # The horizontal source width can be broken into separate contaminated strips,
 # the way the source CSV does with its source_start_i / source_end_i pairs.
-# One dropdown decides how many, and the start/end pair per segment follows it;
-# a select rather than a checkbox because an unticked box submits nothing, so
-# "full source" and "never asked" would arrive identical.
+# A click selection decides how many, and the start/end pair per segment
+# follows it. The same tick box also stands for the full thickness on the
+# vertical page, where it hides the position and coverage instead.
 SOURCE_FULL_SPEC = {
     "name": "source_full",
-    "label": "Full Source [-]",
+    "label": "Full Source",
     "value": True,
     "step": None,
     "min": None,
@@ -91,22 +92,25 @@ SOURCE_SEGMENT_COUNT_SPEC = {
     "advanced": False,
     "column": "physical",
     "choices": [(str(n), str(n)) for n in range(1, MAX_FORM_SEGMENTS + 1)],
+    "buttons": True,
 }
 
 # The vertical source can sit on part of the aquifer thickness instead of all
 # of it, the way the source CSV does with source_direction / source_percentage.
-# Blank keeps what this page has always run: the full thickness with the top
-# cell left clean for the acceptor boundary, which no direction reproduces.
+# The Full Source tick box keeps what this page has always run: the full
+# thickness with the top cell left clean for the acceptor boundary, which no
+# direction reproduces - ticked, the page disables these so nothing is sent.
 SOURCE_DIRECTION_SPEC = {
     "name": "source_direction",
-    "label": "Source Position [-]",
-    "value": "",
+    "label": "Source Direction [-]",
+    "value": "top",
     "step": None,
     "min": None,
     "from_db": False,
     "advanced": False,
     "column": "physical",
-    "choices": [("", "Full thickness"), ("top", "Top"), ("bottom", "Bottom")],
+    "choices": [("top", "Top"), ("bottom", "Bottom")],
+    "buttons": True,
 }
 
 NUMERICAL_ADVANCED_INPUT_SPECS = {
@@ -216,10 +220,19 @@ def _input_fields(orientation, site):
             field["symbol"] = GRID_SIZE_VERTICAL_SYMBOL
         fields.append(field)
         if name == "Lz":
-            # Directly above the coverage percentage it enables.
+            # Full source tick box, then the direction, directly above the
+            # coverage percentage they enable. The page disables the direction
+            # while the box is ticked, so a query that carries only a direction
+            # (a site link) reads as unticked.
+            full_field = attach_meta(dict(
+                SOURCE_FULL_SPEC,
+                value=_request_checkbox("source_full", not request.args.get("source_direction")),
+            ))
+            full_field["description"] = SOURCE_FULL_VERTICAL_HELP
+            fields.append(full_field)
             direction_field = attach_meta(dict(
                 SOURCE_DIRECTION_SPEC,
-                value=request.args.get("source_direction", ""),
+                value=request.args.get("source_direction") or SOURCE_DIRECTION_SPEC["value"],
             ))
             direction_field["description"] = SOURCE_DIRECTION_HELP
             fields.append(direction_field)
@@ -498,8 +511,10 @@ def _vertical_pdf(input_fields):
             "prsity": values["prsity"],
             "hk": values["hk"],
             "gradient": values["gradient"],
-            "source_direction": values.get("source_direction") or None,
-            "source_percentage": values.get("source_percentage"),
+            # The export link carries every field, ticked or not, so the tick
+            # box decides here the way disabling does on the page.
+            "source_direction": None if values.get("source_full") else values.get("source_direction") or None,
+            "source_percentage": 100.0 if values.get("source_full") else values.get("source_percentage"),
         },
         input_fields,
         {

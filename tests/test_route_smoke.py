@@ -142,6 +142,24 @@ def test_numerical_export_submits_background_job(path, authenticated_wrapper_cli
     assert meta["parameters"]
 
 
+def test_vertical_export_full_source_tick_box_wins_over_direction(
+    authenticated_wrapper_client, monkeypatch, tmp_path
+):
+    # The export link carries the direction even while the page has it hidden
+    # behind a ticked Full Source box, so the box has to decide server-side.
+    monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
+    seen = {}
+    monkeypatch.setattr(numerical_routes, "submit_job",
+                        lambda _kind, params: seen.update(params) or "job-123")
+
+    response = authenticated_wrapper_client.get(
+        "/numerical/vertical/single/export?source_full=True&source_direction=bottom&source_percentage=40")
+
+    assert response.status_code == 202
+    assert seen["source_direction"] is None
+    assert seen["source_percentage"] == 100.0
+
+
 def test_numerical_job_endpoints_hide_other_users_jobs(authenticated_wrapper_client, monkeypatch, tmp_path):
     monkeypatch.setenv("NUMERICAL_JOB_ROOT", str(tmp_path / "jobs"))
     from numerical_jobs import save_job_meta

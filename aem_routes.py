@@ -245,9 +245,13 @@ def _validated_config(raw):
         x_span = max(all_x) - min(all_x)
         char = max(2.0 * max_hw, 2.0 * max_hh, x_span, 1.0)
         x_pad = min(150.0, max(20.0, 25.0 * char))
-        config["dom_xmin"] = round(min(all_x) - max_hw - 2.0, 3)
-        config["dom_xmax"] = round(max(all_x) + x_pad, 1)
-        config["dom_ymin"] = round(min(all_y) - max_hh - 5.0, 3)
+        # Snapped outward to the dom_inc lattice the grid is built on
+        # (at_simulation.conc_array), so the bounds are the grid's own edges
+        # and the cell count below is the count actually computed.
+        inc = config["dom_inc"]
+        config["dom_xmin"] = round(math.floor((min(all_x) - max_hw - 2.0) / inc) * inc, 3)
+        config["dom_xmax"] = round(math.ceil((max(all_x) + x_pad) / inc) * inc, 3)
+        config["dom_ymin"] = round(math.floor((min(all_y) - max_hh - 5.0) / inc) * inc, 3)
     nx = int((config["dom_xmax"] - config["dom_xmin"]) / config["dom_inc"]) + 1
     ny = int((config["dom_ymax"] - config["dom_ymin"]) / config["dom_inc"]) + 1
     if nx * ny > MAX_GRID_CELLS:

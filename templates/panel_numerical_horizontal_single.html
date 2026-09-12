@@ -37,37 +37,4 @@
 </div>
 {% endblock %}
 {% block report_card %}{% endblock %}
-{# The source segment dropdown decides how many start/end pairs are asked for,
-   so the pairs it does not ask for are hidden rather than left to confuse. #}
-{% block sidebar_extra %}
-<script>
-(function () {
-  const form = document.getElementById("model-input-form");
-  if (!form || !form.elements.source_full || !form.elements.source_segment_count) return;
-  // A repeated name (the tick box and the hidden "0" behind it) comes back as a
-  // list rather than an element; the box itself is the first entry.
-  const field = (name) => {
-    const found = form.elements[name];
-    return found && (found.closest ? found : found[0]);
-  };
-  const row = (name) => {
-    const el = field(name);
-    return el && el.closest("label");
-  };
-  const sync = () => {
-    const full = field("source_full").checked;
-    const countRow = row("source_segment_count");
-    if (countRow) countRow.hidden = full;
-    const wanted = full ? 0 : parseInt(form.elements.source_segment_count.value, 10) || 0;
-    for (let n = 1; ; n++) {
-      const start = row("y" + n + "_start"), end = row("y" + n + "_end");
-      if (!start || !end) break;
-      start.hidden = end.hidden = n > wanted;
-    }
-  };
-  form.addEventListener("change", sync);
-  sync();
-})();
-</script>
-{% endblock %}
 {% block stage_bottom %}{% include "report_bridge_card.html" %}{% endblock %}

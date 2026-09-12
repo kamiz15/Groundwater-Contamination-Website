@@ -118,8 +118,8 @@ COLUMN_TITLES = {
     "C_D": "Donor Concentration at Source C_D^0 [mg/L]",
     "C_A": "Acceptor Concentration at Source C_A^0 [mg/L]",
 }
-DEFAULT_ROW = {"source_thickness": 5.0, "source_segments": "", "grid_size": 1.0,
-               "al": 1.0, "at": 0.2, "gamma": 3.5, "C_D": 5.0, "C_A": 8.0}
+DEFAULT_ROW = {"source_thickness": 10.0, "source_segments": "", "grid_size": 1.0,
+               "al": 1.0, "at": 0.1, "gamma": 3.5, "C_D": 5.0, "C_A": 8.0}
 SITE_ROW = _horizontal_site_row
 
 

@@ -329,7 +329,7 @@ def test_design_validation_and_owner_bound_token(aem_client):
     assert body["forward_url"].endswith(body["design"])
     expected = {
         "alpha_l": 2.0, "alpha_t": 0.2, "ca": 8.0, "gamma": 3.5,
-        "dom_xmin": -1.92, "dom_xmax": 25.1, "dom_ymin": -5.52,
+        "dom_xmin": -2.0, "dom_xmax": 26.0, "dom_ymin": -6.0,
         "dom_ymax": 0.0, "dom_inc": 1.0, "num_cp": 40, "num_terms": 5,
         "orientation": "vertical", "plot_aspect": "",
         "elements": [{"kind": "circle", "x": 0.1, "y": -0.5,

@@ -1289,8 +1289,10 @@ class ATSimulation:
         Populate self.result with the concentration field evaluated on a
         regular grid spanning the requested extents.
 
-        Coordinates are placed at [xmin, xmin+inc, ..., xmax] and similarly
-        for y. The evaluation is parallelized across CPU cores, with each
+        Coordinates are the multiples of inc inside [xmin, xmax] (and
+        [ymin, ymax]), so 0 is always a grid line and a vertical run's top
+        row sits exactly on the water table (ymax = 0) whatever the span.
+        The evaluation is parallelized across CPU cores, with each
         worker calling _compute_point_shared for its chunk of grid points.
 
         On Linux/macOS the default fork multiprocessing context is used
@@ -1299,13 +1301,12 @@ class ATSimulation:
         The chunksize is tuned so each worker handles ~25% of its share of
         points per dispatch, balancing parallelism against IPC overhead.
         """
-        self.xaxis = np.arange(xmin, xmax + inc, inc)
-        self.yaxis = np.arange(ymin, ymax + inc, inc)
-        # Clamp to declared bounds — np.arange can overshoot by one step due to
-        # floating-point rounding. Critical for vertical orientation where ymax=0
-        # must be the exact upper limit so image elements (y > 0) never appear.
-        self.xaxis = self.xaxis[self.xaxis <= xmax + 1e-9]
-        self.yaxis = self.yaxis[self.yaxis <= ymax + 1e-9]
+        # Lattice anchored at 0 rather than at (xmin, ymin): arange from the
+        # corner only reaches the far bound when the span is a multiple of
+        # inc, and left a vertical grid whose top row stopped short of z = 0.
+        # The 1e-9 keeps a bound that is itself a multiple of inc on the grid.
+        self.xaxis = inc * np.arange(np.ceil(xmin / inc - 1e-9), np.floor(xmax / inc + 1e-9) + 1) + 0.0
+        self.yaxis = inc * np.arange(np.ceil(ymin / inc - 1e-9), np.floor(ymax / inc + 1e-9) + 1) + 0.0
 
         xs, ys = np.meshgrid(self.xaxis, self.yaxis)
         coords = list(zip(xs.ravel(), ys.ravel()))

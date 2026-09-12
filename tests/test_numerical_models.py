@@ -103,6 +103,18 @@ def test_solver_timeout_terminates_external_process(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="took too long. Increase the grid size"):
         _checked_run_sim(FakeSimulation(), "MF6 test")
 
+    # The horizontal model passes timeout=0: the environment's limit is ignored
+    # and the solver runs to the end, the way horizontal_W-1.py does.
+    class FinishingProcess(HangingProcess):
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            assert timeout is None
+            return "Normal termination of simulation.", ""
+
+    monkeypatch.setattr("numerical_models.subprocess.Popen", lambda *args, **kwargs: FinishingProcess())
+    _checked_run_sim(FakeSimulation(), "MF6 test", timeout=0)
+
 
 def _mf6_available():
     import numerical_models as _nm
@@ -176,6 +188,27 @@ def test_orlando_horizontal_reference_runs_and_sizes_domain():
     # 116.63, not the 118.31 of the 10xSw domain: halving the width brings the
     # fixed-acceptor top and bottom boundaries twice as close to the plume.
     assert result.plume_length == pytest.approx(116.63, rel=0.03)  # real MODFLOW 6.7.0 run
+
+
+@mf6_required
+def test_orlando_horizontal_w1_two_segment_reference_runs_uncapped():
+    # horizontal_W-1.py on its own CSV: a 10 m zone with two segments on a
+    # 1149 x 50 grid, well past the old 40 000-cell cap. Same plume length as
+    # the script (real MODFLOW 6 run of both).
+    row = pd.read_csv(
+        Path("tests/fixtures/orlando_reference/input_horizontal_W-1.csv"),
+        delimiter=";", decimal=".",
+    ).iloc[0]
+    result = run_numerical_model_horizontal(
+        source_thickness=float(row["source_zone_length"]),
+        grid_size=float(row["grid_size"]),
+        al=float(row["al"]), at=float(row["at"]),
+        gamma=float(row["gamma"]), cd=float(row["Cd"]), ca=float(row["Ca"]),
+        source_segments=[(row["source_start_1"], row["source_end_1"]),
+                         (row["source_start_2"], row["source_end_2"])],
+    )
+    assert result.concentration.shape == (50, 1149)
+    assert result.plume_length == pytest.approx(209.36, rel=0.01)
 
 
 @mf6_required

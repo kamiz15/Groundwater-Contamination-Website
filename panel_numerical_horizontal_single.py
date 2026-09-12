@@ -54,7 +54,7 @@ def _loading_status_card(items, title):
 
 def numerical_horizontal_single_app():
     # Input (user / database)
-    source = pn.widgets.FloatInput(name="Source Thickness S_w [m]", value=query_float("source_thickness", query_float("source", query_float("Sw", 5.0))), step=0.1)
+    source = pn.widgets.FloatInput(name="Source Thickness S_w [m]", value=query_float("source_thickness", query_float("source", query_float("Sw", 10.0))), step=0.1)
     # Checkbox only grew a description on later Panel builds, so it is set after
     # construction when the build has it - passing it always is a TypeError.
     full_source = pn.widgets.Checkbox(
@@ -70,9 +70,9 @@ def numerical_horizontal_single_app():
     # One start/end pair per segment, shown only while that segment is asked for.
     segment_bounds = [
         (pn.widgets.FloatInput(name=f"Segment {n} Start [m]",
-                               value=query_float(f"y{n}_start", 0.0 if n == 1 else 3.0), step=0.1),
+                               value=query_float(f"y{n}_start", 0.0 if n == 1 else 5.0), step=0.1),
          pn.widgets.FloatInput(name=f"Segment {n} End [m]",
-                               value=query_float(f"y{n}_end", 2.0 if n == 1 else 5.0), step=0.1))
+                               value=query_float(f"y{n}_end", 2.0 if n == 1 else 8.0), step=0.1))
         for n in range(1, MAX_FORM_SEGMENTS + 1)
     ]
     segment_inputs = [widget for pair in segment_bounds for widget in pair]
@@ -90,13 +90,13 @@ def numerical_horizontal_single_app():
     _sync_segments()
     grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394y [m]", value=query_float("grid_size", 1.0), step=0.1)
     alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
-    at = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("at", query_float("alpha_Th", 0.2)), step=0.01)
+    at = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("at", query_float("alpha_Th", 0.1)), step=0.01)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
     cd = pn.widgets.FloatInput(name="Donor Concentration C_D [mg/L]", value=query_float("Cd", query_float("C_D", 5.0)), step=0.1)
     ca = pn.widgets.FloatInput(name="Acceptor Concentration C_A [mg/L]", value=query_float("Ca", query_float("C_A", 8.0)), step=0.1)
     # Standard (modifiable defaults; analytical L_D / width are derived in the model)
     prsity = pn.widgets.FloatInput(name="Porosity \u03b7 [-]", value=query_float("prsity", 0.3), step=0.01)
-    hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 8.64), step=0.1)
+    hk = pn.widgets.FloatInput(name="Hydraulic Conductivity K [m/d]", value=query_float("hk", 8.4), step=0.1)
     gradient = pn.widgets.FloatInput(name="Hydraulic Gradient i [-]", value=query_float("gradient", 0.0125), step=0.001)
     # Analytical column (computed, read-only; filled after a run)
     ld_out = pn.widgets.StaticText(name="Domain Length L_D [m]", value="\u2014")
