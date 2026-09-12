@@ -239,8 +239,6 @@ The checked-in numerical reference fixtures pin the expected plume-length output
 | Vertical reference input | `42.0` | `42.0` |
 | Horizontal reference input | `36.1` | `36.10288085194749` |
 
-Earlier combined-orientation dashboards are retained under `archive/legacy_numerical/` for reference only.
-
 ### Multi-site Comparison
 
 `panel_site_comparison.py` implements one shared multiple-simulation panel for every analytical and empirical model. The sidebar selects sites, the model runs once per selected site using that site's database parameters, and the plot places the modelled plume length beside the measured one. Only the per-model specification differs, so there is one panel body instead of eight near-copies. Parameters a site leaves `NULL` fall back to the values carried in the Panel URL.
@@ -781,7 +779,6 @@ cast_landing_demo/
 |-- static/                        CSS, browser JavaScript, images, report assets
 |-- scripts/                       Maintenance and repinning utilities
 |-- tests/                         Pytest suite and fixtures
-|-- archive/                       Non-runtime reference artifacts and retired drafts
 |-- nginx/default.conf             Docker reverse proxy
 |-- solvers/                       Optional solver-binary directory
 |-- db_setup.sql                   Compose MySQL bootstrap schema
@@ -891,7 +888,6 @@ cast_landing_demo/
 | `panel_numerical_horizontal_multiple.py` | Horizontal scenario table and multiple-run dashboard using explicit grid/domain inputs. |
 | `panel_numerical_vertical_single.py` | Vertical single dashboard with explicit grid/domain inputs, FloPy execution, interactive plume chart, and PDF export. |
 | `panel_numerical_vertical_multiple.py` | Vertical scenario table and multiple-run dashboard using explicit grid/domain inputs. |
-| `archive/legacy_numerical/` | Retired combined numerical dashboards retained for reference only. |
 
 ### Plotting and Reporting
 
@@ -899,7 +895,6 @@ cast_landing_demo/
 | --- | --- |
 | `plot_functions.py` | Loads optional reference CSV data, cleans numeric arrays, renders Bokeh plume plots, renders model comparisons, and creates site-database bar, box, histogram, and Liedl plots. |
 | `pdf_report.py` | Shared branded ReportLab PDF engine. |
-| `archive/drafts/pdf_styles.json` | Retired PDF-style metadata draft. `pdf_report.py` owns the active report styles. |
 | `static/report_assets/Logo_Universitaet_Tuebingen.svg` | University logo embedded in PDF headers. |
 | `static/report_assets/dfg-logo-foerderung/dfg_logo_schriftzug_blau_foerderung_de.png` | DFG logo embedded in PDF headers. |
 
@@ -940,7 +935,6 @@ cast_landing_demo/
 | `templates/plot_bar.html` | Bokeh bar-chart page. |
 | `templates/plot_box.html` | Box-plot page; currently contains duplicated legacy and Jinja markup. |
 | `templates/plot_hist.html` | Histogram page; currently contains duplicated legacy and Jinja markup. |
-| `archive/drafts/liedl_description.html` | Retired Liedl description draft. Active Liedl pages use the current wrappers. |
 
 ### Static Frontend Files
 
@@ -977,13 +971,6 @@ cast_landing_demo/
 
 | File | Status and purpose |
 | --- | --- |
-| `CAST_Brief.md` | User-focused capability briefing, written for the manuscript author. |
-| `CAST_Toolkit_Technical_Brief.md` | Technical reference: governing equations as implemented, architecture, verification, and a file map. |
-| `archive/reference_artifacts/` | Standalone Cirpka reference script, expert-provided CSV inputs, and numerical screenshots. Not loaded by the application. |
-| `archive/generated_artifacts/test_svg.pdf` | Generated PDF test artifact retained outside runtime paths. |
-| `archive/placeholders/` | Empty `Horizontal_sim_final.py` and one-byte `feedback` placeholders retained instead of deleted. |
-| `archive/drafts/` | Retired PDF-style metadata and Liedl description drafts. |
-| `archive/legacy_numerical/` | Retired combined numerical Panel dashboards and wrappers. |
 | `flask*.log`, `panel*.log` | Local server logs. Ignored by Git. |
 | `.modflow_bin/` | Ignored local solver binaries including `mf6.exe`. |
 | `.numerical_runs/` | Ignored FloPy workspaces. Normally temporary; interrupted runs can leave directories behind. |
@@ -1061,7 +1048,6 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 - Added the AEM, numerical job, site export/delete, contact, health, `/me`, and About routes to the route tables.
 - Added the newer configuration variables: cookie and proxy trust settings, contact/SMTP delivery, upload and request caps, job-queue roots, concurrency, timeouts, and the AEM export directory.
 - Removed stale entries: the deleted `plot_routes.py` and `CAST_Implementation_Specification.md`, the forced-`output_only` limitation, the missing-conceptual-image limitation, and the synchronous-numerical-work limitation.
-- Added `CAST_Brief.md` (user-focused capability briefing) and `CAST_Toolkit_Technical_Brief.md` (technical reference) for the manuscript work.
 
 ### 6 August 2026 - Plot and Interaction Polish
 
@@ -1107,12 +1093,9 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 - Fixed vertical single-run `alpha_Tv` forwarding and derived balanced source-buffer defaults for database-loaded aquifer thicknesses.
 - Standardised single-model report cards through `templates/report_download_card.html`; all model PDFs continue to use the shared branded `CASTReport` engine.
 
-### 1 June 2026 - Non-Runtime Artifact Archive
+### 1 June 2026 - Non-Runtime Artifact Clean-up
 
-- Archived unused scratch references, generated PDF output, and placeholders instead of deleting them.
-- Retired the unwired PDF-style metadata and stale Liedl description drafts under `archive/drafts/`.
-- Kept the orientation-specific numerical dashboards active and moved the older combined dashboards under `archive/legacy_numerical/`.
-- Added `archive/README.md` so retained files remain clearly separated from active application code.
+- Removed unused scratch references, generated PDF output, placeholders, the unwired PDF-style metadata, the stale Liedl description draft, and the older combined numerical dashboards from the repository. The orientation-specific numerical dashboards stay active.
 
 ### 1 June 2026 - Lazy Numerical Optional Views
 
