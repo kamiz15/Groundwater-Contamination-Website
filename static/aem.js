@@ -1111,6 +1111,15 @@
       if (name === "ws") { syncSettings(); reframeView(); draw(); }
       if (name === "min_radius") syncSettings();
       // Non-blocking dispersivity-ratio warning (reference warnings_for_export).
+      // A grid coarser than the sources smears them into a single cell and every
+      // design renders the same near-empty field — warn, like the ratio check below.
+      if (name === "dom_inc" && hasElements()) {
+        const smallest = Math.min(...allElementDicts().map((e) => 2 * Math.min(elemHalfWidth(e), elemHalfHeight(e)) || Infinity));
+        if (value > smallest) {
+          showSettingsMsg(`dom_inc = ${fmt2(value)} m is coarser than your smallest source (${smallest.toFixed(3)} m) — the grid cannot resolve the plume; use a smaller value.`, false);
+          return;
+        }
+      }
       if (name === "alpha_l" || name === "alpha_t") {
         const al = +form.elements.alpha_l.value, at = +form.elements.alpha_t.value;
         const ratio = al / at;
