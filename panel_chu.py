@@ -10,7 +10,7 @@ from panel_analytical_common import (
     metric_card, query_float, query_int,
 )
 from panel_model_scenarios import scenario_app
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 pn.extension(sizing_mode="stretch_width")
 
@@ -35,7 +35,7 @@ def chu_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Chu et al. (2005) \u2014 Single Simulation", "Chu et al. (2005)")
+        report = PACSReport("Chu et al. (2005) \u2014 Single Simulation", "Chu et al. (2005)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(

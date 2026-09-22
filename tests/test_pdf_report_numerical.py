@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pytest
 from reportlab.lib.units import mm
 
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 
 def _tiny_plot_png():
@@ -21,7 +21,7 @@ def _tiny_plot_png():
 
 
 def test_numerical_pdf_report_accepts_new_parameter_output_shape():
-    report = CASTReport("Numerical Horizontal Model - Single Simulation", "Numerical Horizontal")
+    report = PACSReport("Numerical Horizontal Model - Single Simulation", "Numerical Horizontal")
 
     def fail_if_chart_is_generated(_plot_data):
         raise AssertionError("fallback chart should not be generated when a model image is supplied")
@@ -57,14 +57,14 @@ def test_numerical_pdf_report_accepts_new_parameter_output_shape():
 
 
 def test_report_image_fit_preserves_aspect_ratio_when_height_is_capped():
-    width, height = CASTReport._fit_image_dimensions(800, 600, 82)
+    width, height = PACSReport._fit_image_dimensions(800, 600, 82)
 
     assert height == pytest.approx(82 * mm)
     assert width / height == pytest.approx(800 / 600)
 
 
 def test_pdf_report_renders_comparison_scatter_on_second_page():
-    report = CASTReport("Liedl et al. (2005) - Single Simulation", "Liedl et al. (2005)")
+    report = PACSReport("Liedl et al. (2005) - Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "M", "name": "Aquifer Thickness", "value": 2, "unit": "m"},
@@ -91,13 +91,13 @@ def test_pdf_report_renders_comparison_scatter_on_second_page():
 
 
 def test_pdf_report_formats_symbols_for_input_table():
-    assert CASTReport._symbol_markup("T_s") == "<i>T</i><sub>s</sub>"
+    assert PACSReport._symbol_markup("T_s") == "<i>T</i><sub>s</sub>"
     # Source thickness was written S_T once; a report built from stored values
     # still renders it as the symbol in use rather than as bare text.
-    assert CASTReport._symbol_markup("S_T") == "<i>T</i><sub>s</sub>"
-    assert CASTReport._symbol_markup("S_W") == "<i>S</i><sub>W</sub>"
-    assert CASTReport._symbol_markup("alpha_Tv") == "&#945;<sub>Tv</sub>"
-    assert CASTReport._symbol_markup(chr(945) + "Tv") == "&#945;<sub>Tv</sub>"
-    assert CASTReport._symbol_markup(chr(206) + chr(177) + "Tv") == "&#945;<sub>Tv</sub>"
-    assert CASTReport._symbol_markup("C_EA0") == "<i>C</i><sub>A</sub><super>0</super>"
-    assert CASTReport._symbol_markup("C_D0") == "<i>C</i><sub>D</sub><super>0</super>"
+    assert PACSReport._symbol_markup("S_T") == "<i>T</i><sub>s</sub>"
+    assert PACSReport._symbol_markup("S_W") == "<i>S</i><sub>W</sub>"
+    assert PACSReport._symbol_markup("alpha_Tv") == "&#945;<sub>Tv</sub>"
+    assert PACSReport._symbol_markup(chr(945) + "Tv") == "&#945;<sub>Tv</sub>"
+    assert PACSReport._symbol_markup(chr(206) + chr(177) + "Tv") == "&#945;<sub>Tv</sub>"
+    assert PACSReport._symbol_markup("C_EA0") == "<i>C</i><sub>A</sub><super>0</super>"
+    assert PACSReport._symbol_markup("C_D0") == "<i>C</i><sub>D</sub><super>0</super>"

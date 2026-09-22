@@ -1,4 +1,4 @@
-"""Central CAST theme for all Panel apps.
+"""Central PACS theme for all Panel apps.
 
 Call apply_theme() once (in panel_server.py) before serving. It injects
 document-level CSS and sets class-level default stylesheets so every
@@ -39,7 +39,7 @@ html, body {
 # !important on the colours, not tighter selectors: Panel's own design sheet
 # paints buttons through `:host(.solid) .bk-btn.bk-btn-default` (specificity
 # 0,4,0), which outranks anything written as `.bk-btn-default` - every button
-# here was silently wearing Bokeh's stock grey and #0072b5 instead of the CAST
+# here was silently wearing Bokeh's stock grey and #0072b5 instead of the PACS
 # palette. The winning selector is a Panel internal that has changed shape
 # between releases; !important survives the next rename.
 BUTTON_CSS = """
@@ -111,7 +111,7 @@ label {
 """ % {"font": FONT_FAMILY}
 
 # Sliders. Bokeh builds these on noUiSlider, so INPUT_CSS (.bk-input) never
-# reaches them - they kept the stock grey bar. A 4px track with the CAST accent
+# reaches them - they kept the stock grey bar. A 4px track with the PACS accent
 # on the travelled portion reads as an instrument next to the plot rather than
 # as one more form control.
 SLIDER_CSS = """
@@ -122,7 +122,7 @@ SLIDER_CSS = """
   font-size: 0.78125rem;
   color: #5b6b7f;
   margin-bottom: 2px;
-  /* CAST parameter names are long ("Horizontal Transverse Dispersivity a_Th
+  /* PACS parameter names are long ("Horizontal Transverse Dispersivity a_Th
      [m]"). Bokeh keeps the title on one line, so side-by-side sliders bleed
      into each other; wrap instead. */
   white-space: normal;
@@ -150,12 +150,12 @@ SLIDER_CSS = """
   content: "";
   position: absolute;
   top: -3px;
-  left: var(--cast-baseline, 0%%);
+  left: var(--pacs-baseline, 0%%);
   width: 2px;
   height: 12px;
   border-radius: 1px;
   background: #8a99ab;
-  opacity: var(--cast-baseline-on, 0);
+  opacity: var(--pacs-baseline-on, 0);
   transform: translateX(-1px);
   pointer-events: none;
 }
@@ -268,7 +268,7 @@ COMPONENT_CSS = "\n".join([BUTTON_CSS, INPUT_CSS, SLIDER_CSS, TABULATOR_CSS, MAR
 
 
 def apply_theme() -> None:
-    """Inject CAST styling into every Panel app served by this process."""
+    """Inject PACS styling into every Panel app served by this process."""
     if GLOBAL_CSS not in pn.config.raw_css:
         pn.config.raw_css.append(GLOBAL_CSS)
 
@@ -286,10 +286,10 @@ def report_bridge_html(title="", subtitle="", filename="", parameters=None,
     run so the stale report is hidden.
     """
     if clear:
-        payload = {"type": "cast-report", "clear": True}
+        payload = {"type": "pacs-report", "clear": True}
     else:
         payload = {
-            "type": "cast-report",
+            "type": "pacs-report",
             "title": title,
             "subtitle": subtitle,
             "filename": filename,
@@ -337,7 +337,7 @@ _FRAME_HEIGHT_BRIDGE = (
     "document.documentElement.scrollHeight));"
     "if (h && h !== window.__castHeightLast) {"
     "window.__castHeightLast = h;"
-    "window.parent.postMessage({type: \"cast-frame-height\", height: h}, \"*\");}};"
+    "window.parent.postMessage({type: \"pacs-frame-height\", height: h}, \"*\");}};"
     "post();"
     "if (\"ResizeObserver\" in window) new ResizeObserver(post).observe(document.body);"
     "window.addEventListener(\"load\", post);"

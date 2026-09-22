@@ -75,7 +75,7 @@ def test_absolute_panel_base_is_flagged_as_cross_origin():
         return bool(parsed.scheme or parsed.netloc)
 
     assert is_cross_origin("http://localhost:5007")
-    assert is_cross_origin("https://cast.example.org/panel")
+    assert is_cross_origin("https://pacs.example.org/panel")
     assert not is_cross_origin("/panel")
     assert not is_cross_origin("")
 

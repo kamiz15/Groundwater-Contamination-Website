@@ -355,7 +355,7 @@ def test_single_model_pages_share_branded_report_card(path, authenticated_wrappe
     page = authenticated_wrapper_client.get(path).get_data(as_text=True)
 
     assert "report-download-card" in page
-    assert "Download the branded CAST PDF report" in page
+    assert "Download the branded PACS PDF report" in page
 
 
 ABOUT_SLUGS = [

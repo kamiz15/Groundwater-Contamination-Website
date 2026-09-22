@@ -1,8 +1,8 @@
-# CAST Groundwater Contamination Assessment
+# PACS - Preliminary Assessment of Contaminated Sites
 
-CAST is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, an analytic-element-method (AEM) transport model with an inverse mode, a data-analysis workbench, Bokeh visualisations, and branded PDF reports.
+PACS (Preliminary Assessment of Contaminated Sites) is a web application for groundwater-contamination assessment. It combines a Flask website, a MySQL site database, Panel dashboards, analytical and empirical plume-length equations, FloPy-based MODFLOW 6 simulations, an analytic-element-method (AEM) transport model with an inverse mode, a data-analysis workbench, Bokeh visualisations, and branded PDF reports.
 
-This README documents the CAST application architecture, runtime flow, model implementations, configuration, routes, repository layout, and development procedures.
+This README documents the PACS application architecture, runtime flow, model implementations, configuration, routes, repository layout, and development procedures.
 
 ## Contents
 
@@ -31,7 +31,7 @@ This README documents the CAST application architecture, runtime flow, model imp
 
 The application includes:
 
-- A CAST landing page with animated background effects, toolbox navigation, documentation copy, and account links.
+- A PACS landing page with animated background effects, toolbox navigation, documentation copy, and account links.
 - Registration, Flask-Login authentication, logout, password hashing, and user-owned data access.
 - Guest access: every model, dashboard, and simulation runs without an account. An account is required only to save sites to the user database. Guests are identified by a per-session id so one visitor's runs never reach another's.
 - A bundled 112-site reference database used as the default data source for models and plots.
@@ -60,7 +60,7 @@ The application includes:
 - A contact form with SMTP delivery, and imprint and privacy pages.
 - A Docker Compose stack containing Nginx, Flask/Gunicorn, Panel, and MySQL services.
 
-The earlier optimisation and Water Quality Index placeholder tiles are gone; the fifth landing tile (still carrying the id `model-optimization`) now opens the AEM toolbox. The model-selection toolbox described in the CAST documentation is not implemented.
+The earlier optimisation and Water Quality Index placeholder tiles are gone; the fifth landing tile (still carrying the id `model-optimization`) now opens the AEM toolbox. The model-selection toolbox described in the PACS documentation is not implemented.
 
 ## Architecture
 
@@ -400,11 +400,11 @@ The analytical and numerical Flask routes use `symbol_registry.py`. The empirica
 
 ## PDF Reports
 
-`pdf_report.py` defines `CASTReport`, a ReportLab-based PDF generator shared by Flask routes and Panel apps.
+`pdf_report.py` defines `PACSReport`, a ReportLab-based PDF generator shared by Flask routes and Panel apps.
 
 Generated reports can include:
 
-- HYMCAT / CAST branding.
+- HYMCAT / PACS branding.
 - DFG and University of Tuebingen logos.
 - Model name, timestamp, and page number with total page count.
 - A metadata banner.
@@ -414,7 +414,7 @@ Generated reports can include:
 - Matplotlib comparison charts.
 - Optional numerical plume images.
 
-Every single-model wrapper uses the same report-download card partial at `templates/report_download_card.html`. Analytical, empirical, BIOSCREEN, and numerical PDF exports all use the shared branded `CASTReport` engine.
+Every single-model wrapper uses the same report-download card partial at `templates/report_download_card.html`. Analytical, empirical, BIOSCREEN, and numerical PDF exports all use the shared branded `PACSReport` engine.
 
 Single-run Flask pages expose report URLs such as `/liedl/single/export`. Panel dashboards use `pn.widgets.FileDownload` for reports generated from their current interactive state.
 
@@ -939,7 +939,7 @@ cast_landing_demo/
 
 | File or directory | Responsibility |
 | --- | --- |
-| `static/styles.css` | Global CAST layout, navigation, cards, forms, model pages, responsive rules, and visual styling. |
+| `static/styles.css` | Global PACS layout, navigation, cards, forms, model pages, responsive rules, and visual styling. |
 | `static/script.js` | Sidebar and dropdown behaviour, account-form requests, active-navigation highlights, CSV filename display, iframe sizing, title animation, and landing-page canvas animation. |
 | `static/images/conceptual_liedl_2d.png` | Liedl 2D conceptual diagram. |
 | `static/images/conceptual_liedl_3d.png` | Liedl 3D conceptual diagram. |
@@ -982,7 +982,7 @@ cast_landing_demo/
 
 ### Not Implemented
 
-The model-selection toolbox described in the CAST documentation (Statistical Threshold, AIC, and AHP ranking) is a design, not code. The AEM inverse model estimates one parameter at a time from a single target plume length; it is not a joint multi-parameter inversion and reports no uncertainty bounds.
+The model-selection toolbox described in the PACS documentation (Statistical Threshold, AIC, and AHP ranking) is a design, not code. The AEM inverse model estimates one parameter at a time from a single target plume length; it is not a joint multi-parameter inversion and reports no uncertainty bounds.
 
 ### Site Database Operations
 
@@ -1006,7 +1006,7 @@ The runtime `ensure_schema()` approach creates missing tables for development, b
 
 The Analysis Visualisation menu intentionally exposes only the working site-database pages: bar graph, box plot, and histogram. The unfinished all-plots, scatterplot, and statistical-analysis placeholders were removed for v2.
 
-`static/original.csv` contains the bundled 112-site CAST reference database, with native search, sorting, page-size selection, and pagination. Copy, filtered CSV/XLSX/PDF downloads, and Print apply to the user-uploaded database; `static/sample_db.csv` is the downloadable upload example. `plot_functions.py` uses the reference file for reference-data plots. The `/dispersivity-data` page uses the legacy `static/fig1_plots.csv` dataset and its histogram, box plot, and scatter plot assets with the current responsive table controls.
+`static/original.csv` contains the bundled 112-site PACS reference database, with native search, sorting, page-size selection, and pagination. Copy, filtered CSV/XLSX/PDF downloads, and Print apply to the user-uploaded database; `static/sample_db.csv` is the downloadable upload example. `plot_functions.py` uses the reference file for reference-data plots. The `/dispersivity-data` page uses the legacy `static/fig1_plots.csv` dataset and its histogram, box plot, and scatter plot assets with the current responsive table controls.
 
 ### Numerical Work Is User-sized
 
@@ -1090,7 +1090,7 @@ Keep this section updated whenever implementation, configuration, reporting, or 
 - Stopped numerical single-run wrappers from launching MODFLOW during initial page load.
 - Replaced the ambiguous `Update Output` action with one final `Run Model` button and removed duplicate wrapper run forms from numerical scenario pages.
 - Fixed vertical single-run `alpha_Tv` forwarding and derived balanced source-buffer defaults for database-loaded aquifer thicknesses.
-- Standardised single-model report cards through `templates/report_download_card.html`; all model PDFs continue to use the shared branded `CASTReport` engine.
+- Standardised single-model report cards through `templates/report_download_card.html`; all model PDFs continue to use the shared branded `PACSReport` engine.
 
 ### 1 June 2026 - Non-Runtime Artifact Clean-up
 

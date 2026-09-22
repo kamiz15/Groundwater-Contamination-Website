@@ -1,6 +1,6 @@
 """Per-model restrictions on site-database values.
 
-Each CAST model places mathematical restrictions on the site parameters it
+Each PACS model places mathematical restrictions on the site parameters it
 reads from the site database. Examples straight from the model equations:
 
 - Liedl et al. (2005):    divides by C_EA0            -> electron_acceptor_o2 > 0

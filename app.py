@@ -201,7 +201,7 @@ def _smtp_configured():
 def _send_contact_email(name, email, message):
     subject_name = " ".join(name.split())
     msg = EmailMessage()
-    msg["Subject"] = f"CAST contact request from {subject_name}"
+    msg["Subject"] = f"PACS contact request from {subject_name}"
     msg["From"] = CONTACT_FROM_EMAIL
     msg["To"] = CONTACT_EMAIL
     msg["Reply-To"] = email
@@ -228,7 +228,7 @@ def health():
 
 
 # Per-model "About" pages (description + governing equation). Public, like the
-# old CAST documentation pages -- no login required.
+# old PACS documentation pages -- no login required.
 MODEL_ABOUT_TEMPLATES = {
     "liedl": "about_liedl.html",
     "liedl3d": "about_liedl3d.html",

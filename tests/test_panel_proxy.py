@@ -34,7 +34,7 @@ import pytest
 _HOST = "localhost"
 _PORT = 80
 _BASE = f"http://{_HOST}:{_PORT}"
-_TEST_EMAIL = "proxytest@cast.internal"
+_TEST_EMAIL = "proxytest@pacs.internal"
 _TEST_PASS = "ProxyTest1!"
 
 # Panel app used for all websocket / iframe tests.

@@ -20,7 +20,7 @@ from model_site_validation import filter_valid_sites_for_model
 from route_guards import compare_site_ids, guard_model_errors, request_finite_float, request_finite_int
 from panel_analytical_common import comparison_plot
 from param_meta import attach_meta
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 from security import GENERIC_DATABASE_ERROR_MESSAGE, current_email
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_to_model
@@ -450,7 +450,7 @@ def liedl_single_export():
     lmax = liedl_lmax(m, alpha_tv, gamma, c_ea0, c_ed0)
     if not isfinite(lmax):
         raise ValueError("Liedl result must be finite.")
-    report = CASTReport("Liedl et al. (2005) — Single Simulation", "Liedl et al. (2005)")
+    report = PACSReport("Liedl et al. (2005) — Single Simulation", "Liedl et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
@@ -506,7 +506,7 @@ def chu_single_export():
     c_ed0 = _request_float("C_ED0", 5.0)
     epsilon = _request_float("epsilon", 0.0)
     lmax = chu_lmax(w, alpha_th, gamma, c_ea0, c_ed0, epsilon)
-    report = CASTReport("Chu et al. (2005) — Single Simulation", "Chu et al. (2005)")
+    report = PACSReport("Chu et al. (2005) — Single Simulation", "Chu et al. (2005)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "S_W", "name": "Source Width", "value": w, "unit": "m"},
@@ -558,7 +558,7 @@ def ham_single_export():
     c_ea0 = _request_float("C_EA0", 8.0)
     c_ed0 = _request_float("C_ED0", 5.0)
     lmax = ham_lmax(q, alpha_t, gamma, c_ea0, c_ed0)
-    report = CASTReport("Ham et al. (2004) — Single Simulation", "Ham et al. (2004)")
+    report = PACSReport("Ham et al. (2004) — Single Simulation", "Ham et al. (2004)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "q", "name": "Source Flux", "value": q, "unit": "m²/yr"},
@@ -618,7 +618,7 @@ def bioscreen_single_export():
     lam = _request_float("lam", 0.445)
     ng = _request_int("ng", 60)
     lmax = float(bio(cthres, time_val, h, c0, w, v, ax, ay, az, df, r, gamma, lam, ng))
-    report = CASTReport("BIOSCREEN-AT 3D — Single Simulation", "BIOSCREEN-AT 3D")
+    report = PACSReport("BIOSCREEN-AT 3D — Single Simulation", "BIOSCREEN-AT 3D")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "C_thres", "name": "Threshold Contaminant Concentration", "value": cthres, "unit": "mg/L"},
@@ -681,7 +681,7 @@ def liedl3d_single_export():
     c_ed0 = _request_float("C_ED0", 5.0)
     gamma = _request_float("gamma", 3.0)
     lmax = liedl3d_lmax(m, alpha_th, alpha_tv, w, cthres, c_ea0, c_ed0, gamma)
-    report = CASTReport("Liedl 3D (2011) — Single Simulation", "Liedl 3D (2011)")
+    report = PACSReport("Liedl 3D (2011) — Single Simulation", "Liedl 3D (2011)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
@@ -748,7 +748,7 @@ def cirpka_single_export():
     lmax = cirpka_lmax(sw, alpha_th, gamma, ca, cd)
     ld = cirpka_domain_length(lmax)
 
-    report = CASTReport("Cirpka et al. (2006) - Single Simulation", "Cirpka et al. (2006)")
+    report = PACSReport("Cirpka et al. (2006) - Single Simulation", "Cirpka et al. (2006)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "S_W", "name": "Source Width", "value": sw, "unit": "m"},

@@ -1,6 +1,6 @@
 """Scenario-table multiple simulation for the analytical / empirical models.
 
-The old CAST multiple page was a *list of parameter sets*: typed in through the
+The old PACS multiple page was a *list of parameter sets*: typed in through the
 "Add Data" modal or uploaded as a CSV, kept in a table, and plotted against the
 measured plume lengths of the sites. panel_site_comparison only runs the sites
 ticked in the sidebar and draws no measured series, so this module restores that
@@ -104,7 +104,7 @@ def _default_row(model: str, fallback: dict, label: str = "Manual") -> dict:
 def site_measured_points(sites, start: int):
     """(x, y) for the measured plume length of each ticked site, numbered from `start`.
 
-    A site contributes a measurement and nothing else. Old CAST never derived
+    A site contributes a measurement and nothing else. Old PACS never derived
     model parameters from a site - the parameters were always typed or uploaded -
     and this database is the reason why: it carries neither alpha_Tv nor gamma
     for any of its 112 reference sites. Seeding a run from a site therefore meant
@@ -204,7 +204,7 @@ def read_scenario_csv(model: str, data: bytes) -> pd.DataFrame:
     return read_scenario_frame(data, MODEL_SPECS[model]["args"], scenario_columns(model))
 
 
-# Old CAST kept the scenario table and its buttons on a card under the graph;
+# Old PACS kept the scenario table and its buttons on a card under the graph;
 # these hold that shape in the current palette.
 _CARD = {
     "background": "#eef1f5", "border": "1px solid #e3e8ef", "border-radius": "10px",
@@ -468,12 +468,12 @@ if (!window.__castRowListener) {
   window.__castRowListener = true;
   window.addEventListener("message", function (e) {
     const d = e.data;
-    if (!d || d.type !== "cast-scenario-row") return;
+    if (!d || d.type !== "pacs-scenario-row") return;
     window.__castRowSeq = (window.__castRowSeq || 0) + 1;
     bridge.value = JSON.stringify(d.row) + "#" + window.__castRowSeq;
   });
 }
-window.parent.postMessage({type: "cast-scenario-open"}, "*");
+window.parent.postMessage({type: "pacs-scenario-open"}, "*");
 """
 
 def site_picker_widgets(sites, seeded):
@@ -640,7 +640,7 @@ def scenario_app(model: str):
     # Keeps the page's iframe the height of this document.
     height_bridge = pn.pane.HTML(frame_height_bridge_html(), height=0, margin=0,
                                  sizing_mode="fixed")
-    # manual_fallback, not a plain read: a link written with the old CAST field
+    # manual_fallback, not a plain read: a link written with the old PACS field
     # names (?tv=, ?Ca=) still has to land on the right parameters.
     fallback = manual_fallback(model)
 
@@ -658,7 +658,7 @@ def scenario_app(model: str):
     # Where the page writes the row its Add-scenario dialog collected. Hidden and
     # never touched by hand: Add row writes it in the browser through a
     # js_on_click model handle, and the work follows the value into Python.
-    row_input = pn.widgets.TextInput(name="cast-scenario-row", value="", visible=False)
+    row_input = pn.widgets.TextInput(name="pacs-scenario-row", value="", visible=False)
 
     def _picked_sites():
         return [by_id[i] for i in site_picker.value if i in by_id]
@@ -687,7 +687,7 @@ def scenario_app(model: str):
     # stretches to exactly the graph's width.
     run_btn = pn.widgets.Button(name="Update Graph", button_type="primary",
                                 sizing_mode="stretch_width")
-    # The old CAST toolbar, in its original order. Every one of these stays put
+    # The old PACS toolbar, in its original order. Every one of these stays put
     # and stays enabled for the life of the page: none is hidden until a run has
     # happened.
     # Round + and -, with the caption moved into the tooltip; the wording is
@@ -801,7 +801,7 @@ def scenario_app(model: str):
         table.value = pd.DataFrame([], columns=columns)
 
     def _on_upload(_=None):
-        # Wired to the Upload button, not to picking a file: old CAST chose the
+        # Wired to the Upload button, not to picking a file: old PACS chose the
         # file first and uploaded on a second, deliberate click.
         if not upload.value:
             show_error(ValueError("Choose a CSV file first, then press Upload."))

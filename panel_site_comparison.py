@@ -213,7 +213,7 @@ MODEL_SPECS = {
     },
 }
 
-# The workbench input form kept the original CAST field names, which are not the
+# The workbench input form kept the original PACS field names, which are not the
 # canonical symbols this module runs on - a form posting ?tv=0.002 has to reach
 # alpha_Tv here or editing it would silently do nothing. Only the names that
 # differ are listed; the rest already match.

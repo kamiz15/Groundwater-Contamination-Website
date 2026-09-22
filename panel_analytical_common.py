@@ -144,7 +144,7 @@ def _metric_row(label: str, value_text: str, unit: str, delta: str) -> str:
     return (
         '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">'
         f'<span style="font-size:1rem;font-weight:600;color:#5b6b7f;">{label}</span>'
-        '<span class="cast-result-value" '
+        '<span class="pacs-result-value" '
         f'style="font-size:1.9rem;font-weight:800;color:#0b2c4f;line-height:1;">{value_text}</span>'
         f'{unit_html}{delta_html}</div>'
     )
@@ -170,14 +170,14 @@ def metric_card(label: str, value_text: str, unit: str = "m", title: str = "Simu
         0%   {{ background: #d6e6f8; }}
         100% {{ background: transparent; }}
       }}
-      .cast-result-value {{
+      .pacs-result-value {{
         border-radius: 6px;
         padding: 0 4px;
         margin: 0 -4px;
         animation: castResultIn .7s ease-out;
       }}
       @media (prefers-reduced-motion: reduce) {{
-        .cast-result-value {{ animation: none; }}
+        .pacs-result-value {{ animation: none; }}
       }}
     </style>
     <div style="background:#eef1f5;border:1px solid #e3e8ef;border-left:3px solid #1f72cd;border-radius:10px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,0.07);">
@@ -288,13 +288,13 @@ _RESET_BTN_CSS = """
 
 
 # Posted to the embedding page on every slider change. The page keeps its input
-# form and its export link in step with it - see the CAST input bridge in
+# form and its export link in step with it - see the PACS input bridge in
 # static/script.js, which is the other half of this contract.
 _INPUT_BRIDGE_JS = (
     # Rounded to the precision the slider itself displays: the raw float lands
     # in a form field and a URL, where 8.258999999999999 is just noise.
     "window.parent.postMessage("
-    "{type: 'cast-input', name: %s, value: Number(cb_obj.value.toFixed(%d))}, '*');"
+    "{type: 'pacs-input', name: %s, value: Number(cb_obj.value.toFixed(%d))}, '*');"
 )
 
 
@@ -340,8 +340,8 @@ def explore_sliders(pairs, rerun):
             # Where the value the model was RUN with sits on the track, so the
             # notch says how far the reader has dragged from the baseline the
             # result chip is comparing against.
-            styles={"--cast-baseline": f"{_track_position(value, lo, hi):.4f}%",
-                    "--cast-baseline-on": "1"},
+            styles={"--pacs-baseline": f"{_track_position(value, lo, hi):.4f}%",
+                    "--pacs-baseline-on": "1"},
         )
         slider.link(widget, value="value")
         # value_throttled fires on release, not per pixel: one recompute per drag.

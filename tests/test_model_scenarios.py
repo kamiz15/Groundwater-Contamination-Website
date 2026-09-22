@@ -149,7 +149,7 @@ def test_a_sites_only_run_still_exports_its_graph():
         app = psm.scenario_app("liedl")
 
     assert len(app.select(pn.widgets.Tabulator)[0].value) == 0        # nothing modelled
-    posted = [str(p.object) for p in app.select(pn.pane.HTML) if "cast-report" in str(p.object)]
+    posted = [str(p.object) for p in app.select(pn.pane.HTML) if "pacs-report" in str(p.object)]
     assert posted, "a measured-only run posted no report"
     assert "Hill AFB" in posted[0]
     assert "No measurement" not in posted[0]     # a site without one is not a row
@@ -160,7 +160,7 @@ def test_the_panel_reports_its_height_to_the_page():
     app = scenario_app("liedl")
     panes = [str(p.object) for p in app.select(pn.pane.HTML)]
 
-    assert any("cast-frame-height" in html for html in panes)
+    assert any("pacs-frame-height" in html for html in panes)
 
 
 def test_the_page_listens_for_the_height_it_posts():
@@ -170,7 +170,7 @@ def test_the_page_listens_for_the_height_it_posts():
     script = Path(__file__).resolve().parents[1] / "static" / "script.js"
     body = script.read_text(encoding="utf-8", errors="replace")
 
-    assert 'data.type !== "cast-frame-height"' in body
+    assert 'data.type !== "pacs-frame-height"' in body
     assert "f.contentWindow === event.source" in body          # only our own frames
 
 
@@ -221,7 +221,7 @@ def test_the_picker_lives_in_the_panel_beside_the_graph(model):
     app = scenario_app(model)
 
     assert len(app.select(pn.widgets.MultiSelect)) == 1
-    assert not any("cast-sites" in str(p.object) for p in app.select(pn.pane.HTML))
+    assert not any("pacs-sites" in str(p.object) for p in app.select(pn.pane.HTML))
 
 
 # --- the toolbar --------------------------------------------------------------
@@ -319,9 +319,9 @@ def test_every_model_bridges_to_the_page_the_same_way(model):
     hidden = {w.name for w in app.select(pn.widgets.TextInput) if w.visible is False}
     panes = [str(p.object) for p in app.select(pn.pane.HTML)]
 
-    assert "cast-scenario-row" in hidden
-    assert "cast-site-ids" not in hidden             # the picker is a widget now
-    assert not any("cast-sites-request" in html for html in panes)
+    assert "pacs-scenario-row" in hidden
+    assert "pacs-site-ids" not in hidden             # the picker is a widget now
+    assert not any("pacs-sites-request" in html for html in panes)
 
 
 def test_the_graph_sits_above_the_scenario_card():
@@ -361,7 +361,7 @@ def _click(app, caption):
     _button(app, caption).clicks += 1
 
 
-def _bridge(app, name="cast-site-ids"):
+def _bridge(app, name="pacs-site-ids"):
     """One of the two hidden widgets the page writes into."""
     return next(w for w in app.select(pn.widgets.TextInput) if w.name == name)
 
@@ -418,7 +418,7 @@ def _add_scenario(app, **values):
     and the filled-in form is posted back onto the row bridge."""
     import json
 
-    bridge = _bridge(app, "cast-scenario-row")
+    bridge = _bridge(app, "pacs-scenario-row")
     seq = bridge.value.rpartition("#")[2]
     payload = {"name": "Manual", **{k: str(v) for k, v in values.items()}}
     bridge.value = json.dumps(payload) + "#" + str(int(seq) + 1 if seq.isdigit() else 1)
@@ -510,8 +510,8 @@ def test_the_add_row_dialog_belongs_to_the_page_not_this_frame():
     app = _liedl_page()
 
     assert [c for c in app.select(pn.Column) if c.styles.get("z-index") == "20"] == []
-    assert "cast-scenario-open" in _ADD_ROW_JS       # it asks the page to open one
-    assert "cast-scenario-row" in _ADD_ROW_JS        # and takes the row back
+    assert "pacs-scenario-open" in _ADD_ROW_JS       # it asks the page to open one
+    assert "pacs-scenario-row" in _ADD_ROW_JS        # and takes the row back
     assert "bridge.value" in _ADD_ROW_JS             # through a model handle
     assert "querySelector" not in _ADD_ROW_JS        # never the DOM: shadow roots
 
@@ -639,7 +639,7 @@ def test_a_shared_link_still_runs_when_the_bridge_never_speaks():
     the URL carried rather than drawing nothing."""
     app = _liedl_page(sites=[_site(id=1, site_unit="Hill AFB", plume_length=502.92)],
                       seeded=[1])
-    posted = [str(p.object) for p in app.select(pn.pane.HTML) if "cast-report" in str(p.object)]
+    posted = [str(p.object) for p in app.select(pn.pane.HTML) if "pacs-report" in str(p.object)]
 
     assert posted and "Hill AFB" in posted[0]
 

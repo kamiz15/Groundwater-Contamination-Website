@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Table
 
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 
 def _params(sites, columns):
@@ -21,7 +21,7 @@ def _text(cell):
 
 
 def test_site_tagged_parameters_pivot_to_one_row_per_site():
-    report = CASTReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
     tables = report.build_site_input_tables(
         _params(["Borden", "Vejen"], ["Source Thickness", "Recharge Rate"])
     )
@@ -40,7 +40,7 @@ def test_site_tagged_parameters_pivot_to_one_row_per_site():
 def test_wide_models_split_instead_of_shrinking_columns():
     """BIOSCREEN reports 14 parameters; one row of them is unreadable."""
     columns = [f"Param {i}" for i in range(14)]
-    report = CASTReport("BIOSCREEN-AT 3D - Multiple Simulation", "BIOSCREEN-AT 3D")
+    report = PACSReport("BIOSCREEN-AT 3D - Multiple Simulation", "BIOSCREEN-AT 3D")
     tables = report.build_site_input_tables(_params(["Borden"], columns))
 
     assert len(tables) == 2
@@ -55,7 +55,7 @@ def test_wide_models_split_instead_of_shrinking_columns():
 
 def test_single_run_reports_keep_the_parameter_value_layout():
     """Only the multiple pages tag parameters with a site, so nothing else moves."""
-    report = CASTReport("Liedl et al. (2005) - Single Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Single Simulation", "Liedl")
     pdf = report.generate(
         parameters=[{"symbol": "S_T", "name": "Source Thickness", "value": 5.0, "unit": "m"}],
         outputs=[{"label": "Lmax", "value": "117.99", "unit": "m"}],
@@ -95,7 +95,7 @@ def _section_titles(report, **kwargs):
 
 def test_a_multiple_report_leads_with_the_graph():
     """The site table can run for pages; the graph must not be stranded after it."""
-    report = CASTReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
     titles = _section_titles(
         report,
         parameters=_params(["Borden"], ["Source Thickness"]),
@@ -107,7 +107,7 @@ def test_a_multiple_report_leads_with_the_graph():
 
 
 def test_a_multiple_report_drops_the_computed_results_box():
-    report = CASTReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
     titles = _section_titles(
         report,
         parameters=_params(["Borden"], ["Source Thickness"]),
@@ -118,7 +118,7 @@ def test_a_multiple_report_drops_the_computed_results_box():
 
 
 def test_single_reports_keep_their_section_order():
-    report = CASTReport("Liedl et al. (2005) - Single Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Single Simulation", "Liedl")
     titles = _section_titles(
         report,
         parameters=[{"symbol": "S_T", "name": "Source Thickness", "value": 5.0, "unit": "m"}],
@@ -130,7 +130,7 @@ def test_single_reports_keep_their_section_order():
 
 
 def test_multiple_report_renders_end_to_end():
-    report = CASTReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
+    report = PACSReport("Liedl et al. (2005) - Multiple Simulation", "Liedl")
     pdf = report.generate(
         parameters=_params(["Borden", "Vejen"], ["Source Thickness", "Recharge Rate"]),
         outputs=[{"label": "Sites simulated", "value": "2", "unit": ""}],

@@ -28,7 +28,7 @@ def _query_email() -> str:
 def authenticated_email() -> str:
     """Return the caller's identity for the current Panel session.
 
-    Either a logged-in account's email or, for a visitor using CAST without an
+    Either a logged-in account's email or, for a visitor using PACS without an
     account, their per-session guest id (see security.current_email).
 
     Identity is taken from a reverse-proxy-injected, non-spoofable request header

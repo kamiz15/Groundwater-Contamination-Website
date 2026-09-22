@@ -31,7 +31,7 @@ Units are those the coefficients were fitted in and are NOT interchangeable:
     L_max       [m]
     T_Lmax      [year]
 
-Note on the name ``gamma``: elsewhere in CAST ``gamma`` is the stoichiometric
+Note on the name ``gamma``: elsewhere in PACS ``gamma`` is the stoichiometric
 coefficient of the Liedl/Cirpka/Maier family. Here it is the SOURCE DECAY rate
 constant, written Γ in the model manual and γ in the paper — the same quantity
 BIOSCREEN calls ``sourceDecayCoefficient_gamma``. The two are unrelated; the
@@ -83,7 +83,7 @@ def kohler_tlmax(lambda_eff: float, source_decay_gamma: float) -> float:
     Time to reach the maximum plume extent T_Lmax [y] — Eq. (14).
 
     lambda_eff         : first-order decay rate constant in the plume [1/y]
-    source_decay_gamma : source decay rate constant Γ [1/y]  (NOT the CAST
+    source_decay_gamma : source decay rate constant Γ [1/y]  (NOT the PACS
                          stoichiometric coefficient — see the module docstring)
     """
     lambda_eff = float(lambda_eff)

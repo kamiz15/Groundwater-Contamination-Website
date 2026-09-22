@@ -188,7 +188,7 @@ def cirpka_2005(Sw: float = 10, Ath: float = 0.1, Ca: float = 8, Cd: float = 5, 
 
 
 def cirpka_lmax(Sw: float, alpha_Th: float, gamma: float, C_A: float, C_D: float) -> float:
-    """Compatibility wrapper using canonical CAST parameter names."""
+    """Compatibility wrapper using canonical PACS parameter names."""
     return cirpka_2005(Sw=Sw, Ath=alpha_Th, Ca=C_A, Cd=C_D, Ga=gamma)
 
 

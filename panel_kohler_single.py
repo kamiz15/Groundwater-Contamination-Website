@@ -20,7 +20,7 @@ from panel_analytical_common import (
     baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int,
 )
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 pn.extension(sizing_mode="stretch_width")
 
@@ -71,7 +71,7 @@ def kohler_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("K\u00f6hler et al. (2024) \u2014 Single Simulation", "K\u00f6hler et al. (2024)")
+        report = PACSReport("K\u00f6hler et al. (2024) \u2014 Single Simulation", "K\u00f6hler et al. (2024)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(

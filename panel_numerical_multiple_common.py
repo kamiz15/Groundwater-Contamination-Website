@@ -156,7 +156,7 @@ def numerical_multiple_app(mod):
     seeded = [i for i in sorted(mod.selected_site_ids()) if i in by_id]
 
     site_picker, site_search = site_picker_widgets(sites, seeded)
-    row_input = pn.widgets.TextInput(name="cast-scenario-row", value="", visible=False)
+    row_input = pn.widgets.TextInput(name="pacs-scenario-row", value="", visible=False)
 
     def _picked_sites():
         return [by_id[i] for i in site_picker.value if i in by_id]

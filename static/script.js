@@ -306,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const noteSync = (frame, state, detail) => {
     if (frame.dataset.frameSync === state) return;
     frame.dataset.frameSync = state;
-    if (state !== "ok") console.warn(`[cast] panel frame ${state}: ${detail}`, frame);
+    if (state !== "ok") console.warn(`[pacs] panel frame ${state}: ${detail}`, frame);
   };
   const measure = (frame) => {
     let doc = null;
@@ -634,7 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ---------------------------------------------------------------------------
 window.addEventListener("message", (event) => {
   const data = event.data;
-  if (!data || data.type !== "cast-frame-height") return;
+  if (!data || data.type !== "pacs-frame-height") return;
 
   const frames = Array.from(document.querySelectorAll("iframe.panel-frame"));
   // Only a frame we embedded may resize itself, and only itself.
@@ -649,7 +649,7 @@ window.addEventListener("message", (event) => {
 });
 
 // ---------------------------------------------------------------------------
-// CAST input bridge: the Explore sliders live inside the Panel frame, but the
+// PACS input bridge: the Explore sliders live inside the Panel frame, but the
 // input form and the PDF export link live out here and are both built from the
 // form. Without this a drag left both stale - pressing Run Model discarded the
 // exploration, and the exported report was computed from the values the page
@@ -662,7 +662,7 @@ window.addEventListener("message", (event) => {
 
   window.addEventListener("message", (event) => {
     const data = event.data;
-    if (!data || data.type !== "cast-input" || !data.name) return;
+    if (!data || data.type !== "pacs-input" || !data.name) return;
     if (!fromPanelFrame(event.source)) return;
 
     const form = document.getElementById("model-input-form");
@@ -677,7 +677,7 @@ window.addEventListener("message", (event) => {
   });
 })();
 
-// CAST report bridge: Panel iframes post their latest run results here so the
+// PACS report bridge: Panel iframes post their latest run results here so the
 // page-level "Report Export" card (outside the iframe) can build the PDF via
 // POST /report/export.
 // ---------------------------------------------------------------------------
@@ -689,7 +689,7 @@ window.addEventListener("message", (event) => {
 
   window.addEventListener("message", (event) => {
     const data = event.data;
-    if (!data || data.type !== "cast-report") return;
+    if (!data || data.type !== "pacs-report") return;
     // Only trust messages sent by an iframe we embedded (blocks a page that
     // opened us via window.open from spoofing report payloads).
     if (!fromEmbeddedFrame(event.source)) return;
@@ -703,12 +703,12 @@ window.addEventListener("message", (event) => {
     if (data.clear || !data.state) {
       reportPayload = null;
       if (btn) btn.disabled = true;
-      if (hint) hint.textContent = "Download the branded CAST PDF report - run a simulation first.";
+      if (hint) hint.textContent = "Download the branded PACS PDF report - run a simulation first.";
       return;
     }
     reportPayload = data;
     if (btn) btn.disabled = false;
-    if (hint) hint.textContent = "Download the branded CAST PDF report for the latest simulation run.";
+    if (hint) hint.textContent = "Download the branded PACS PDF report for the latest simulation run.";
   });
 
   document.addEventListener("click", async (e) => {
@@ -822,7 +822,7 @@ window.addEventListener("message", (event) => {
 
 
 // ---------------------------------------------------------------------------
-// CAST scenario dialog: the Add row button lives inside the Panel frame, but a
+// PACS scenario dialog: the Add row button lives inside the Panel frame, but a
 // dialog built in there can only cover the frame - a band in the middle of the
 // page. So the frame asks for this one, which is a real <dialog> and covers the
 // window, and the filled-in row is posted back to the frame that asked.
@@ -834,7 +834,7 @@ window.addEventListener("message", (event) => {
   let asker = null;                      // the frame waiting for a row
 
   window.addEventListener("message", (event) => {
-    if (!event.data || event.data.type !== "cast-scenario-open") return;
+    if (!event.data || event.data.type !== "pacs-scenario-open") return;
     const frames = Array.from(document.querySelectorAll("iframe.panel-frame"));
     if (!frames.some((f) => f.contentWindow === event.source)) return;
     asker = event.source;
@@ -848,7 +848,7 @@ window.addEventListener("message", (event) => {
     if (!asker) return;
     const row = {};
     new FormData(form).forEach((value, key) => { row[key] = value; });
-    asker.postMessage({ type: "cast-scenario-row", row }, "*");
+    asker.postMessage({ type: "pacs-scenario-row", row }, "*");
     asker = null;
   });
 

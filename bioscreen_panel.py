@@ -10,7 +10,7 @@ from panel_analytical_common import (
     metric_card, query_float, query_int,
 )
 from panel_model_scenarios import scenario_app
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 pn.extension(sizing_mode="stretch_width")
 
@@ -50,7 +50,7 @@ def bioscreen_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("BIOSCREEN-AT 3D \u2014 Single Simulation", "BIOSCREEN-AT 3D")
+        report = PACSReport("BIOSCREEN-AT 3D \u2014 Single Simulation", "BIOSCREEN-AT 3D")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(

@@ -1,6 +1,6 @@
 """
-pdf_report.py — Professional PDF report generation for CAST.
-ReportLab-based with embedded matplotlib charts and CAST branding.
+pdf_report.py — Professional PDF report generation for PACS.
+ReportLab-based with embedded matplotlib charts and PACS branding.
 """
 
 import io
@@ -32,7 +32,7 @@ from reportlab.platypus import (
     SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
-# ── CAST brand palette ─────────────────────────────────────────────────────────
+# ── PACS brand palette ─────────────────────────────────────────────────────────
 _NAVY    = colors.Color(0.106, 0.231, 0.420)   # #1B3A6B
 _BLUE    = colors.Color(0.180, 0.431, 0.741)   # #2E6EBD
 _TEAL    = colors.Color(0.051, 0.596, 0.529)   # #0D9887
@@ -118,14 +118,14 @@ class PageCountCanvas(pdfcanvas.Canvas):
             self.drawCentredString(
                 PAGE_W / 2,
                 5.5 * mm,
-                f"Page {self._pageNumber} of {page_count}  |  HYMCAT / CAST  |  DFG-funded research report",
+                f"Page {self._pageNumber} of {page_count}  |  HYMCAT / PACS  |  DFG-funded research report",
             )
             super().showPage()
         super().save()
 
 
-class CASTReport:
-    """Professional PDF report for all CAST model types."""
+class PACSReport:
+    """Professional PDF report for all PACS model types."""
 
     def __init__(self, title: str, model_name: str, logo_path: str = None):
         self.title = title
@@ -221,11 +221,11 @@ class CASTReport:
         canvas.drawString(x, y, "HYMCAT")
         canvas.setFont(_FONT_BOLD, 8)
         canvas.setFillColor(_BLUE if on_white else colors.Color(0.78, 0.88, 1.0))
-        canvas.drawString(x + 24 * mm, y, "CAST")
+        canvas.drawString(x + 24 * mm, y, "PACS")
         canvas.setFont(_FONT_REGULAR, 7)
         if on_white:
             canvas.setFillColor(_GRAY)
-        canvas.drawString(x, y - 3.7 * mm, "Contaminant Assessment & Source Tool")
+        canvas.drawString(x, y - 3.7 * mm, "Preliminary Assessment of Contaminated Sites")
 
     def _draw_image_fit(self, canvas, path: Path, x, y, max_w, max_h):
         if not path.exists():
@@ -357,7 +357,7 @@ class CASTReport:
                 "",
             ],
             [
-                Paragraph("<b>Project:</b>  HYMCAT / CAST", self.s_normal),
+                Paragraph("<b>Project:</b>  HYMCAT / PACS", self.s_normal),
                 "",
                 Paragraph("<b>Institution:</b>  Eberhard Karls Universit\u00e4t T\u00fcbingen", self.s_normal),
                 "",
@@ -817,7 +817,7 @@ class CASTReport:
             topMargin=50 * mm, bottomMargin=20 * mm,
             leftMargin=20 * mm, rightMargin=20 * mm,
             title=self.title,
-            author="HYMCAT / CAST Platform",
+            author="HYMCAT / PACS Platform",
         )
 
         story = []
@@ -940,7 +940,7 @@ class CASTReport:
             Spacer(1, 3 * mm),
             self._hr(color=_LGRAY, thickness=0.5),
             Paragraph(
-                "Disclamer: the author of the CAST is not responsible for the results.",
+                "Disclamer: the author of PACS is not responsible for the results.",
                 self.s_disclaimer,
             ),
         ]))
@@ -956,14 +956,14 @@ def dataframe_pdf(frame, title: str) -> bytes:
     """A plain landscape table of `frame` - what the scenario card's PDF button
     hands back.
 
-    Deliberately not a CASTReport: this is the table export sitting next to
+    Deliberately not a PACSReport: this is the table export sitting next to
     Copy / CSV / Excel, not the branded simulation report the page exports.
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=landscape(A4),
         topMargin=15 * mm, bottomMargin=15 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
-        title=title, author="HYMCAT / CAST Platform",
+        title=title, author="HYMCAT / PACS Platform",
     )
     styles = getSampleStyleSheet()
     head = ParagraphStyle("ExportTH", parent=styles["Normal"], fontSize=7, leading=9,

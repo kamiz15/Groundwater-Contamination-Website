@@ -1,6 +1,6 @@
 """AEM (Analytic Element Method) transport simulation package.
 
-Vendored from the upstream src/ tree for use inside the CAST Flask/Panel app.
+Vendored from the upstream src/ tree for use inside the PACS Flask/Panel app.
 The upstream tree is a flat module directory; here it is a real package, so the
 only edit applied to a vendored file is turning its intra-package imports
 relative (``from .at_element import ...``).

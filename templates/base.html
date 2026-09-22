@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}CAST{% endblock %}</title>
+  <title>{% block title %}PACS{% endblock %}</title>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v={{ asset_v('styles.css') }}">
 
@@ -18,8 +18,8 @@
   <aside class="sidebar" id="sidebar" aria-label="Mobile navigation">
     <div class="sidebar-header">
       <div class="brand">
-        <span class="brand-badge">CAST</span>
-        <span class="brand-sub">Groundwater Contamination Assessment</span>
+        <span class="brand-badge">PACS</span>
+        <span class="brand-sub">Preliminary Assessment of Contaminated Sites</span>
       </div>
       <button type="button" class="icon-btn sidebar-close" id="closeSidebar" aria-label="Close navigation">Close</button>
     </div>
@@ -43,7 +43,7 @@
       <button type="button" class="icon-btn mobile-menu-btn" id="openSidebar" aria-label="Open navigation">
         <span></span><span></span><span></span>
       </button>
-      <a class="mobile-brand-link" href="{{ url_for('home') }}">CAST</a>
+      <a class="mobile-brand-link" href="{{ url_for('home') }}">PACS</a>
 
       <nav class="headbar" aria-label="Global">
         <ul class="menu">

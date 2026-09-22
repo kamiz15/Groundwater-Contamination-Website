@@ -23,7 +23,7 @@ from data_queries import (
     TEXT_SITE_FIELDS,
 )
 from numerical_jobs import job_status, load_job_meta
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 from plot_functions import create_bargraph, create_histogram, create_boxplot
 from security import (
     csrf_protect,
@@ -158,7 +158,7 @@ def _site_database_xlsx_bytes(headers, rows):
     return buffer.getvalue()
 
 
-def _reference_database_pdf_bytes(headers, rows, title="CAST Reference Database"):
+def _reference_database_pdf_bytes(headers, rows, title="PACS Reference Database"):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A3, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -479,7 +479,7 @@ def user_database_export(file_format):
         mimetype=mimetype,
         headers={
             "Content-Disposition": (
-                f'attachment; filename="CAST-site-database.{file_format}"'
+                f'attachment; filename="PACS-site-database.{file_format}"'
             )
         },
     )
@@ -519,7 +519,7 @@ def reference_database_export(file_format):
         mimetype=mimetype,
         headers={
             "Content-Disposition": (
-                f'attachment; filename="CAST-reference-database.{file_format}"'
+                f'attachment; filename="PACS-reference-database.{file_format}"'
             )
         },
     )
@@ -863,8 +863,8 @@ def boxplot_json():
 def report_export():
     data = json_object_or_400()
 
-    title = str(data.get("title") or "CAST Report")[:120]
-    subtitle = str(data.get("subtitle") or "CAST Model")[:120]
+    title = str(data.get("title") or "PACS Report")[:120]
+    subtitle = str(data.get("subtitle") or "PACS Model")[:120]
     filename = str(data.get("filename") or "cast_report.pdf")[:80]
     filename = "".join(c for c in filename if c.isalnum() or c in "._-") or "cast_report.pdf"
     if not filename.endswith(".pdf"):
@@ -912,7 +912,7 @@ def report_export():
         plot_images = plot_images or None
 
     try:
-        report = CASTReport(title, subtitle)
+        report = PACSReport(title, subtitle)
         pdf_bytes = report.generate(parameters, outputs, plot_data, plot_images=plot_images)
     except Exception:
         logger.exception("Report export failed")

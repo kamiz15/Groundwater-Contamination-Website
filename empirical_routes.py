@@ -10,7 +10,7 @@ from empirical_models import birla_lmax, maier_lmax
 from kohler_model import kohler_model
 from panel_empirical_common import comparison_plot_data
 from param_meta import attach_meta
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 from security import current_email
 from settings import PANEL_PUBLIC_BASE
 from symbol_registry import db_to_model
@@ -236,7 +236,7 @@ def maier_single_export():
     cd = _request_float("Cd", 5.0)
     lmax = maier_lmax(m, tv, g, ca, cd)
     selected_site_id = request.args.get("site_id", default=0, type=int)
-    report = CASTReport("Maier & Grathwohl (2006) — Single Simulation", "Maier & Grathwohl (2006)")
+    report = PACSReport("Maier & Grathwohl (2006) — Single Simulation", "Maier & Grathwohl (2006)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
@@ -289,7 +289,7 @@ def birla_single_export():
     r = _request_float("R", 1.0)
     lmax = birla_lmax(m, tv, g, ca, cd, r)
     selected_site_id = request.args.get("site_id", default=0, type=int)
-    report = CASTReport("Birla et al. (2020) — Single Simulation", "Birla et al. (2020)")
+    report = PACSReport("Birla et al. (2020) — Single Simulation", "Birla et al. (2020)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "T_s", "name": "Source Thickness", "value": m, "unit": "m"},
@@ -340,7 +340,7 @@ def kohler_single_export():
     gamma = _request_float("gamma", 0.5)
     out = kohler_model(lam, v, gamma)
     selected_site_id = request.args.get("site_id", default=0, type=int)
-    report = CASTReport("Köhler et al. (2024) — Single Simulation", "Köhler et al. (2024)")
+    report = PACSReport("Köhler et al. (2024) — Single Simulation", "Köhler et al. (2024)")
     pdf_bytes = report.generate(
         parameters=[
             {"symbol": "lambda_e", "name": "First-order Decay Coefficient", "value": lam, "unit": "1/yr"},

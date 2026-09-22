@@ -9,7 +9,7 @@ from panel_analytical_common import (
     baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int,
 )
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 pn.extension(sizing_mode="stretch_width")
 
@@ -33,7 +33,7 @@ def liedl_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Liedl et al. (2005) \u2014 Single Simulation", "Liedl et al. (2005)")
+        report = PACSReport("Liedl et al. (2005) \u2014 Single Simulation", "Liedl et al. (2005)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(

@@ -10,7 +10,7 @@ from panel_empirical_common import (
     baseline_delta, comparison_plot, error_card, explore_sliders, output_only_layout, info_card,
     metric_card, query_float, query_int, summary_card,
 )
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 
 pn.extension("tabulator", sizing_mode="stretch_width")
 
@@ -35,7 +35,7 @@ def birla_single_app():
     def _pdf_callback():
         if not _state:
             return io.BytesIO(b"")
-        report = CASTReport("Birla et al. (2020) \u2014 Single Simulation", "Birla et al. (2020)")
+        report = PACSReport("Birla et al. (2020) \u2014 Single Simulation", "Birla et al. (2020)")
         return io.BytesIO(report.generate(_state["parameters"], _state["outputs"], _state.get("plot_data")))
 
     export_btn = pn.widgets.FileDownload(

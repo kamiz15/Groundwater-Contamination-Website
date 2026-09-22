@@ -7,7 +7,7 @@
 <label>
   <span class="input-label-row">
     {# Label format: "<name> <symbol> [<unit>]". The symbol follows the name.
-       Dimensionless quantities retain "[-]" as required by the CAST convention. #}
+       Dimensionless quantities retain "[-]" as required by the PACS convention. #}
     {%- set _has_unit = ' [' in field.label -%}
     {%- set _name = field.label.split(' [')[0] if _has_unit else field.label -%}
     {%- set _unit = field.label.split(' [')[1]|replace(']', '') if _has_unit else '' -%}

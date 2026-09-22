@@ -26,7 +26,7 @@ from numerical_input_validation import (
     vertical_inputs_from_site,
 )
 from param_meta import GRID_SIZE_VERTICAL_SYMBOL, attach_meta
-from pdf_report import CASTReport
+from pdf_report import PACSReport
 from settings import NUMERICAL_MULTIPLE_MAX_RUNS, PANEL_PUBLIC_BASE
 from symbol_registry import db_hydraulic_conductivity_to_numerical_hk, db_to_model
 
@@ -432,7 +432,7 @@ def _field_values(input_fields):
 
 
 def _simulation_pdf(parameters, outputs, plot_data, title, model_name, filename, plot_images=None):
-    report = CASTReport(title, model_name)
+    report = PACSReport(title, model_name)
     pdf_bytes = report.generate(
         parameters=parameters,
         outputs=outputs,
