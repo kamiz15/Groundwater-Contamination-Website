@@ -22,7 +22,7 @@ from panel_analytical_common import (
     summary_card,
 )
 from panel_theme import report_bridge_html
-from panel_numerical_animation import play_growth_once, stop_growth
+from plot_functions import plot_reactive_plume_interactive
 
 pn.extension(sizing_mode="stretch_width", raw_css=["""
 @keyframes numericalStatusPulse {
@@ -88,7 +88,7 @@ def numerical_horizontal_single_app():
     full_source.param.watch(_sync_segments, "value")
     segment_count.param.watch(_sync_segments, "value")
     _sync_segments()
-    grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394y [m]", value=query_float("grid_size", 1.0), step=0.1)
+    grid_size = pn.widgets.FloatInput(name="Grid Spacing \u0394x = \u0394y [m]", value=query_float("grid_size", 1.0), start=0.1, step=0.1)
     alpha_l = pn.widgets.FloatInput(name="Longitudinal Dispersivity \u03b1_L [m]", value=query_float("al", 1.0), step=0.1)
     at = pn.widgets.FloatInput(name="Horizontal Transverse Dispersivity \u03b1_Th [m]", value=query_float("at", query_float("alpha_Th", 0.1)), step=0.01)
     gamma = pn.widgets.FloatInput(name="Stoichiometry Ratio \u03b3 [-]", value=query_float("gamma", 3.5), step=0.1)
@@ -110,7 +110,6 @@ def numerical_horizontal_single_app():
     graph_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=430)
     comparison_pane = pn.pane.Bokeh(sizing_mode="stretch_width", min_height=340)
     state = {}
-    anim = {"holder": None}
     poller = {"callback": None}
     report_bridge = pn.pane.HTML("", height=0, margin=0, sizing_mode="fixed")
 
@@ -133,7 +132,6 @@ def numerical_horizontal_single_app():
             poller["callback"] = None
 
     def _render_completed_result(result):
-        stop_growth(anim.get("holder"))
         footer_meta = (
             f"L_D = {result.domain_length:.2f} m  |  Δx=Δy = {grid_size.value:.2f} m  |  "
             f"η = {prsity.value:.2f}  |  K = {hk.value:.2f} m/d  |  "
@@ -154,8 +152,7 @@ def numerical_horizontal_single_app():
             source_extent=source.value,
             footer_meta=footer_meta,
         )
-        # One-shot growth sweep for visual effect, then the full static plume.
-        anim["holder"] = play_growth_once(graph_pane, plot_kwargs)
+        graph_pane.object = plot_reactive_plume_interactive(**plot_kwargs)
         logger.info("Horizontal single graph_pane.object assigned")
         comparison_pane.object = None
         _rows = [
@@ -256,7 +253,6 @@ def numerical_horizontal_single_app():
             _stop_polling()
 
     def _run(_=None):
-        stop_growth(anim.get("holder"))
         report_bridge.object = report_bridge_html(clear=True)
         run_btn.disabled = True
         ld_out.value = "\u2014"
