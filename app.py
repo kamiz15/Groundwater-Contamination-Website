@@ -55,6 +55,7 @@ from settings import (
     PANEL_PUBLIC_BASE,
     SECRET_KEY,
     SESSION_COOKIE_SECURE,
+    SITE_ENV_LABEL,
 )
 from site_routes import site_bp
 
@@ -126,6 +127,7 @@ app.config.update(
 )
 app.jinja_env.globals["csrf_token"] = csrf_token
 app.jinja_env.globals["contact_email"] = CONTACT_EMAIL
+app.jinja_env.globals["site_env_label"] = SITE_ENV_LABEL
 app.jinja_env.globals["bokeh_js_files"] = [
     f"/{js_file}" if js_file.startswith("static/extensions/panel/") else js_file
     for js_file in CDN.js_files

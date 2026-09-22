@@ -15,6 +15,9 @@
 </head>
 
 <body>
+  {% if site_env_label %}
+  <div class="env-banner" role="status">{{ site_env_label }} &mdash; test copy, not the live site</div>
+  {% endif %}
   <aside class="sidebar" id="sidebar" aria-label="Mobile navigation">
     <div class="sidebar-header">
       <div class="brand">

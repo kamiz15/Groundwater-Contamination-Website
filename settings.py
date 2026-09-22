@@ -63,6 +63,10 @@ DB_USER = _required_env('DB_USER')
 DB_PASSWORD = _required_env('DB_PASSWORD')
 DB_NAME = os.getenv('DB_NAME', 'cast_project')
 
+# Non-empty on a sandbox/preview deployment; every page then carries a banner
+# saying it is not the live site. Empty in production.
+SITE_ENV_LABEL = os.getenv('SITE_ENV_LABEL', '').strip()[:32]
+
 PANEL_PUBLIC_BASE = os.getenv('PANEL_PUBLIC_BASE', 'http://localhost:5007').rstrip('/')
 PANEL_SERVE_PREFIX = urlparse(PANEL_PUBLIC_BASE).path.rstrip('/')
 PANEL_HOST = os.getenv('PANEL_HOST', '0.0.0.0')

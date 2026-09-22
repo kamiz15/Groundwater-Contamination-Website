@@ -15,7 +15,9 @@ services:
       panel:
         condition: service_healthy
     ports:
-      - "80:80"
+      # WEB_PORT lets a second, isolated stack (a sandbox) run beside production
+      # on another port. Unset means production's :80 - see .env.sandbox.example.
+      - "${WEB_PORT:-80}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./static:/app/static:ro
@@ -40,6 +42,12 @@ services:
       # Queue DB, results, and report metadata live on the named volume below
       # so queued jobs and downloadable reports survive redeploys.
       NUMERICAL_JOB_ROOT: /data/numerical_jobs
+      # Empty in production; a sandbox stack sets it and every page then shows a
+      # banner saying it is not the live site.
+      SITE_ENV_LABEL: ${SITE_ENV_LABEL:-}
+      # Panel refuses a websocket whose Origin is not listed, so the allowed
+      # origins have to follow WEB_PORT.
+      PANEL_ALLOW_ORIGINS: ${PANEL_ALLOW_ORIGINS:-localhost,127.0.0.1,localhost:${WEB_PORT:-80},127.0.0.1:${WEB_PORT:-80}}
       # The AEM grid export is written by the job here in flask and read by the
       # Data Workbench over in panel. It has to be on the shared volume: left at
       # its relative default it lands in each container's own layer, and the
@@ -73,6 +81,7 @@ services:
       NUMERICAL_JOB_ROOT: /data/numerical_jobs
       # Read side of the AEM export - must match the flask service above.
       AEM_EXPORT_DIR: /data/numerical_jobs/aem_exports
+      PANEL_ALLOW_ORIGINS: ${PANEL_ALLOW_ORIGINS:-localhost,127.0.0.1,localhost:${WEB_PORT:-80},127.0.0.1:${WEB_PORT:-80}}
     volumes:
       - numerical_jobs:/data/numerical_jobs
     healthcheck:

@@ -3019,3 +3019,20 @@ html[data-theme="dark"] .about-equation-label{ color: var(--brand-400); }
 /* No <dialog> support: it falls back to an inline card, so keep it out of the
    flow until something opens it. */
 .scenario-dialog:not([open]){ display: none; }
+
+/* Sandbox / preview banner. Rendered only when SITE_ENV_LABEL is set, so the
+   live site never shows it. Deliberately loud: its whole job is to stop
+   somebody trusting or demoing a test copy by mistake. */
+.env-banner {
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  padding: 6px 16px;
+  background: #b45309;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}

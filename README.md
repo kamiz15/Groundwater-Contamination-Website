@@ -18,14 +18,15 @@ This README documents the PACS application architecture, runtime flow, model imp
 10. [PDF Reports](#pdf-reports)
 11. [Local Setup](#local-setup)
 12. [Docker Setup](#docker-setup)
-13. [Configuration](#configuration)
-14. [Flask Routes](#flask-routes)
-15. [Panel Routes](#panel-routes)
-16. [Repository Layout](#repository-layout)
-17. [File Guide](#file-guide)
-18. [Known Limitations](#known-limitations)
-19. [Change History](#change-history)
-20. [Development Notes](#development-notes)
+13. [Sandbox Stack](#sandbox-stack)
+14. [Configuration](#configuration)
+15. [Flask Routes](#flask-routes)
+16. [Panel Routes](#panel-routes)
+17. [Repository Layout](#repository-layout)
+18. [File Guide](#file-guide)
+19. [Known Limitations](#known-limitations)
+20. [Change History](#change-history)
+21. [Development Notes](#development-notes)
 
 ## Implemented Features
 
@@ -549,6 +550,56 @@ http://localhost
 ```
 
 The Docker image downloads the official MODFLOW 6 `6.7.0` Linux release archive, installs `mf6` and its companion `libmf6.so`, and configures `MF6_EXE=/usr/local/bin/mf6`. It also serves Panel through Nginx at the same-origin `/panel/` prefix and checks the Flask-Login session before proxying Panel requests. Flask-rendered Bokeh pages can request Panel browser extensions from `/static/extensions/panel/`; Nginx rewrites only that Panel-owned subtree to `/panel/static/extensions/panel/` on the Panel service so it does not collide with Flask's remaining `/static/` files.
+
+## Sandbox Stack
+
+A sandbox is a second, complete copy of the site running beside the live one, for trying changes
+without any risk to it. It is the same Compose stack with three settings changed, so there is
+nothing extra to install and nothing extra to learn.
+
+Set one up once:
+
+```bash
+git clone <repo> pacs-sandbox        # a separate folder, not the live checkout
+cd pacs-sandbox
+git switch <branch-to-try>           # or stay on final and edit freely
+cp .env.sandbox.example .env         # then edit the passwords in it
+docker compose up -d --build
+```
+
+Then open <http://localhost:8080>. Every page carries an orange **SANDBOX** banner so it cannot
+be confused with the live site.
+
+From then on the everyday commands are the ordinary ones, run from the sandbox folder:
+
+| Command (inside `pacs-sandbox/`) | What it does |
+| --- | --- |
+| `docker compose up -d --build` | Start, or restart after editing code |
+| `docker compose logs -f panel` | Watch the Panel app's output |
+| `docker compose down` | Stop the sandbox (its database is kept) |
+| `docker compose down -v` | Stop it and discard its database and job files |
+
+### How the isolation works
+
+`.env.sandbox.example` sets three things, and Docker does the rest:
+
+| Setting | Effect |
+| --- | --- |
+| `COMPOSE_PROJECT_NAME=pacs-sandbox` | Every container, the network, and both named volumes (`mysql_data`, `numerical_jobs`) get their own copy under this name. The sandbox has a *different MySQL container with a different volume*, so no query it runs can touch live data. |
+| `WEB_PORT=8080` | The live stack keeps `:80`; the sandbox answers on `:8080`. `PANEL_ALLOW_ORIGINS` follows `WEB_PORT` automatically, which Panel needs or it refuses the plot websocket. |
+| `SITE_ENV_LABEL=SANDBOX` | Puts the banner on every page. Leave it unset in production and no banner is rendered. |
+
+The two stacks share only the Docker daemon and the machine's CPU and disk. Running both at once
+roughly doubles memory use, and a heavy MODFLOW run in one will slow the other.
+
+Notes:
+
+- Secrets in the sandbox `.env` must be **different** from the production ones. Nothing in the
+  sandbox needs a real password.
+- The sandbox starts with an empty site database. Upload a CSV, or use the bundled reference
+  database, as any user would.
+- To publish a sandbox for colleagues rather than keeping it on one machine, point a subdomain at
+  port `8080` and put HTTP authentication in front of it. The banner stays either way.
 
 ## Configuration
 
