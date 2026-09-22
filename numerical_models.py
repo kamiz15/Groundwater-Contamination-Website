@@ -295,10 +295,6 @@ def _check_run(success: bool, buff, label: str) -> None:
         raise UserMessageError(f"The simulation did not converge. {COARSER_GRID}")
 
 
-def _numerical_max_cells() -> int:
-    return int(os.getenv("NUMERICAL_MAX_CELLS", os.getenv("MAX_GRID_CELLS", "40000")))
-
-
 def _solver_timeout_seconds() -> float:
     return float(os.getenv("NUMERICAL_SOLVER_TIMEOUT_S", os.getenv("SOLVER_TIMEOUT_SECONDS", "0")))
 
@@ -328,21 +324,6 @@ def _display_field(arr, ny: int = 240, nx: int = 480):
     if fy == 1 and fx == 1:
         return a
     return _nd_zoom(a, (fy, fx), order=1)
-
-
-def _check_grid_size(ncol: int, nrow: int, *, grid_size=None, domain_length=None, cross_extent=None) -> None:
-    total = ncol * nrow
-    max_cells = _numerical_max_cells()
-    if total > max_cells:
-        logger.error(
-            "Grid too large: %d x %d = %d cells exceeds the %d-cell limit (grid size %s, "
-            "domain length %s, cross extent %s).",
-            ncol, nrow, total, max_cells, grid_size, domain_length, cross_extent,
-        )
-        if grid_size is not None and domain_length is not None and cross_extent is not None:
-            recommended = math.sqrt((float(domain_length) * float(cross_extent)) / float(max_cells))
-            raise UserMessageError(f"Increase the grid size to at least {recommended:.2f} m and run it again.")
-        raise UserMessageError(COARSER_GRID)
 
 
 def _grid_points(length: float, count: int) -> np.ndarray:
@@ -759,7 +740,6 @@ def run_numerical_model(
     if ncol < 2:
         raise UserMessageError(FINER_GRID)
     _log_grid("Vertical", Lx, Lz, ncol, nlay)
-    _check_grid_size(ncol, nlay, grid_size=grid_size, domain_length=Lx, cross_extent=Lz)
 
     q = hk * gradient
     v = q / prsity

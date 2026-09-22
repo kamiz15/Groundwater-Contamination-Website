@@ -85,14 +85,13 @@ MAX_SITE_UPLOAD_ROWS = int(os.getenv('MAX_SITE_UPLOAD_ROWS', '10000'))
 MAX_REQUEST_BYTES = int(os.getenv('MAX_REQUEST_BYTES', str(50 * 1024 * 1024)))
 
 MF6_EXE = os.getenv('MF6_EXE', '')
-NUMERICAL_MAX_CELLS = int(os.getenv('NUMERICAL_MAX_CELLS', os.getenv('MAX_GRID_CELLS', '40000')))
 NUMERICAL_SOLVER_TIMEOUT_S = float(
     os.getenv('NUMERICAL_SOLVER_TIMEOUT_S', os.getenv('SOLVER_TIMEOUT_SECONDS', '0'))
 )
 NUMERICAL_HK_MIN_M_PER_DAY = float(os.getenv('NUMERICAL_HK_MIN_M_PER_DAY', '0.000001'))
 NUMERICAL_HK_MAX_M_PER_DAY = float(os.getenv('NUMERICAL_HK_MAX_M_PER_DAY', '1000'))
-if NUMERICAL_MAX_CELLS <= 0 or NUMERICAL_SOLVER_TIMEOUT_S < 0:
-    raise RuntimeError('NUMERICAL_MAX_CELLS must be positive and NUMERICAL_SOLVER_TIMEOUT_S must be non-negative')
+if NUMERICAL_SOLVER_TIMEOUT_S < 0:
+    raise RuntimeError('NUMERICAL_SOLVER_TIMEOUT_S must be non-negative')
 if NUMERICAL_HK_MIN_M_PER_DAY <= 0 or NUMERICAL_HK_MAX_M_PER_DAY < NUMERICAL_HK_MIN_M_PER_DAY:
     raise RuntimeError('NUMERICAL_HK_MIN_M_PER_DAY and NUMERICAL_HK_MAX_M_PER_DAY define an invalid range')
 

@@ -8,7 +8,6 @@ import pytest
 from numerical_models import (
     COURANT_TARGET,
     MAX_TIMESTEPS,
-    _check_grid_size,
     _checked_run_sim,
     _mf6_exe,
     _resolve_executable,
@@ -42,13 +41,6 @@ def test_solver_resolution_raises_clear_error_when_executable_is_missing(monkeyp
 
     with pytest.raises(RuntimeError, match="engine is unavailable"):
         _resolve_executable("MF6_EXE", ["mf6.exe", "mf6"])
-
-
-def test_grid_cap_rejects_oversized_run_before_solver(monkeypatch):
-    monkeypatch.setenv("NUMERICAL_MAX_CELLS", "100")
-
-    with pytest.raises(ValueError, match="^Increase the grid size and run it again.$"):
-        _check_grid_size(11, 10)
 
 
 def test_only_our_own_messages_reach_the_reader():

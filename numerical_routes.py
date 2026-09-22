@@ -40,7 +40,7 @@ NUMERICAL_INPUT_SPECS = {
         ("y1_end", "Y1 End [m]", 2.0, "0.1", "0"),
         ("y2_start", "Y2 Start [m]", 5.0, "0.1", "0"),
         ("y2_end", "Y2 End [m]", 8.0, "0.1", "0"),
-        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
+        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.1"),
         ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
         ("at", "Horizontal Transverse Dispersivity [m]", 0.1, "0.01", "0.000001"),
         ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),
@@ -53,7 +53,7 @@ NUMERICAL_INPUT_SPECS = {
     "vertical": [
         ("Lz", "Aquifer Thickness [m]", 10.0, "0.1", "0.000001"),
         ("source_percentage", "Source Coverage [%]", 100.0, "5", "0.000001"),
-        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.000001"),
+        ("grid_size", "Grid Spacing [m]", 1.0, "0.1", "0.1"),
         ("al", "Longitudinal Dispersivity [m]", 1.0, "0.1", "0.000001"),
         ("atv", "Vertical Transverse Dispersivity [m]", 0.1, "0.01", "0.000001"),
         ("gamma", "Stoichiometric Ratio [-]", 3.5, "0.1", None),

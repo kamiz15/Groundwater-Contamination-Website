@@ -63,20 +63,6 @@ def test_vertical_site_without_hk_is_ready():
     assert status == "Ready"
 
 
-def test_vertical_feasibility_filter_recommends_grid_size_for_large_domain(monkeypatch):
-    monkeypatch.setenv("NUMERICAL_MAX_CELLS", "40000")
-    rows = [{
-        "label": "Large Site", "Lz": 30.0, "grid_size": 1.0, "al": 1.0,
-        "atv": 0.1, "gamma": 3.5, "C_D": 5.0, "C_A": 8.0,
-    }]
-
-    issues = vertical_multiple._vertical_feasibility_issues(rows)
-
-    assert len(issues) == 1
-    assert "Large Site" in issues[0]
-    assert "increase the grid size to at least" in issues[0]
-
-
 def test_vertical_feasibility_filter_flags_invalid_chemistry():
     rows = [{
         "label": "Weak Donor", "Lz": 10.0, "grid_size": 1.0, "al": 1.0,

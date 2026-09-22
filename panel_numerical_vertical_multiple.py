@@ -1,7 +1,6 @@
 import logging
 import sys
 import math
-import os
 
 import panel as pn
 
@@ -24,10 +23,6 @@ from settings import NUMERICAL_MULTIPLE_MAX_RUNS as MAX_MULTIPLE_RUNS
 
 
 
-def _max_grid_cells():
-    return int(os.getenv("NUMERICAL_MAX_CELLS", os.getenv("MAX_GRID_CELLS", "40000")))
-
-
 def _vertical_domain_length(row):
     lz = float(row["Lz"])
     atv = float(row["atv"])
@@ -40,7 +35,6 @@ def _vertical_domain_length(row):
 
 def _vertical_feasibility_issues(rows):
     issues = []
-    max_cells = _max_grid_cells()
     for idx, row in enumerate(rows, start=1):
         label = str(row.get("label") or row.get("Site") or f"Scenario {idx}")
         try:
@@ -75,12 +69,6 @@ def _vertical_feasibility_issues(rows):
         ncol = int(domain_length / grid_size)
         if ncol < 2:
             issues.append(f"{label}: reduce the grid size.")
-            continue
-
-        total_cells = ncol * nlay
-        if total_cells > max_cells:
-            recommended = math.sqrt((domain_length * lz) / max_cells)
-            issues.append(f"{label}: increase the grid size to at least {recommended:.2f} m.")
     return issues
 
 

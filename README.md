@@ -583,7 +583,6 @@ The Docker image downloads the official MODFLOW 6 `6.7.0` Linux release archive,
 | `NUMERICAL_MAX_CONCURRENCY` | Simultaneous job workers, default `2`. |
 | `NUMERICAL_JOB_TIMEOUT_SECONDS` | Age after which a running job is reaped as stale, default `900`. |
 | `NUMERICAL_MULTIPLE_MAX_RUNS` | Cap on runs queued by one multi-site numerical comparison, default `12`. |
-| `NUMERICAL_MAX_CELLS` | Hard pre-run cap on `n_cols * n_rows` for the vertical model, default `40000`. The horizontal model ignores this and `NUMERICAL_SOLVER_TIMEOUT_S`: it runs uncapped, like `horizontal_W-1.py`. Increase grid spacing before raising this limit. |
 | `NUMERICAL_SOLVER_TIMEOUT_S` | Per-process timeout for each MF6 flow or transport run, default `0` for disabled. Set a positive value only when a deployment needs an explicit ceiling. |
 | `NUMERICAL_HK_MIN_M_PER_DAY` | Lower plausibility bound for site-linked conductivity after conversion to numerical `hk` in `m/d`, default `0.000001`. |
 | `NUMERICAL_HK_MAX_M_PER_DAY` | Upper plausibility bound for site-linked conductivity after conversion to numerical `hk` in `m/d`, default `1000`. |
@@ -1011,7 +1010,7 @@ The Analysis Visualisation menu intentionally exposes only the working site-data
 
 ### Numerical Work Is User-sized
 
-Numerical and AEM runs go through the asynchronous queue described above, with cancellation, a concurrency cap, and stale-job reaping. Grid cost is still the user's responsibility: `NUMERICAL_MAX_CELLS` bounds the grid and `NUMERICAL_SOLVER_TIMEOUT_S` can bound the solver, but fine grids consume substantial CPU and memory. Job results are pickled to disk and are not pruned automatically, so `NUMERICAL_JOB_ROOT` grows until it is cleaned.
+Numerical and AEM runs go through the asynchronous queue described above, with cancellation, a concurrency cap, and stale-job reaping. Grid cost is the user's responsibility: the grid is uncapped (minimum spacing 0.1 m), `NUMERICAL_SOLVER_TIMEOUT_S` can bound the solver, and fine grids consume substantial CPU and memory. Job results are pickled to disk and are not pruned automatically, so `NUMERICAL_JOB_ROOT` grows until it is cleaned.
 
 BIOSCREEN also uses a loop with a high safety cap of `100000` distance steps.
 
