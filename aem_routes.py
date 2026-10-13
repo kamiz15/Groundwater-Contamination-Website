@@ -6,7 +6,9 @@ import numpy as np
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, url_for
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from aem_jobs import INVERSE_PARAMS, USER_FACING_ERROR, load_aem_design, save_aem_design
+from aem_jobs import (
+    INVERSE_PARAMS, SOURCE_TOO_LARGE_ERROR, USER_FACING_ERROR, load_aem_design, save_aem_design,
+)
 from aem_source_geometry import greedy_circle_pack, repack_after_resize
 from data_analysis.grids import aem_result_grid, long_form_from_aem_result
 from numerical_jobs import (
@@ -245,9 +247,10 @@ def _validated_config(raw):
         x_span = max(all_x) - min(all_x)
         char = max(2.0 * max_hw, 2.0 * max_hh, x_span, 1.0)
         x_pad = min(150.0, max(20.0, 25.0 * char))
-        # Snapped outward to the dom_inc lattice the grid is built on
-        # (at_simulation.conc_array), so the bounds are the grid's own edges
-        # and the cell count below is the count actually computed.
+        # Snapped outward to multiples of dom_inc so the grid conc_array builds
+        # (arange from dom_xmin / dom_ymin) ends exactly on these bounds, which
+        # also puts a vertical grid's top row on z = 0, and the cell count below
+        # is the count actually computed.
         inc = config["dom_inc"]
         config["dom_xmin"] = round(math.floor((min(all_x) - max_hw - 2.0) / inc) * inc, 3)
         config["dom_xmax"] = round(math.ceil((max(all_x) + x_pad) / inc) * inc, 3)
@@ -418,9 +421,10 @@ def aem_job_status(job_id):
     error = None
     if status["status"] == "failed":
         # The stored worker error embeds a traceback; only the curated first
-        # line from aem_jobs (marked by USER_FACING_ERROR) is safe verbatim.
+        # line from aem_jobs (marked by USER_FACING_ERROR / SOURCE_TOO_LARGE_ERROR)
+        # is safe verbatim.
         first = (status.get("error") or "").split("\n", 1)[0].strip()
-        error = (first if first.startswith(USER_FACING_ERROR)
+        error = (first if first.startswith((USER_FACING_ERROR, SOURCE_TOO_LARGE_ERROR))
                  else "Simulation failed. Please check your inputs and try again.")
     return jsonify({"job_id": job_id, "status": status["status"],
                     "queue_position": status.get("queue_position"),

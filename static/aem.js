@@ -1236,7 +1236,8 @@
     const plot = {left: 80 * s, top: 35 * s, width: canvas.width - 160 * s, height: canvas.height - 210 * s};
     const xs = result.xaxis, ys = result.yaxis;
     const xmin = xs[0], xmax = xs[xs.length - 1];
-    const ymin = ys[0], ymax = ys[ys.length - 1];
+    const ymin = ys[0];
+    const ymax = result.orientation === "vertical" ? 0 : ys[ys.length - 1];
     const xPix = (v) => plot.left + (v - xmin) / (xmax - xmin) * plot.width;
     const yPix = (v) => plot.top + (ymax - v) / (ymax - ymin) * plot.height;
 

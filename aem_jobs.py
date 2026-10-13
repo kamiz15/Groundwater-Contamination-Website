@@ -146,6 +146,8 @@ class AEMForwardResult:
     result: np.ndarray
     xaxis: np.ndarray
     yaxis: np.ndarray
+    # Exact x of the zero contour's right-most point (see plume_tip_x), not the
+    # model's whole-meter ``sim.L_max``, so the plot's L_max marker meets the tip.
     L_max: float | None
     ca: float
     gamma: float
@@ -202,6 +204,49 @@ INVERSE_PARAMS = ("alpha_t", "alpha_l", "r", "C0", "ca", "gamma")
 # only passes through first lines carrying this prefix and keeps its generic
 # message for everything else (tracebacks/paths must never leak).
 USER_FACING_ERROR = "Simulation did not produce a physically meaningful plume"
+
+# Second curated prefix, for the model's Mathieu-q limit. at_element.calc_d_q
+# raises a terminal-worded ValueError past q=200; this is what the user sees
+# instead. The marker/regex match that upstream message, so
+# tests/test_aem_flow.py feeds them the real calc_d_q error and fails loudly if
+# a re-sync rewords it.
+SOURCE_TOO_LARGE_ERROR = "A source element is too large to solve accurately"
+_Q_LIMIT_MARKER = "beyond the range the Mathieu routines can resolve"
+_Q_LIMIT_RE = re.compile(r"Element '([^']*)' has Mathieu q=([\d.]+)")
+
+
+def source_too_large_error(exc: BaseException) -> ValueError | None:
+    """Curated ValueError for the model's q-limit failure, else None."""
+    if not (isinstance(exc, ValueError) and _Q_LIMIT_MARKER in str(exc)):
+        return None
+    m = _Q_LIMIT_RE.search(str(exc))
+    which = f"'{m.group(1)}' (q={m.group(2)}, limit 200)" if m else "one of the sources"
+    return ValueError(
+        f"{SOURCE_TOO_LARGE_ERROR}: {which} exceeds what the solver can resolve at "
+        "these dispersivities. Shrink or split the large sources, or raise alpha_t.")
+
+
+def _inverse_q_blocked(estimate_param, lb, ub, fixed, elem_kind) -> bool:
+    """True if the source is over the q limit at BOTH search bounds.
+
+    estimate_parameter_scanned swallows per-point failures and only reports
+    "could not compute a valid L_max", hiding the cause. q depends on r,
+    alpha_t and alpha_l only, so checking the two bounds (calc_d_q alone, no
+    solve) tells whether the limit is why the scan found nothing.
+    """
+    from aem.at_element import ATElement, ATElementType
+
+    kind = ATElementType.Line if elem_kind == "Line" else ATElementType.Circle
+    for value in (lb, ub):
+        p = {**fixed, estimate_param: value}
+        element = ATElement(kind, x=0.0, y=0.0, c=p["C0"], r=p["r"])
+        try:
+            element.calc_d_q(p["alpha_t"], p["alpha_l"], 1.0 / (2.0 * p["alpha_l"]))
+        except ValueError as exc:
+            if source_too_large_error(exc) is not None:
+                continue
+        return False
+    return True
 
 
 def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
@@ -292,11 +337,25 @@ def run_aem_inverse(params: dict[str, Any]) -> AEMInverseResult:
         fixed["alpha_l"] = (alpha_l_in if alpha_l_in is not None
                             else inv_cfg.alpha_l_when_estimating_others)
 
-    p_hat, L, sim = inv.estimate_parameter_scanned(
-        estimate_param, lb, ub, fixed, target, inv_cfg,
-        orientation=orientation, elem_kind=elem_kind,
-        L_tolerance=L_tol, param_defaults=pdefs, max_stagnation=max_stagnation,
-    )
+    try:
+        p_hat, L, sim = inv.estimate_parameter_scanned(
+            estimate_param, lb, ub, fixed, target, inv_cfg,
+            orientation=orientation, elem_kind=elem_kind,
+            L_tolerance=L_tol, param_defaults=pdefs, max_stagnation=max_stagnation,
+        )
+    except Exception as exc:
+        # A q-limit ValueError escapes only from the bracketing loop; everywhere
+        # else the scan swallows it and raises a bare RuntimeError.
+        curated = source_too_large_error(exc)
+        if curated is None and isinstance(exc, RuntimeError) \
+                and _inverse_q_blocked(estimate_param, lb, ub, fixed, elem_kind):
+            curated = ValueError(
+                f"{SOURCE_TOO_LARGE_ERROR}: at every value in the search range the "
+                "source exceeds what the solver can resolve. Use a smaller source "
+                "radius or a larger alpha_t / alpha_l.")
+        if curated is not None:
+            raise curated from exc
+        raise
 
     converged = (L is not None) and np.isfinite(L) and abs(L - target) <= L_tol
 
@@ -437,6 +496,25 @@ def _populate_config_from_dict(config, data: dict[str, Any]) -> None:
         config.elements.append(elem)
 
 
+def plume_tip_x(xaxis, yaxis, field) -> float | None:
+    """Exact x of the zero contour's right-most point, or None if it has none.
+
+    ATSimulation.calculate_lmax truncates this to a whole meter (``int()``), so
+    a marker drawn at ``sim.L_max`` falls up to 1 m short of the black contour
+    it is meant to touch - a third of a 3 m plume. The web layer reports the
+    exact value instead, the way numerical_models._plume_length and the
+    reference script do; ``sim.L_max`` itself is left alone.
+    contourpy is matplotlib's own contour engine, without opening a figure.
+    """
+    from contourpy import contour_generator
+
+    if field.shape[0] < 2 or field.shape[1] < 2:
+        return None
+    lines = contour_generator(xaxis, yaxis, np.ma.masked_invalid(field)).lines(0.0)
+    xs = [float(line[:, 0].max()) for line in lines if len(line)]
+    return max(xs) if xs else None
+
+
 def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
     """Run an AEM forward simulation and return a pickle-able result.
 
@@ -458,6 +536,9 @@ def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
     try:
         sim.run()
     except Exception as exc:
+        curated = source_too_large_error(exc)
+        if curated is not None:
+            raise curated from exc
         if getattr(sim, "validation_passed", None) is False:
             # Single line on purpose: only the first line of the stored worker
             # error is user-visible (see USER_FACING_ERROR).
@@ -475,6 +556,13 @@ def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
             ) from exc
         raise
 
+    xaxis = np.asarray(sim.xaxis, dtype=float)
+    yaxis = np.asarray(sim.yaxis, dtype=float)
+    field_arr = np.asarray(sim.result, dtype=float)
+    l_max = plume_tip_x(xaxis, yaxis, field_arr)
+    if l_max is None and sim.L_max is not None:
+        l_max = float(sim.L_max)
+
     # The values this run was made with, beside the grid it exported. Only when
     # the run actually exported one - build_config sets export_path for a job
     # that carries an email, and nothing else writes to that stem.
@@ -491,14 +579,14 @@ def run_aem_forward(params: dict[str, Any]) -> AEMForwardResult:
             "num_terms": int(config.num_terms),
             "num_cp": int(config.num_cp),
             "num_elements": int(getattr(sim, "num_elements_original", len(config.elements))),
-            "L_max": (float(sim.L_max) if sim.L_max is not None else None),
+            "L_max": l_max,
         })
 
     return AEMForwardResult(
-        result=np.asarray(sim.result, dtype=float),
-        xaxis=np.asarray(sim.xaxis, dtype=float),
-        yaxis=np.asarray(sim.yaxis, dtype=float),
-        L_max=(float(sim.L_max) if sim.L_max is not None else None),
+        result=field_arr,
+        xaxis=xaxis,
+        yaxis=yaxis,
+        L_max=l_max,
         ca=float(config.ca),
         gamma=float(config.gamma),
         orientation=str(config.orientation),

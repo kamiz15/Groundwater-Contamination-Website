@@ -450,9 +450,9 @@ def test_default_vertical_config_satisfies_real_solver_geometry_guard():
 def test_vertical_assembly_adds_mirror_images_and_no_zero_isoline(monkeypatch):
     """Vertical setup pairs each source with its mirror image and nothing else.
 
-    The reference commented out create_zero_isoline (at_simulation.py:381-385);
-    aem/ matches it. Re-enabling it changes solved concentrations — on a single
-    source it moved L_max 58 -> 55 m — so pin the assembly. The append also sat
+    Upstream deleted create_zero_isoline (it was commented out before that).
+    Bringing it back changes solved concentrations — on a single source it
+    moved L_max 58 -> 55 m — so pin the assembly. The old append also sat
     OUTSIDE the loop, so it only ever added an isoline for the LAST source.
 
     conc_array is stubbed out: it starts a multiprocessing Pool that costs ~13 s
@@ -479,6 +479,84 @@ def test_vertical_assembly_adds_mirror_images_and_no_zero_isoline(monkeypatch):
     assert [element.id for element in simulation.config.elements] == [
         "src_0", "image_src_0", "src_1", "image_src_1",
     ]
+
+
+def test_plume_tip_x_is_the_exact_zero_crossing_not_a_whole_meter():
+    xaxis, yaxis = np.arange(0.0, 10.0), np.arange(-3.0, 1.0)
+    field = np.tile(3.3 - xaxis, (yaxis.size, 1))          # crosses zero at x = 3.3
+
+    assert aem_jobs.plume_tip_x(xaxis, yaxis, field) == pytest.approx(3.3)
+
+    field[1, 8] = np.nan                                    # a NaN cell must not break it
+    assert aem_jobs.plume_tip_x(xaxis, yaxis, field) == pytest.approx(3.3)
+    assert aem_jobs.plume_tip_x(xaxis, yaxis, np.ones_like(field)) is None   # no contour
+    assert aem_jobs.plume_tip_x(xaxis, yaxis[:1], field[:1]) is None          # one row
+
+
+def test_forward_result_reports_the_exact_tip_while_the_model_keeps_its_integer(monkeypatch):
+    def fake_run(self):
+        self.xaxis, self.yaxis = np.arange(0.0, 10.0), np.arange(-3.0, 1.0)
+        self.result = np.tile(3.3 - self.xaxis, (self.yaxis.size, 1))
+        self.L_max = 3                                      # what calculate_lmax's int() gives
+    monkeypatch.setattr(ATSimulation, "run", fake_run)
+
+    result = run_aem_forward({"config_json": VALID_CONFIG})
+
+    assert result.L_max == pytest.approx(3.3)
+    assert result.plume_length == pytest.approx(3.3)
+
+
+def _q_limit_error():
+    """The real error calc_d_q raises, so a re-sync that rewords it fails here."""
+    from aem.at_element import ATElement, ATElementType
+    element = ATElement(ATElementType.Circle, x=0.0, y=-50.0, c=10.0, r=60.0)
+    element.id = "big_src"
+    with pytest.raises(ValueError) as caught:
+        element.calc_d_q(0.2, 2.0, 1.0 / (2.0 * 2.0))
+    return caught.value
+
+
+def test_q_limit_error_is_rewritten_for_the_user():
+    curated = aem_jobs.source_too_large_error(_q_limit_error())
+
+    assert curated is not None
+    message = str(curated)
+    assert message.startswith(aem_jobs.SOURCE_TOO_LARGE_ERROR)
+    assert "big_src" in message and "\n" not in message
+    assert "Mathieu" not in message
+    assert aem_jobs.source_too_large_error(ValueError("something else")) is None
+
+
+def test_forward_run_surfaces_q_limit_as_user_facing_error(monkeypatch):
+    monkeypatch.setattr(ATSimulation, "run", lambda self: [e.calc_d_q(0.2, 2.0, 0.25)
+                                                           for e in self.config.elements])
+    config = {**VALID_CONFIG, "elements": [
+        {"kind": "circle", "x": 0.0, "y": -80.0, "c": 10.0, "r": 60.0, "id": "big_src"}]}
+
+    with pytest.raises(ValueError, match=aem_jobs.SOURCE_TOO_LARGE_ERROR):
+        run_aem_forward({"config_json": config})
+
+
+def test_inverse_q_blocked_only_when_both_bounds_are_over_the_limit():
+    fixed = {"r": 60.0, "C0": 10.0, "ca": 8.0, "gamma": 3.5, "alpha_l": 2.0}
+    assert aem_jobs._inverse_q_blocked("alpha_t", 0.01, 0.2, fixed, "Circle")
+    assert not aem_jobs._inverse_q_blocked("alpha_t", 0.01, 2.0, fixed, "Circle")
+    assert not aem_jobs._inverse_q_blocked("alpha_t", 0.01, 0.2, {**fixed, "r": 1.0}, "Circle")
+
+
+def test_inverse_job_curates_a_fully_blocked_scan(monkeypatch):
+    def scan(*args, **kwargs):
+        raise RuntimeError("Could not compute a valid L_max when scanning up")
+    monkeypatch.setattr("aem.at_inverse_model.estimate_parameter_scanned", scan)
+    params = {"estimate_param": "alpha_t", "orientation": "vertical", "elem_kind": "Circle",
+              "r": 60.0, "C0": 10.0, "ca": 8.0, "gamma": 3.5, "target_Lmax": 50.0,
+              "alpha_l": 2.0, "lower_bound": 0.01, "upper_bound": 0.2}
+
+    with pytest.raises(ValueError, match=aem_jobs.SOURCE_TOO_LARGE_ERROR):
+        aem_jobs.run_aem_inverse(params)
+    # Over the limit at only one bound, so the RuntimeError is not the q limit's doing.
+    with pytest.raises(RuntimeError):
+        aem_jobs.run_aem_inverse({**params, "upper_bound": 2.0})
 
 
 @pytest.mark.parametrize("path", [
