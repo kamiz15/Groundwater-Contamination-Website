@@ -4,6 +4,7 @@
 # Python std library:
 import math
 import cmath
+import logging
 from enum import Enum
 
 # External library:
@@ -12,6 +13,13 @@ import numpy as np
 # Local imports:
 from .mathieu_functions_OG import Mathieu
 #from mathieu_functions_pygsl import Mathieu
+
+logger = logging.getLogger(__name__)
+
+# Mathieu parameter limits, set from measured ODE-residual accuracy of the
+# Mathieu routines: clean to q~60, degrading through q~150, unusable past q~200.
+Q_WARN = 100.0
+Q_MAX_USABLE = 200.0
 
 class ATElementType(Enum):
     """
@@ -40,11 +48,14 @@ class ATElement:
         self.q: float = 0.0
         self.m: Mathieu = Mathieu(0.0)
         self.outline: list = []
+        # For a line only: the psi of each control point, i.e. which face of
+        # the slit it belongs to. See set_outline.
+        self.outline_psi = None
         self.label: str = ""
         self.id: str = ""
         self.index: int | None = None   # designer metadata; solver ignores it
 
-    def calc_d_q(self, alpha_t: float, alpha_l: float, beta: float):
+    def calc_d_q(self, alpha_t: float, alpha_l: float, beta: float, num_terms: int = 12):
         a = float(self.r)
         s = math.sqrt(alpha_l / alpha_t)
         eps = 1e-15
@@ -97,9 +108,32 @@ class ATElement:
             raise ValueError(f"Unknown element type: {self.kind}")
 
         self.q = (self.d ** 2 * beta ** 2) / 4.0
-        self.m = Mathieu(self.q)
+
+        # The Mathieu routines lose accuracy as q grows: the angular functions
+        # stop satisfying the Mathieu ODE (relative residual ~3e-4 at q=224,
+        # ~1 at q=977) and enlarging M does not recover it, so a large element
+        # would otherwise return a plausible-looking but meaningless field.
+        abs_q = abs(self.q)
+        if abs_q > Q_MAX_USABLE:
+            raise ValueError(
+                f"Element '{self.id or self.label or self.kind}' has Mathieu "
+                f"q={abs_q:.1f}, beyond the range the Mathieu routines can "
+                f"resolve (limit {Q_MAX_USABLE:g}); the solution would be "
+                f"silently wrong. q grows with (element size x "
+                f"sqrt(alpha_l/alpha_t) x beta)^2 - shrink the element, split "
+                f"it into smaller ones, or raise alpha_t.")
+        if abs_q > Q_WARN:
+            logger.warning(
+                "Element '%s' has Mathieu q=%.1f (>%g): basis-function "
+                "accuracy is degraded and boundary values may be off.",
+                self.id or self.label or self.kind, abs_q, Q_WARN)
+
+        buffer_est = max(10, int(math.ceil(math.sqrt(abs_q))) + 10)
+        M = max(20, num_terms + buffer_est)
+        self.m = Mathieu(self.q, M=M)
 
     def set_outline(self, num_cp: int):
+        self.outline_psi = None     # lines set it below; nothing else needs it
         if self.kind == ATElementType.Circle:
             phi = np.linspace(0, 2 * math.pi, num_cp, endpoint=False)
             self.outline = [
@@ -121,13 +155,30 @@ class ATElement:
             ]
 
         elif self.kind == ATElementType.Line:
-            half_len = self.r
-            t_vals = np.linspace(-half_len, half_len, num_cp)
+            # A line is a slit, so it has two faces. In elliptic coordinates a
+            # point on it is (eta=0, psi), with psi in (0, pi) on one face and
+            # in (pi, 2*pi) on the other; the two faces share the same physical
+            # (x, y). Sampling psi uniformly therefore covers both faces and
+            # records which one each control point belongs to.
+            #
+            # That record is the point of this parametrisation. At eta = 0 the
+            # acosh branch in uv() has to pick the face from a quantity that is
+            # zero in exact arithmetic, so it ends up decided by rounding noise
+            # (~1e-17). Because ce is even in psi and se is odd, a face picked
+            # at random flips the sign of every odd basis function, which is
+            # what made line elements badly conditioned.
+            #
+            # In the element frame the slit is X = d*cos(psi), so the offset
+            # along the line is t = r*cos(psi). The half-step offset keeps the
+            # control points off the two tips, where the mapping is singular.
+            psis = (np.arange(num_cp) + 0.5) * 2.0 * math.pi / num_cp
+            c_th, s_th = math.cos(self.theta), math.sin(self.theta)
             self.outline = [
-                (self.x + t * math.cos(self.theta),
-                 self.y + t * math.sin(self.theta))
-                for t in t_vals
+                (self.x + self.r * math.cos(p) * c_th,
+                 self.y + self.r * math.cos(p) * s_th)
+                for p in psis
             ]
+            self.outline_psi = psis
         else:
             raise ValueError(f"Unknown element kind: {self.kind}")
 

@@ -7,12 +7,22 @@ relative (``from .at_element import ...``).
 
 Provenance
 ----------
-Synced from AEM_Transport_AK-main (Köhler et al. 2026 drop, reviewed 2026-08-06).
-Verified at that sync: every vendored file below is identical to its upstream
-``src/`` counterpart except for the relative-import lines. Nothing else. When
-the next drop lands, diff against that baseline first — a difference that is not
-an import line is either a new upstream change or an undocumented local edit,
-and both need a decision rather than a merge.
+Synced from AEM_Transport_AK @ db41cc3 (2026-10-05), taken from the upstream
+``aem_update_db41cc3`` drop, whose files already carry the relative-import edit.
+Verified at that sync: the five changed files are byte-identical to the drop's
+``aem/`` copies (``at_grid_export`` and ``at_inverse_config`` were already
+identical), so there are NO local edits to the vendored files. When the next
+drop lands, diff against that baseline first — any difference is either a new
+upstream change or an undocumented local edit, and both need a decision rather
+than a merge.
+
+Consequence of taking the drop as-is: ``conc_array`` builds its axes with
+``arange(dom_min, dom_max + inc, inc)``, so a vertical grid's top row stops
+short of z = 0 when ``dom_ymin`` is not a multiple of ``dom_inc`` (the designer
+snaps its bounds, so only imported/custom bounds and the bundled samples hit
+this). ``static/aem.js`` pins the plotted z-axis to 0 for vertical runs. A
+local fix that anchored the axes at multiples of ``inc`` was dropped here; it is
+in git history (``56ad9ac``) if it should come back.
 
 Only 7 of upstream's 17 modules are vendored. Deliberately absent, because the
 web layer replaces them: ``source_designer`` / ``designer_model`` /
@@ -44,14 +54,19 @@ Modules and the public surface the app uses:
 - ``aem.at_simulation`` — ``ATSimulation`` (``run``, ``grid_csv_bytes``,
   ``grid_npz_bytes``, ``probe_concentration``, ``generate_run_label``),
   ``create_mirrored_element``. In vertical orientation each source is paired
-  with its mirror image and nothing else: ``create_zero_isoline`` is still
-  defined but its call sites are commented out, matching upstream. (The
-  ``zero_``-prefixed branches further down the module are consequently dead;
-  they are kept because upstream keeps them.) Re-enabling it changes solved
-  concentrations — measured at this sync, a single source moved L_max 58 -> 55 m
-  — and the upstream append also sat outside the loop, so it only ever added an
-  isoline for the *last* source. Pinned by
+  with its mirror image and nothing else: upstream deleted
+  ``create_zero_isoline`` (it was commented out before). Bringing it back
+  changes solved concentrations — measured at an earlier sync, a single source
+  moved L_max 58 -> 55 m. Pinned by
   ``tests/test_aem_flow.py::test_vertical_assembly_adds_mirror_images_and_no_zero_isoline``.
+  ``sim.L_max`` is an x position (``dom_xmin`` + the contour's grid offset;
+  it used to be a distance from the grid's left edge) truncated to a whole meter
+  by ``int()``. That is upstream's definition and is left alone, but the app
+  reports the exact tip instead (``aem_jobs.plume_tip_x``), because the
+  truncation puts the plot's L_max marker up to 1 m short of the contour.
+  An element whose Mathieu ``q``
+  exceeds 200 makes ``run()`` raise ``ValueError``; ``aem_jobs`` rewrites that
+  for the user (``SOURCE_TOO_LARGE_ERROR``).
 - ``aem.at_inverse_config`` — ``InverseConfiguration``, ``DEFAULT_PARAM_SEARCH``
   (the solver constants that used to live in ``at_inverse_model``)
 - ``aem.at_inverse_model`` — ``estimate_parameter_scanned``,

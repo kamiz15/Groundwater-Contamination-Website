@@ -167,7 +167,7 @@ def compute_lmax_general(
 
     #run simulation
     for e in cfg.elements:
-        e.calc_d_q(cfg.alpha_t, cfg.alpha_l, cfg.beta)
+        e.calc_d_q(cfg.alpha_t, cfg.alpha_l, cfg.beta, cfg.num_terms)
         e.set_outline(cfg.num_cp)
 
     sim = ATSimulation(cfg)

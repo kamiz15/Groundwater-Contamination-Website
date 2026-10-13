@@ -17,7 +17,7 @@ class ATConfiguration:
     def __init__(self):
         self.alpha_l: float = 2.0
         self.alpha_t: float = 0.2
-        self.beta: float = 10 / (2.0 * self.alpha_l)
+        self.beta: float = 1.0 / (2.0 * self.alpha_l)
         self.ca: float = 8.0
         self.gamma: float = 3.5
         self.dom_xmin: float = 0.0

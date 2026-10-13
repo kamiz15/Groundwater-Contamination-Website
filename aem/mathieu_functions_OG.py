@@ -186,10 +186,10 @@ class Mathieu(object):
         try:
             buff
         except NameError:
-            error = ("infinite matrix size too small for given " +
-            "q=(%.1f,%.1f), cannot meet cutoff (%.1e) with matrix size (%i)" %
-                     (q.real,q.imag,cutoff,self.M))
-            raise self.MathieuError #,error
+            error = (f"infinite matrix size too small for given "
+                     f"q=({q.real:.1f},{q.imag:.1f}), cannot meet cutoff ({cutoff:.1e}) "
+                     f"with matrix size ({self.M})")
+            raise self.MathieuError(error)
         else:
             self.buffer = buff
 
@@ -204,11 +204,10 @@ class Mathieu(object):
 
     def _error_check(self,n):
         if np.max(n)+self.buffer > self.M:
-            err = ("max Mathieu function order (%i) too high," +
-                   "increase 'inf' matrix size M=%i," +
-                   "given q=(%.1f,%.1fj) and buffer=%i" %
-                   (np.max(n),self.M,self.q.real,self.q.imag,self.buffer))
-            raise self.MathieuError #, err
+            err = (f"max Mathieu function order ({np.max(n)}) too high, "
+                   f"increase 'inf' matrix size M={self.M}, "
+                   f"given q=({self.q.real:.1f},{self.q.imag:.1f}j) and buffer={self.buffer}")
+            raise self.MathieuError(err)
 
     def _AngFuncSetup(self,n,z):
         self._error_check(n)
@@ -406,14 +405,20 @@ class Mathieu(object):
         y[n==0,:] = np.nan
         return np.squeeze(y)
 
-    def Ke(self,n,z):
-        """even second-kind radial Mathieu function (Ke)
-        analogous to K Bessel functions, called Fek in McLachlan p248 (eq 5&6),
-        for scalar or vector orders or argument
+    def _Ke_parts(self,n,z):
+        """Ke split into two pieces, so that Ke(n,z) = core * exp(offset).
 
-        n: order (scalar or vector)
-        z: radial argument (scalar or vector)"""
+        core is built from ive() and kve(), which are the scaled versions of
+        the Bessel functions, so core stays close to 1 across the whole useful
+        range of z. Everything that makes Ke enormous or tiny sits in the
+        single number offset.
 
+        Ke() below just multiplies the two back together. log_Ke() keeps them
+        apart, so the size can be carried as a logarithm and never has to fit
+        inside a float64.
+
+        core has shape (n, z) and offset has shape (z,).
+        """
         from scipy.special import kve,ive
         n,z,sqrtq,v1,v2,M,EV,OD = self._RadFuncSetup(n,z)
         y = np.empty((n.shape[0],z.shape[0]),dtype=complex)
@@ -429,17 +434,51 @@ class Mathieu(object):
                           (I[0:M,:,:]*K[1:M+1,:,:] - I[1:M+1,:,:]*K[0:M,:,:]),axis=0)/
                    self.B[0,j[OD],1,:])
 
-        y *= np.exp(np.abs(v1.real) - v2)[None,:]
-        return np.squeeze(y)
+        return y, np.abs(v1.real) - v2
 
-    def Ko(self,n,z):
-        """odd second-kind radial Mathieu function (Ko)
-        (analogous to K Bessel functions, called Gek in McLachlan p248),
+    def Ke(self,n,z):
+        """even second-kind radial Mathieu function (Ke)
+        analogous to K Bessel functions, called Fek in McLachlan p248 (eq 5&6),
         for scalar or vector orders or argument
 
         n: order (scalar or vector)
         z: radial argument (scalar or vector)"""
 
+        y, offset = self._Ke_parts(n,z)
+        y *= np.exp(offset)[None,:]
+        return np.squeeze(y)
+
+    def log_Ke(self,n,z):
+        """Ke written as a log magnitude: returns (log|Ke|, sign of Ke).
+
+        This is the same value Ke() gives, just written differently so that it
+        still works where Ke() itself shrinks all the way to 0.0. The offset is
+        added on instead of being fed to exp(), so the result stays an ordinary
+        number for any z.
+
+        Only the real part is kept, which is all that any caller of Ke() in
+        this project uses. That is exact when q is real and positive. Here q is
+        always d^2 * beta^2 / 4, which is real and positive. Do not use this
+        function if q is ever made complex, because the phase it drops would
+        then matter.
+
+        Wherever Ke() still works, sign * exp(log|Ke|) reproduces it exactly.
+        """
+        core, offset = self._Ke_parts(n,z)
+        c = core.real
+        with np.errstate(divide='ignore'):
+            log_mag = np.log(np.abs(c)) + offset.real[None,:]
+        return np.squeeze(log_mag), np.squeeze(np.sign(c))
+
+    def _Ko_parts(self,n,z):
+        """Ko split into two pieces, so that Ko(n,z) = core * exp(offset).
+
+        See _Ke_parts for why the exponent is kept separate. The rule that Ko
+        of order 0 is nan is not applied here. Ko() and log_Ko() each apply it
+        to their own result instead.
+
+        core has shape (n, z) and offset has shape (z,).
+        """
         from scipy.special import kve,ive
         n,z,sqrtq,v1,v2,M,EV,OD = self._RadFuncSetup(n,z)
         y = np.empty((n.shape[0],z.shape[0]),dtype=complex)
@@ -457,9 +496,38 @@ class Mathieu(object):
                      (I[0:M,:,:]*K[1:M+1,:,:] + I[1:M+1,:,:]*K[0:M,:,:]),axis=0)/
                    self.A[0,j[OD],1,:])
 
-        y *= np.exp(np.abs(v1.real) - v2)[None,:]
+        return y, np.abs(v1.real) - v2
+
+    def Ko(self,n,z):
+        """odd second-kind radial Mathieu function (Ko)
+        (analogous to K Bessel functions, called Gek in McLachlan p248),
+        for scalar or vector orders or argument
+
+        n: order (scalar or vector)
+        z: radial argument (scalar or vector)"""
+
+        n = np.atleast_1d(n)
+        y, offset = self._Ko_parts(n,z)
+        y *= np.exp(offset)[None,:]
         y[n==0,:] = np.nan   # Ko_0() invalid
         return np.squeeze(y)
+
+    def log_Ko(self,n,z):
+        """Ko written as a log magnitude: returns (log|Ko|, sign of Ko).
+
+        This is to Ko() what log_Ke() is to Ke(). See log_Ke for the note about
+        q needing to be real and positive. Order 0 is nan in both the magnitude
+        and the sign, which matches what Ko() itself returns.
+        """
+        n = np.atleast_1d(n)
+        core, offset = self._Ko_parts(n,z)
+        c = core.real
+        with np.errstate(divide='ignore'):
+            log_mag = np.log(np.abs(c)) + offset.real[None,:]
+        sign = np.sign(c)
+        log_mag[n==0,:] = np.nan   # Ko_0() invalid
+        sign[n==0,:] = np.nan
+        return np.squeeze(log_mag), np.squeeze(sign)
 
     ##################################################
     ##################################################
