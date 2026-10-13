@@ -545,12 +545,6 @@ html[data-theme="dark"] .tile-image{
   font-size: 0.88rem; line-height: 1.55;
   color: var(--muted);
 }
-.tile-title-only{
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-.tile-title-only .tile-label{ margin-top: 0; }
 .tile-cta{
   margin-top: auto; padding-top: 6px;
   font-size: 0.88rem; font-weight: 600;
@@ -676,6 +670,10 @@ html[data-theme="dark"] .tile-cta{ color: var(--brand-400); }
   max-width: 88ch;
 }
 .docs .note strong{ color: #ffffff; }
+/* note + user-manual button share a row; wraps under the note on narrow screens */
+.docs .docs-foot{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 16px; }
+.docs .docs-foot .note{ margin-top: 0; flex: 1 1 36ch; }
+.docs .docs-foot .ghost-btn{ flex: none; }
 /* ---------- Footer (dark navy, Contact + Supported By) ---------- */
 .footer{
   border-top: 3px solid var(--brand-500);

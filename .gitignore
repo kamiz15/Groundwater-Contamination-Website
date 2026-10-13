@@ -47,3 +47,11 @@ solvers/*
 !solvers/.gitkeep
 
 tmp*-cwd
+
+# Local leftovers (kept on disk, not in the repo)
+Results/
+_backup_original_flexible_upload/
+archive/
+outputs/
+.diag_jobs/
+_vert_plot_tmp.png
